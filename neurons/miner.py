@@ -35,7 +35,7 @@ class Miner:
     subtensor: bt.subtensor
 
     def __init__(self, config=None):
-        super(Miner, self).__init__(config=config)
+        config = config
 
     def __enter__(self):
         # init subtensor
