@@ -7,7 +7,8 @@ import traceback
 import bittensor as bt
 
 from node import Node
-from pool import Pool
+from pool import Pool, PoolIndex
+import utils
 from pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import HashPriceAPI, CoinPriceAPI
 
@@ -43,6 +44,14 @@ class Validator:
         # Adds override arguments for network and netuid.
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
+        )
+
+        parser.add_argument(
+            "--coins",
+            type=str,
+            nargs='+',
+            default=['bitcoin'],
+            help="The coins you wish to reward miners for. Use CoinGecko token naming"
         )
         # Adds subtensor specific arguments.
         bt.subtensor.add_args(parser)
@@ -112,6 +121,45 @@ class Validator:
         self.scores = [1.0] * len(self.metagraph.S)
         bt.logging.info(f"Weights: {self.scores}")
 
+        # Set an axon of the pool address
+        self._serve_axon(self.wallet, port=self.pool.port, ip=self.pool.ip, pool_index=self.pool.index)
+       
+    def _serve_axon(self, wallet: bt.wallet, ip: str, port: int, pool_index: PoolIndex) -> None:
+        wallet.hotkey
+        params = {
+            "version": bt.__version_as_int__,
+            "ip": utils.ip_to_int(ip),
+            "port": port,
+            "ip_type": utils.ip_version(ip),
+            "netuid": self.config.netuid,
+            "hotkey": wallet.hotkey.ss58_address,
+            "coldkey": wallet.coldkeypub.ss58_address,
+            "protocol": pool_index.value, # Use protocol for setting the pool
+            "placeholder1": 0,
+            "placeholder2": 0,
+        }
+        uid = self.metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+        current_axon = self.metagraph.axons[uid]
+        if current_axon.protocol == params["protocol"]:
+            return # same pool, don't serve twice
+
+        axon_call = self.node.compose_call(
+            call_module="SubtensorModule",
+            call_function="serve_axon",
+            call_params=params,
+        )
+        extrinsic = self.node.create_signed_extrinsic(
+            call=axon_call, keypair=wallet.hotkey
+        )
+        response = self.node.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+    )
+        response.process_events()
+        if not response.is_success:
+            raise RuntimeError("Pool address could not be served")
+
     def node_query(self, module, method, params):
         result = self.node.query(module, method, params).value
 
@@ -133,8 +181,8 @@ class Validator:
                     for metric in miner_metrics:
                         uid = hotkey_to_uid[metric.hotkey]
 
-                        hash_price: float = self.price_api.get_hash_price(coin)
-                        hash_value = MiningMetrics.get_hash_value(hash_price)
+                        fpps: float = self.pool.get_fpps(coin)
+                        hash_value = MiningMetrics.get_shares_value(fpps)
 
                         current_scores[uid] += hash_value
                 

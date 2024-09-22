@@ -31,8 +31,6 @@ class Miner:
         bt.logging.add_args(parser)
         # Adds wallet specific arguments.
         bt.wallet.add_args(parser)
-        # Adds axon specific arguments.
-        bt.axon.add_args(parser)
         # Parse the arguments.
         config = bt.config(parser)
         # Set up logging directory
@@ -103,7 +101,6 @@ class Miner:
                 time.sleep(1)
 
             except KeyboardInterrupt:
-                self.axon.stop()
                 bt.logging.success("Miner killed by keyboard interrupt.")
                 break
             except Exception as e:

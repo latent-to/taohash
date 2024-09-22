@@ -13,16 +13,18 @@ NETUID = 111  # TODO
 @dataclass
 class MiningMetrics:
     hotkey: str
-    hashrate: float
+    shares: float
 
-    def get_hash_value(self, hashprice: float) -> float:
-        return hashprice * self.hashrate
+    def get_shares_value(self, fpps: float) -> float:
+        return fpps * self.shares
 
 
-def get_metrics_for_miner_by_hotkey(pool: Pool, hotkey_ss58: str, coin: str = 'bitcoin') -> MiningMetrics:
-    hashrate = pool.get_hashrate_for_hotkey(hotkey_ss58, coin)
+def get_metrics_for_miner_by_hotkey(
+    pool: Pool, hotkey_ss58: str, coin: str = "bitcoin"
+) -> MiningMetrics:
+    shares = pool.get_shares_for_hotkey(hotkey_ss58, coin)
 
-    return MiningMetrics(hotkey_ss58, hashrate)
+    return MiningMetrics(hotkey_ss58, shares)
 
 
 def _get_hotkey_by_uid(node: SubstrateInterface, uid: int, netuid: int) -> int:
@@ -30,7 +32,7 @@ def _get_hotkey_by_uid(node: SubstrateInterface, uid: int, netuid: int) -> int:
 
 
 def get_metrics_for_miners(
-    pool: Pool, neurons: List[Union[NeuronInfo, NeuronInfoLite]], coin: str = 'bitcoin'
+    pool: Pool, neurons: List[Union[NeuronInfo, NeuronInfoLite]], coin: str = "bitcoin"
 ) -> List[MiningMetrics]:
     metrics = []
     for neuron in neurons:

@@ -20,7 +20,6 @@ __UNIT_TO_GHS: Dict[str, float] = {
 
 __COIN_TO_COIN_NAME = {
     "bitcoin": "btc",
-    "litecoin": "ltc"
 }
 
 
@@ -38,9 +37,10 @@ class BraiinsPoolAPI(PoolAPI):
 
     @cachetools.func.ttl_cache(maxsize=64, ttl=HASHRATE_TTL)
     @on_exception(expo, RateLimitException, max_tries=8)
-    @limits(calls=1, period=5) # rate limit once per 5s
-    def get_hashrate_for_workers(self, coin: str) -> Dict[str, float]:
-        url = "https://pool.braiins.com/accounts/workers/json/btc"
+    @limits(calls=1, period=5)  # rate limit once per 5s
+    def _get_shares_for_workers(self, coin: str) -> Dict[str, float]:
+        coin_name = __COIN_TO_COIN_NAME[coin]
+        url = f"https://pool.braiins.com/accounts/workers/json/{coin_name}"
 
         response = requests.get(
             url=url,
@@ -51,19 +51,42 @@ class BraiinsPoolAPI(PoolAPI):
         )
 
         result = response.json()
-        coin_name = __COIN_TO_COIN_NAME[coin]
         workers = result[coin_name]["workers"]
 
         output = {
             self._worker_name_to_worker_id(worker_name): self._hashrate_to_gh(
-                worker_data["hash_rate_scoring"]
+                worker_data["shares_60m"]
             )
             for worker_name, worker_data in workers
         }
 
         return output
 
-    def get_hashrate_for_worker(self, worker_id: str, coin: str) -> float:
-        hashrate_for_all_workers = self.get_hashrate_for_workers(coin)
+    def get_shares_for_worker(self, worker_id: str, coin: str) -> float:
+        if coin != "bitcoin":
+            raise ValueError("BraiinsPool only supports bitcoin")
 
-        return hashrate_for_all_workers.get(worker_id, 0.0)
+        shares_for_all_workers = self._get_shares_for_workers(coin)
+
+        return shares_for_all_workers.get(worker_id, 0.0)
+
+    def get_fpps(self, coin: str) -> float:
+        if coin != "bitcoin":
+            raise ValueError("BraiinsPool only supports bitcoin")
+
+        coin_name = __COIN_TO_COIN_NAME[coin]
+        url = f"https://pool.braiins.com/stats/json/{coin_name}"
+
+        response = requests.get(
+            url=url,
+            headers={
+                "X-SlushPool-Auth-Token": self.api_key,
+                "accept": "application/json",
+            },
+        )
+
+        result = response.json()
+        stats_data = result[coin_name]
+        fpps = stats_data["fpps_rate"]
+
+        return fpps

@@ -32,8 +32,11 @@ class Pool(metaclass=abc.ABCMeta):
         return hotkey
 
     @abc.abstractmethod
-    def get_hashrate_for_hotkey(self, hotkey: str, coin: str) -> float:
+    def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
         return
+
+    def get_fpps(self, coin: str) -> float:
+        return self.api.get_fpps(coin)
 
     @classmethod
     @abc.abstractmethod

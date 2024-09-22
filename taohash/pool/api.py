@@ -8,5 +8,9 @@ class PoolAPI(metaclass=abc.ABCMeta):
         self.api_key = api_key
 
     @abc.abstractmethod
-    def get_hashrate_for_worker(worker_id: str) -> float:
+    def get_shares_for_worker(worker_id: str) -> float:
+        pass
+
+    @abc.abstractmethod
+    def get_fpps(self, coin: str) -> float:
         pass
