@@ -11,11 +11,11 @@ Another extension might be weighting different mining contributions based on the
 ---
 - [Incentive Design](#incentive-design)
 - [Requirements](#requirements)
-  - [Validator Requirements](#validator-requirements)
   - [Miner Requirements](#miner-requirements)
+  - [Validator Requirements](#validator-requirements)
   - [Installation](#installation)
-    - [Validator](#validator)
     - [Miner](#miner)
+    - [Validator](#validator)
 ---
 
 # Incentive Design
@@ -23,24 +23,22 @@ Another extension might be weighting different mining contributions based on the
 # Requirements
 
 <!-- TODO -->
-
-## Validator Requirements
+## Miner Requirements
 - git
 - Docker
 - Docker-Compose
 - Ubuntu 20.04+
 - [Braiins Proxy](https://github.com/braiins/farm-proxy?tab=readme-ov-file#quick-start) 
+- Any BTC Miner (hardware and software) with the ability to mine to a pool address
 
-## Miner Requirements
-- Any BTC Miner with the ability to mine to a pool address
+## Validator Requirements
 
 ## Installation
-### Validator
+### Miner
 - [Install Docker](https://docs.docker.com/engine/install/ubuntu/)
 - [Install Docker compose](https://docs.docker.com/compose/install/)
 - [Install Braiins Proxy](https://github.com/braiins/farm-proxy?tab=readme-ov-file#quick-start)
 
-### Miner
-<!-- TODO -->
----
+### Validator
+
 
