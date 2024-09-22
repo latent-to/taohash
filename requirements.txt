@@ -1,1 +1,2 @@
 bittensor~=7.4.0
+ratelimit==2.2.1

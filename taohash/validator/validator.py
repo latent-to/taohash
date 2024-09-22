@@ -1,11 +1,15 @@
+from typing import List
+
 import os
 import random
 import argparse
 import traceback
 import bittensor as bt
 
-from protocol import Dummy
-from substrateinterface import SubstrateInterface
+from node import Node
+from pool import Pool
+from pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.pricing import HashPriceAPI, CoinPriceAPI
 
 
 class Validator:
@@ -18,24 +22,38 @@ class Validator:
         self.scores = [1.0] * len(self.metagraph.S)
         self.last_update = 0
         self.current_block = 0
-        self.tempo = self.node_query('SubtensorModule', 'Tempo', [self.config.netuid])
+        self.tempo = self.node_query("SubtensorModule", "Tempo", [self.config.netuid])
         self.moving_avg_scores = [1.0] * len(self.metagraph.S)
         self.alpha = 0.1
-        self.node = SubstrateInterface(url=self.config.subtensor.chain_endpoint)
+        self.node = Node(url=self.config.subtensor.chain_endpoint)
+        self.pool = Pool(pool=self.config.pool.pool, api_key=self.config.pool.api_key)
+        self.hashprice_api = HashPriceAPI(
+            method=self.config.hashprice.method, api_key=self.config.hashprce.api_key
+        )
 
     def get_config(self):
         # Set up the configuration parser.
         parser = argparse.ArgumentParser()
         # TODO: Add your custom validator arguments to the parser.
-        parser.add_argument('--custom', default='my_custom_value', help='Adds a custom value to the parser.')
+        parser.add_argument(
+            "--custom",
+            default="my_custom_value",
+            help="Adds a custom value to the parser.",
+        )
         # Adds override arguments for network and netuid.
-        parser.add_argument('--netuid', type=int, default=1, help="The chain subnet uid.")
+        parser.add_argument(
+            "--netuid", type=int, default=1, help="The chain subnet uid."
+        )
         # Adds subtensor specific arguments.
         bt.subtensor.add_args(parser)
         # Adds logging specific arguments.
         bt.logging.add_args(parser)
         # Adds wallet specific arguments.
         bt.wallet.add_args(parser)
+
+        Pool.add_args(parser)
+        HashPriceAPI.add_args(parser)
+
         # Parse the config.
         config = bt.config(parser)
         # Set up logging directory.
@@ -45,7 +63,7 @@ class Validator:
                 config.wallet.name,
                 config.wallet.hotkey_str,
                 config.netuid,
-                'validator',
+                "validator",
             )
         )
         # Ensure the logging directory exists.
@@ -55,7 +73,9 @@ class Validator:
     def setup_logging(self):
         # Set up logging.
         bt.logging(config=self.config, logging_dir=self.config.full_path)
-        bt.logging.info(f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:")
+        bt.logging.info(
+            f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:"
+        )
         bt.logging.info(self.config)
 
     def setup_bittensor_objects(self):
@@ -70,21 +90,21 @@ class Validator:
         self.subtensor = bt.subtensor(config=self.config)
         bt.logging.info(f"Subtensor: {self.subtensor}")
 
-        # Initialize dendrite.
-        self.dendrite = bt.dendrite(wallet=self.wallet)
-        bt.logging.info(f"Dendrite: {self.dendrite}")
-
         # Initialize metagraph.
         self.metagraph = self.subtensor.metagraph(self.config.netuid)
         bt.logging.info(f"Metagraph: {self.metagraph}")
 
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
-            bt.logging.error(f"\nYour validator: {self.wallet} is not registered to chain connection: {self.subtensor} \nRun 'btcli register' and try again.")
+            bt.logging.error(
+                f"\nYour validator: {self.wallet} is not registered to chain connection: {self.subtensor} \nRun 'btcli register' and try again."
+            )
             exit()
         else:
             # Each validator gets a unique identity (UID) in the network.
-            self.my_subnet_uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+            self.my_subnet_uid = self.metagraph.hotkeys.index(
+                self.wallet.hotkey.ss58_address
+            )
             bt.logging.info(f"Running validator on uid: {self.my_subnet_uid}")
 
         # Set up initial scoring weights for validation.
@@ -93,14 +113,8 @@ class Validator:
         bt.logging.info(f"Weights: {self.scores}")
 
     def node_query(self, module, method, params):
-        try:
-            result = self.node.query(module, method, params).value
+        result = self.node.query(module, method, params).value
 
-        except Exception:
-            # reinitilize node
-            self.node = SubstrateInterface(url=self.config.subtensor.chain_endpoint)
-            result = self.node.query(module, method, params).value
-        
         return result
 
     def run(self):
@@ -108,31 +122,36 @@ class Validator:
         bt.logging.info("Starting validator loop.")
         while True:
             try:
-                # Create a synapse with the current step value.
-                synapse = Dummy(dummy_input=random.randint(0, 100))
+                current_scores = [0.0] * len(self.metagraph.S)
+                hotkey_to_uid = {n.hotkey: n.uid for n in self.metagraph.neurons}
 
-                # Broadcast a query to all miners on the network.
-                responses = self.dendrite.query(
-                    axons=self.metagraph.axons,
-                    synapse=synapse,
-                    timeout=12
-                )
-                bt.logging.info(f"sending input {synapse.dummy_input}")
-                if responses:
-                    responses = [response.dummy_output for response in responses if response is not None]
+                for coin in self.config.coins:
+                    miner_metrics: List[MiningMetrics] = [
+                        get_metrics_for_miners(self.pool, self.metagraph.neurons)
+                    ]
 
-                # Log the results.
-                bt.logging.info(f"Received dummy responses: {responses}")
+                    for metric in miner_metrics:
+                        uid = hotkey_to_uid[metric.hotkey]
 
-                # Adjust the scores based on responses from miners and update moving average.
-                for i, resp_i in enumerate(responses):
-                    current_score = 1 if resp_i == synapse.dummy_input * 2 else 0
-                    self.moving_avg_scores[i] = (1 - self.alpha) * self.moving_avg_scores[i] + self.alpha * current_score
+                        hash_price: float = self.price_api.get_hash_price(coin)
+                        hash_value = MiningMetrics.get_hash_value(hash_price)
+
+                        current_scores[uid] += hash_value
+                
+                for i, current_score in enumerate(current_scores):
+                    self.moving_avg_scores[i] = (
+                        1 - self.alpha
+                    ) * self.moving_avg_scores[i] + self.alpha * current_score
 
                 bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
 
-                self.current_block = self.node_query('System', 'Number', [])
-                self.last_update = self.current_block - self.node_query('SubtensorModule', 'LastUpdate', [self.config.netuid])[self.my_uid]
+                self.current_block = self.node_query("System", "Number", [])
+                self.last_update = (
+                    self.current_block
+                    - self.node_query(
+                        "SubtensorModule", "LastUpdate", [self.config.netuid]
+                    )[self.my_uid]
+                )
 
                 # set weights once every tempo + 1
                 if self.last_update > self.tempo + 1:
@@ -145,7 +164,7 @@ class Validator:
                         wallet=self.wallet,
                         uids=self.metagraph.uids,
                         weights=weights,
-                        wait_for_inclusion=True
+                        wait_for_inclusion=True,
                     )
                     self.metagraph.sync()
 
@@ -156,6 +175,7 @@ class Validator:
             except KeyboardInterrupt:
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
+
 
 # Run the validator.
 if __name__ == "__main__":
