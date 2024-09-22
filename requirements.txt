@@ -1,1 +1,1 @@
-bittensor~=7.3.1
+bittensor~=7.4.0
