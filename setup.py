@@ -72,7 +72,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     author_email="cameron@fairchild.dev",
-    license="GPLv3",
+    license="MIT",
     python_requires=">=3.9",
     install_requires=requirements,
     classifiers=[
