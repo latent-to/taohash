@@ -17,30 +17,32 @@ class Node:
         self.url = url
         self._substrate = SubstrateInterface(url=url)
 
-    def _check_connection(self): 
+    def _check_connection(self):
         try:
             _ = self._substrate.get_chain_finalised_head()
         except Exception:
-             # reinitilize node
-            self._substrate = SubstrateInterface(url=self.config.subtensor.chain_endpoint)
+            # reinitilize node
+            self._substrate = SubstrateInterface(
+                url=self.config.subtensor.chain_endpoint
+            )
 
     def query(self, module: str, method: str, params: List[Any]) -> Result:
         self._check_connection()
-    
+
         result = self._substrate.query(module, method, params).value
 
         return Result(value=result)
-    
+
     def create_signed_extrinsic(self, *args, **kwargs) -> Any:
         self._check_connection()
-        
+
         return self._substrate.create_signed_extrinsic(*args, **kwargs)
-    
+
     def submit_extrinsic(self, *args, **kwargs) -> Any:
         self._check_connection()
 
         return self._substrate.submit_extrinsic(*args, **kwargs)
-    
+
     def compose_call(self, *args, **kwargs) -> Any:
         self._check_connection()
 

@@ -49,9 +49,9 @@ class Validator:
         parser.add_argument(
             "--coins",
             type=str,
-            nargs='+',
-            default=['bitcoin'],
-            help="The coins you wish to reward miners for. Use CoinGecko token naming"
+            nargs="+",
+            default=["bitcoin"],
+            help="The coins you wish to reward miners for. Use CoinGecko token naming",
         )
         # Adds subtensor specific arguments.
         bt.subtensor.add_args(parser)
@@ -122,9 +122,16 @@ class Validator:
         bt.logging.info(f"Weights: {self.scores}")
 
         # Set an axon of the pool address
-        self._serve_axon(self.wallet, port=self.pool.port, ip=self.pool.ip, pool_index=self.pool.index)
-       
-    def _serve_axon(self, wallet: bt.wallet, ip: str, port: int, pool_index: PoolIndex) -> None:
+        self._serve_axon(
+            self.wallet,
+            port=self.pool.port,
+            ip=self.pool.ip,
+            pool_index=self.pool.index,
+        )
+
+    def _serve_axon(
+        self, wallet: bt.wallet, ip: str, port: int, pool_index: PoolIndex
+    ) -> None:
         wallet.hotkey
         params = {
             "version": bt.__version_as_int__,
@@ -134,14 +141,14 @@ class Validator:
             "netuid": self.config.netuid,
             "hotkey": wallet.hotkey.ss58_address,
             "coldkey": wallet.coldkeypub.ss58_address,
-            "protocol": pool_index.value, # Use protocol for setting the pool
+            "protocol": pool_index.value,  # Use protocol for setting the pool
             "placeholder1": 0,
             "placeholder2": 0,
         }
         uid = self.metagraph.hotkeys.index(wallet.hotkey.ss58_address)
         current_axon = self.metagraph.axons[uid]
         if current_axon.protocol == params["protocol"]:
-            return # same pool, don't serve twice
+            return  # same pool, don't serve twice
 
         axon_call = self.node.compose_call(
             call_module="SubtensorModule",
@@ -155,7 +162,7 @@ class Validator:
             extrinsic,
             wait_for_inclusion=True,
             wait_for_finalization=True,
-    )
+        )
         response.process_events()
         if not response.is_success:
             raise RuntimeError("Pool address could not be served")
@@ -187,7 +194,7 @@ class Validator:
                         in_usd: float = shares_value * coin_price
 
                         current_scores[uid] += hash_value
-                
+
                 for i, current_score in enumerate(current_scores):
                     self.moving_avg_scores[i] = (
                         1 - self.alpha

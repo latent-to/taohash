@@ -6,14 +6,17 @@ import argparse
 from .pool import PoolBase
 from .braiins import BraiinsPool
 
+
 class PoolEnum(Enum):
     Braiins = "braiins"
+
 
 class PoolIndex(IntEnum):
     Braiins = 0
 
 
 __CLASS_MAP: Dict[PoolEnum, PoolBase] = {PoolEnum.Braiins: BraiinsPool}
+
 
 class Pool:
     def __new__(cls, pool: PoolEnum, api_key: str) -> "PoolBase":

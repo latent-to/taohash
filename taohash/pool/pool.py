@@ -2,6 +2,7 @@ import abc
 
 from .api import PoolAPI
 
+
 class PoolBase(metaclass=abc.ABCMeta):
     api_key: str
     api: PoolAPI
@@ -25,4 +26,3 @@ class PoolBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def create_api(cls, api_key: str) -> PoolAPI:
         pass
-

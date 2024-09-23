@@ -11,13 +11,15 @@ __CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
     "unit": UnitCoinPriceAPI,
 }
 
+
 class CoinPriceAPI:
     """
     Factory class
     """
+
     def __new__(cls, method: str, api_key: Optional[str]) -> "CoinPriceAPIBase":
         return __CLASS_MAP[method](api_key)
-    
+
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser", _: Optional[str] = None):
         parser.add_argument(

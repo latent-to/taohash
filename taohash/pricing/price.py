@@ -5,6 +5,7 @@ import cachetools
 
 PRICE_TTL = 5 * 60  # 5min
 
+
 class CoinPriceAPIBase(metaclass=abc.ABCMeta):
     api_key: Optional[str]
 
@@ -57,4 +58,3 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
             print(e)
             # Fallback to 1:1
             return 1.0
-
