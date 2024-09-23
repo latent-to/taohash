@@ -10,7 +10,7 @@ from node import Node
 from pool import Pool, PoolIndex
 import utils
 from pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.pricing import HashPriceAPI, CoinPriceAPI
+from ..pricing import CoinPriceAPI
 
 
 class Validator:
@@ -28,8 +28,8 @@ class Validator:
         self.alpha = 0.1
         self.node = Node(url=self.config.subtensor.chain_endpoint)
         self.pool = Pool(pool=self.config.pool.pool, api_key=self.config.pool.api_key)
-        self.hashprice_api = HashPriceAPI(
-            method=self.config.hashprice.method, api_key=self.config.hashprce.api_key
+        self.price_api = CoinPriceAPI(
+            method=self.config.price.method, api_key=self.config.price.api_key
         )
 
     def get_config(self):
@@ -61,7 +61,7 @@ class Validator:
         bt.wallet.add_args(parser)
 
         Pool.add_args(parser)
-        HashPriceAPI.add_args(parser)
+        CoinPriceAPI.add_args(parser)
 
         # Parse the config.
         config = bt.config(parser)
@@ -177,12 +177,14 @@ class Validator:
                     miner_metrics: List[MiningMetrics] = [
                         get_metrics_for_miners(self.pool, self.metagraph.neurons)
                     ]
+                    coin_price: float = self.price_api.get_price(coin)
+                    fpps: float = self.pool.get_fpps(coin)
 
                     for metric in miner_metrics:
                         uid = hotkey_to_uid[metric.hotkey]
 
-                        fpps: float = self.pool.get_fpps(coin)
-                        hash_value = MiningMetrics.get_shares_value(fpps)
+                        shares_value: float = MiningMetrics.get_shares_value(fpps)
+                        in_usd: float = shares_value * coin_price
 
                         current_scores[uid] += hash_value
                 
