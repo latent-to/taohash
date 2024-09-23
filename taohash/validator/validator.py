@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import os
 import random
@@ -10,7 +10,7 @@ from node import Node
 from pool import Pool, PoolIndex
 import utils
 from pool.metrics import get_metrics_for_miners, MiningMetrics
-from ..pricing import CoinPriceAPI
+from ..pricing import CoinPriceAPI, CoinPriceAPIBase
 
 
 class Validator:
@@ -28,7 +28,7 @@ class Validator:
         self.alpha = 0.1
         self.node = Node(url=self.config.subtensor.chain_endpoint)
         self.pool = Pool(pool=self.config.pool.pool, api_key=self.config.pool.api_key)
-        self.price_api = CoinPriceAPI(
+        self.price_api: CoinPriceAPIBase = CoinPriceAPI(
             method=self.config.price.method, api_key=self.config.price.api_key
         )
 
@@ -184,7 +184,11 @@ class Validator:
                     miner_metrics: List[MiningMetrics] = [
                         get_metrics_for_miners(self.pool, self.metagraph.neurons)
                     ]
-                    coin_price: float = self.price_api.get_price(coin)
+                    coin_price: Optional[float] = self.price_api.get_price(coin)
+                    if coin_price is None:
+                        # If we can't grab the price, don't count the shares
+                        continue
+
                     fpps: float = self.pool.get_fpps(coin)
 
                     for metric in miner_metrics:
@@ -193,7 +197,7 @@ class Validator:
                         shares_value: float = MiningMetrics.get_shares_value(fpps)
                         in_usd: float = shares_value * coin_price
 
-                        current_scores[uid] += hash_value
+                        current_scores[uid] += in_usd
 
                 for i, current_score in enumerate(current_scores):
                     self.moving_avg_scores[i] = (

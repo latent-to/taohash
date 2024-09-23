@@ -13,7 +13,7 @@ class CoinPriceAPIBase(metaclass=abc.ABCMeta):
         self.api_key = api_key
 
     @abc.abstractmethod
-    def get_price(self, coin: str) -> float:
+    def get_price(self, coin: str) -> Optional[float]:
         pass
 
 
@@ -33,7 +33,7 @@ class UnitCoinPriceAPI(OfflineCoinPriceAPI):
     Useful for avoiding API calls.
     """
 
-    def get_hash_price(self, _: str) -> float:
+    def get_price(self, _: str) -> Optional[float]:
         return 1.0
 
 
@@ -51,10 +51,9 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
         pass
 
     @cachetools.func.ttl_cache(maxsize=64, ttl=PRICE_TTL)
-    def get_price(self, coin: str) -> float:
+    def get_price(self, coin: str) -> Optional[float]:
         try:
             return self._get_price(coin)
         except Exception as e:
             print(e)
-            # Fallback to 1:1
-            return 1.0
+            return None
