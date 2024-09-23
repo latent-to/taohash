@@ -55,7 +55,7 @@ class BraiinsPoolAPI(PoolAPI):
 
         output = {
             self._worker_name_to_worker_id(worker_name): self._hashrate_to_gh(
-                worker_data["shares_60m"]
+                worker_data["shares_5m"]
             )
             for worker_name, worker_data in workers
         }
