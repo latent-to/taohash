@@ -1,0 +1,16 @@
+FROM sapmachine:23-jdk-ubuntu
+
+# https://stackoverflow.com/a/64000930/7101091
+RUN apt-get update; apt-get install -y curl \
+    && curl -sL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && curl -L https://www.npmjs.com/install.sh | sh 
+
+RUN apt-get install git \
+    && git clone https://github.com/Stratehm/stratum-proxy.git \
+    && cd stratum-proxy \
+    && mvn clean package
+
+EXPOSE 8888
+
+CMD ["java", "-jar", "target/stratum-proxy.jar"]

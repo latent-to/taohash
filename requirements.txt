@@ -1,2 +1,2 @@
-bittensor~=7.4.0
+bittensor~=8.5.0
 ratelimit==2.2.1

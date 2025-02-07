@@ -1,12 +1,24 @@
+from typing import Tuple
+
 import os
 import time
 import argparse
 import traceback
 import bittensor as bt
-from typing import Tuple
+from bittensor_wallet import Wallet
 
+import utils
+
+from .proxy import ProxyAPI, PoolInfo
+
+MAX_POOL_WEIGHT = 2**16 - 1 # TODO: assume u16
 
 class Miner:
+    metagraph: bt.metagraph
+    subtensor: bt.subtensor
+    proxy: ProxyAPI
+    wallet: Wallet
+
     def __init__(self):
         self.config = self.get_config()
         self.setup_logging()
@@ -25,6 +37,9 @@ class Miner:
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
         )
+
+        ProxyAPI.add_args(parser)
+
         # Adds subtensor specific arguments.
         bt.subtensor.add_args(parser)
         # Adds logging specific arguments.
@@ -89,6 +104,60 @@ class Miner:
         step = 0
         while True:
             try:
+                max_validators = self.subtensor.query_map("SubtensorModule", "MaxAllowedValidators", params=[self.config.netuid]).value
+                # Update pools and hashrate distribution based on validator stake
+                ## Get all validators and their axons
+                sorted_by_stake = sorted([(n.uid, n.stake) for n in self.metagraph.neurons], key=lambda x: x[1])
+                validators = sorted_by_stake[:max_validators]
+
+                validator_axons = {uid: self.metagraph.axons[uid] for uid, _ in validators if self.metagraph.axons[uid] is not None}
+                validator_certs = {uid: utils.get_neuron_certificate(axon.hotkey) for uid, axon in validator_axons.items()}
+
+                ## Get hashrate weight distribution based on stake
+                stake_sum = sum([ self.metgraph.neurons[axon[1]].stake for axon in validator_axons.values() ])
+                pool_weights = { uid: int(self.metgraph.neurons[axon[1]].stake / stake_sum * MAX_POOL_WEIGHT) for uid, axon in validator_axons.items() }
+
+                ## Add pools based on axons
+                pools = { uid: utils.get_pool_from_axon(axon) for uid, axon in validator_axons.items() }
+                pool_users = { uid: utils.get_pool_user_from_certificate(cert) for uid, cert in validator_certs.items() }
+
+                ## (Optional) Get split to personal pool based on coin price
+                # TODO:
+                ### Add personal pool
+                
+                new_pools = { pool: (uid, pool_user) for uid, (pool, pool_user) in pools.items() }
+                ## Run update pools
+                self.proxy = ProxyAPI() # default url
+                existing_pools = self.proxy.get_pools()
+                for pool in existing_pools:
+                    if pool.host in pools.values():
+                        if pool.weight != pool_weights[pool.host]:
+                            pool.weight = pool_weights[pool.host]
+                            self.proxy.update_pool(pool)
+                        else:
+                            continue
+                        new_pools.remove(pool.host)
+                        
+                    else:
+                        # Delete pool
+                        self.proxy.remove_pool(pool.name)
+
+                for pool_url, (uid, pool_user) in new_pools.items():
+                    pool_info = PoolInfo(
+                        username=f"{pool_user}.{self.wallet.hotkey.ss58_address}",
+                        appendWorkerNames=False,
+                        weight=pool_weights[uid],
+                        useWorkerPassword=False,
+                        workerNamesSeparator="",
+                        isExtranonceSubscribeEnabled=False,
+                        host=pool_url,
+                        name=f"validator-{uid}",
+                        priority=ranks[uid],
+                        password="x"
+                    )
+                    self.proxy.add_pool(pool_info)
+                        
+
                 # Periodically update our knowledge of the network graph.
                 if step % 60 == 0:
                     self.metagraph.sync()
