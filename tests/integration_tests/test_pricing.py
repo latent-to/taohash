@@ -6,6 +6,7 @@ from typing import Generator
 from taohash.pricing.coingecko import CoinGeckoAPI
 from taohash.pricing.coinmarketcap import CoinMarketCapAPI
 
+# Temporary - to be removed after testing
 DEFAULT_CMC_API_KEY = "ae51ce7e-62f3-4332-973c-4eeeb068dde2"
 
 # Skip all tests if SKIP_INTEGRATION_TESTS is set
