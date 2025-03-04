@@ -3,12 +3,16 @@ import argparse
 
 from .price import CoinPriceAPIBase, UnitCoinPriceAPI
 from .coingecko import CoinGeckoAPI
+from .coinmarketcap import CoinMarketCapAPI
 
 
 __CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
-    "cg": CoinGeckoAPI,
     "coingecko": CoinGeckoAPI,
     "unit": UnitCoinPriceAPI,
+    "coinmarketcap": CoinMarketCapAPI,
+    # Aliases
+    "cmc": CoinMarketCapAPI,
+    "cg": CoinGeckoAPI,
 }
 
 
@@ -18,6 +22,10 @@ class CoinPriceAPI:
     """
 
     def __new__(cls, method: str, api_key: Optional[str]) -> "CoinPriceAPIBase":
+        if method not in __CLASS_MAP:
+            raise ValueError(
+                f"Unknown price method: {method}. Available methods: {list(__CLASS_MAP.keys())}"
+            )
         return __CLASS_MAP[method](api_key)
 
     @classmethod
@@ -27,9 +35,11 @@ class CoinPriceAPI:
             default="unit",
             type=str,
             choices=list(__CLASS_MAP.keys()),
+            help="Price API to use (default: unit)",
         )
         parser.add_argument(
             "--price.api_key",
             required=False,
             type=str,
+            help="API key for the selected price API (if required)",
         )
