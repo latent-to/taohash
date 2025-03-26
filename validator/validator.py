@@ -1,16 +1,15 @@
 from typing import List, Optional
 
 import os
-import random
 import argparse
 import traceback
 import bittensor as bt
 
-from node import Node
-from pool import Pool, PoolIndex
-import utils
-from pool.metrics import get_metrics_for_miners, MiningMetrics
-from ..pricing import CoinPriceAPI, CoinPriceAPIBase
+from taohash.node import Node
+from taohash.pool import Pool, PoolIndex
+import taohash.utils as utils
+from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
 
 
 class Validator:
@@ -64,7 +63,11 @@ class Validator:
         CoinPriceAPI.add_args(parser)
 
         # Parse the config.
-        config = bt.config(parser)
+        try:
+            config = bt.config(parser)
+        except ValueError as e:
+            bt.logging.error(f"Error parsing config: {e}")
+            exit(1)
         # Set up logging directory.
         config.full_path = os.path.expanduser(
             "{}/{}/{}/netuid{}/{}".format(

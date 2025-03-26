@@ -6,27 +6,26 @@ from .coingecko import CoinGeckoAPI
 from .coinmarketcap import CoinMarketCapAPI
 
 
-__CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
-    "coingecko": CoinGeckoAPI,
-    "unit": UnitCoinPriceAPI,
-    "coinmarketcap": CoinMarketCapAPI,
-    # Aliases
-    "cmc": CoinMarketCapAPI,
-    "cg": CoinGeckoAPI,
-}
-
-
 class CoinPriceAPI:
+    __CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
+        "coingecko": CoinGeckoAPI,
+        "unit": UnitCoinPriceAPI,
+        "coinmarketcap": CoinMarketCapAPI,
+        # Aliases
+        "cmc": CoinMarketCapAPI,
+        "cg": CoinGeckoAPI,
+    }
+
     """
     Factory class
     """
 
     def __new__(cls, method: str, api_key: Optional[str]) -> "CoinPriceAPIBase":
-        if method not in __CLASS_MAP:
+        if method not in cls.__CLASS_MAP:
             raise ValueError(
-                f"Unknown price method: {method}. Available methods: {list(__CLASS_MAP.keys())}"
+                f"Unknown price method: {method}. Available methods: {list(cls.__CLASS_MAP.keys())}"
             )
-        return __CLASS_MAP[method](api_key)
+        return cls.__CLASS_MAP[method](api_key)
 
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser", _: Optional[str] = None):
@@ -34,7 +33,7 @@ class CoinPriceAPI:
             "--price.method",
             default="unit",
             type=str,
-            choices=list(__CLASS_MAP.keys()),
+            choices=list(cls.__CLASS_MAP.keys()),
             help="Price API to use (default: unit)",
         )
         parser.add_argument(
