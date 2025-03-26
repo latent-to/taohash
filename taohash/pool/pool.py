@@ -1,6 +1,21 @@
 import abc
+from enum import IntEnum, Enum
 
 from .api import PoolAPI
+
+
+class PoolEnum(Enum):
+    Braiins = "braiins"
+
+
+class PoolIndex(IntEnum):
+    # Invalid = 0 reserved for default value
+    Custom = 1  # uses the IP and Port
+    Braiins = 2
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls.__members__.values()
 
 
 class PoolBase(metaclass=abc.ABCMeta):

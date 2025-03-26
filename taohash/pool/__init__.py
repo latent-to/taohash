@@ -1,33 +1,17 @@
-from typing import Callable, Dict, Optional
-from enum import IntEnum, Enum
+from typing import Dict, Optional, Callable
 
 import argparse
 import bittensor
 
-from .pool import PoolBase
+from .pool import PoolBase, PoolEnum, PoolIndex
 from .braiins import BraiinsPool
 
-
-class PoolEnum(Enum):
-    Braiins = "braiins"
-
-
-class PoolIndex(IntEnum):
-    # Invalid = 0 reserved for default value
-    Custom = 1 # uses the IP and Port
-    Braiins = 2
-
-    @classmethod
-    def has_value(cls, value):
-        return value in cls.__members__.values()
+__CLASS_MAP: Dict[PoolEnum, PoolBase] = {PoolEnum.Braiins: BraiinsPool}
 
 POOL_URLS_FMT: Dict[PoolIndex, Callable[[bittensor.AxonInfo], str]] = {
     PoolIndex.Braiins: lambda _: "stratum+tcp://stratum.braiins.com:3333",
-    PoolIndex.Custom: lambda axon: f"stratum+tcp://{axon.ip}:{axon.port}"
+    PoolIndex.Custom: lambda axon: f"stratum+tcp://{axon.ip}:{axon.port}",
 }
-
-
-__CLASS_MAP: Dict[PoolEnum, PoolBase] = {PoolEnum.Braiins: BraiinsPool}
 
 
 class Pool:

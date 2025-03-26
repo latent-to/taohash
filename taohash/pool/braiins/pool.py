@@ -1,8 +1,8 @@
 from .api import BraiinsPoolAPI
-from ...pool import Pool, PoolIndex
+from ..pool import PoolBase, PoolIndex
 
 
-class BraiinsPool(Pool):
+class BraiinsPool(PoolBase):
     api: BraiinsPoolAPI
     api_key: str
     ip: int = 0
