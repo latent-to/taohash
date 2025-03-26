@@ -14,7 +14,9 @@ class CoinMarketCapAPI(NetworkedCoinPriceAPI):
         if not api_key:
             raise ValueError("CoinMarketCap API requires an API key")
         super().__init__(api_key)
-        self.query_url = "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
+        self.query_url = (
+            "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
+        )
 
     def _get_price(self, coin: str, vs: str = "usd") -> float:
         """
@@ -55,9 +57,7 @@ class CoinMarketCapAPI(NetworkedCoinPriceAPI):
 
         params = {"slug": ",".join(coins)}
         headers = {"X-CMC_PRO_API_KEY": self.api_key, "Accept": "application/json"}
-        response = requests.get(
-            self.query_url, params=params, headers=headers
-        )
+        response = requests.get(self.query_url, params=params, headers=headers)
 
         if response.status_code != 200:
             raise ValueError(f"Could not get price from CoinMarketCap: {response.text}")

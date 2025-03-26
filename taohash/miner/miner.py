@@ -11,7 +11,8 @@ import utils
 
 from .proxy import ProxyAPI, PoolInfo
 
-MAX_POOL_WEIGHT = 2**16 - 1 # TODO: assume u16
+MAX_POOL_WEIGHT = 2**16 - 1  # TODO: assume u16
+
 
 class Miner:
     metagraph: bt.metagraph
@@ -104,30 +105,64 @@ class Miner:
         step = 0
         while True:
             try:
-                max_validators = self.subtensor.query_map("SubtensorModule", "MaxAllowedValidators", params=[self.config.netuid]).value
+                max_validators = self.subtensor.query_map(
+                    "SubtensorModule",
+                    "MaxAllowedValidators",
+                    params=[self.config.netuid],
+                ).value
                 # Update pools and hashrate distribution based on validator stake
                 ## Get all validators and their axons
-                sorted_by_stake = sorted([(n.uid, n.stake) for n in self.metagraph.neurons], key=lambda x: x[1])
+                sorted_by_stake = sorted(
+                    [(n.uid, n.stake) for n in self.metagraph.neurons],
+                    key=lambda x: x[1],
+                )
                 validators = sorted_by_stake[:max_validators]
 
-                validator_axons = {uid: self.metagraph.axons[uid] for uid, _ in validators if self.metagraph.axons[uid] is not None}
-                validator_certs = {uid: utils.get_neuron_certificate(axon.hotkey) for uid, axon in validator_axons.items()}
+                validator_axons = {
+                    uid: self.metagraph.axons[uid]
+                    for uid, _ in validators
+                    if self.metagraph.axons[uid] is not None
+                }
+                validator_certs = {
+                    uid: utils.get_neuron_certificate(axon.hotkey)
+                    for uid, axon in validator_axons.items()
+                }
 
                 ## Get hashrate weight distribution based on stake
-                stake_sum = sum([ self.metgraph.neurons[axon[1]].stake for axon in validator_axons.values() ])
-                pool_weights = { uid: int(self.metgraph.neurons[axon[1]].stake / stake_sum * MAX_POOL_WEIGHT) for uid, axon in validator_axons.items() }
+                stake_sum = sum(
+                    [
+                        self.metgraph.neurons[axon[1]].stake
+                        for axon in validator_axons.values()
+                    ]
+                )
+                pool_weights = {
+                    uid: int(
+                        self.metgraph.neurons[axon[1]].stake
+                        / stake_sum
+                        * MAX_POOL_WEIGHT
+                    )
+                    for uid, axon in validator_axons.items()
+                }
 
                 ## Add pools based on axons
-                pools = { uid: utils.get_pool_from_axon(axon) for uid, axon in validator_axons.items() }
-                pool_users = { uid: utils.get_pool_user_from_certificate(cert) for uid, cert in validator_certs.items() }
+                pools = {
+                    uid: utils.get_pool_from_axon(axon)
+                    for uid, axon in validator_axons.items()
+                }
+                pool_users = {
+                    uid: utils.get_pool_user_from_certificate(cert)
+                    for uid, cert in validator_certs.items()
+                }
 
                 ## (Optional) Get split to personal pool based on coin price
                 # TODO:
                 ### Add personal pool
-                
-                new_pools = { pool: (uid, pool_user) for uid, (pool, pool_user) in pools.items() }
+
+                new_pools = {
+                    pool: (uid, pool_user) for uid, (pool, pool_user) in pools.items()
+                }
                 ## Run update pools
-                self.proxy = ProxyAPI() # default url
+                self.proxy = ProxyAPI()  # default url
                 existing_pools = self.proxy.get_pools()
                 for pool in existing_pools:
                     if pool.host in pools.values():
@@ -137,7 +172,7 @@ class Miner:
                         else:
                             continue
                         new_pools.remove(pool.host)
-                        
+
                     else:
                         # Delete pool
                         self.proxy.remove_pool(pool.name)
@@ -153,10 +188,9 @@ class Miner:
                         host=pool_url,
                         name=f"validator-{uid}",
                         priority=ranks[uid],
-                        password="x"
+                        password="x",
                     )
                     self.proxy.add_pool(pool_info)
-                        
 
                 # Periodically update our knowledge of the network graph.
                 if step % 60 == 0:

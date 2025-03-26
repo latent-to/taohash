@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import requests
 import argparse
 
+
 @dataclass
 class PoolDetails:
     """
@@ -38,6 +39,7 @@ class PoolDetails:
     acceptedDifficulty 	double 	-
     uptime 	long 	-
     """
+
     host: str
     name: str
     username: str
@@ -45,29 +47,28 @@ class PoolDetails:
     priority: int
     weight: int
     isEnabled: bool
-  
+
     @staticmethod
-    def from_json(json_data: Dict) -> 'PoolDetails':
-        return PoolDetails(
-            **json_data
-        )
-    
+    def from_json(json_data: Dict) -> "PoolDetails":
+        return PoolDetails(**json_data)
+
+
 @dataclass
 class PoolInfo:
     username: str
-    appendWorkerNames: bool # TODO: No idea what this is for
+    appendWorkerNames: bool  # TODO: No idea what this is for
     weight: int
-    useWorkerPassword: bool 
-    workerNamesSeparator: str # TODO: No idea what this is for
-    isExtranonceSubscribeEnabled: bool # TODO: No idea what this is for
+    useWorkerPassword: bool
+    workerNamesSeparator: str  # TODO: No idea what this is for
+    isExtranonceSubscribeEnabled: bool  # TODO: No idea what this is for
     host: str
     name: str
     priority: int
     password: str
-    
+
     def to_json_data(self) -> Dict:
         return self.__dict__()
-    
+
     def to_add_pool_data(self) -> Dict:
         add_pool = self.__dict__()
         FIELD_MAP = {
@@ -82,41 +83,32 @@ class PoolInfo:
             if old is not None:
                 add_pool[new] = add_pool[old]
                 del add_pool[old]
-        
+
         add_pool["enabled"] = True
 
         return add_pool
 
+
 class ProxyAPI:
     url: str
 
-    def __init__(self, url = "http://127.0.0.1:8888/proxy") -> None:
+    def __init__(self, url="http://127.0.0.1:8888/proxy") -> None:
         self.url = url
 
     @staticmethod
     def add_args(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
-            "--"
-        )
+        parser.add_argument("--")
 
     def post(self, path: str, body: Dict) -> Any:
         response = requests.post(
-            url=self.url + path,
-            headers={
-                "accept": "application/json"
-            },
-            data=body
+            url=self.url + path, headers={"accept": "application/json"}, data=body
         )
 
         return response
-    
+
     def get(self, path: str, params: Dict) -> Any:
         response = requests.get(
-            url=self.url + path,
-            headers={
-                "accept": "application/json"
-            },
-            params=params
+            url=self.url + path, headers={"accept": "application/json"}, params=params
         )
 
         return response
@@ -127,15 +119,11 @@ class ProxyAPI:
 
     def enable_pool(self, pool: str) -> None:
         path = "/pool/enable"
-        self.post(path, {
-            "poolName": pool
-        })
+        self.post(path, {"poolName": pool})
 
     def disable_pool(self, pool: str) -> None:
         path = "/pool/disable"
-        self.post(path, {
-            "poolName": pool
-        })
+        self.post(path, {"poolName": pool})
 
     def update_pool(self, pool_info: PoolInfo) -> None:
         """
@@ -150,10 +138,13 @@ class ProxyAPI:
         pools = self.get(path, {}).json()
 
         return [PoolDetails.from_json(pool) for pool in pools]
-    
+
     def remove_pool(self, pool: str) -> None:
         path = "/pool/remove"
-        self.post(path, {
-            "poolName": pool,
-            "keepHistory": True # TODO: Not sure we need this
-        })
+        self.post(
+            path,
+            {
+                "poolName": pool,
+                "keepHistory": True,  # TODO: Not sure we need this
+            },
+        )

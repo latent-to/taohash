@@ -1,6 +1,6 @@
 from typing import Optional
 from cachetools import TTLCache, cached
-from taohash.pool.pool_base import Pool
+from taohash.pool import Pool
 from taohash.pricing.price import CoinPriceAPIBase
 
 
