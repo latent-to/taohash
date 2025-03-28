@@ -18,7 +18,7 @@ __UNIT_TO_GHS: Dict[str, float] = {
     "Ph/s": 1e6,
 }
 
-__COIN_TO_COIN_NAME = {
+COIN_TO_COIN_NAME: Dict[str, str] = {
     "bitcoin": "btc",
 }
 
@@ -29,17 +29,41 @@ class BraiinsPoolAPI(PoolAPI):
     See: https://academy.braiins.com/en/braiins-pool/monitoring/#overview
     """
 
+    def __init__(self, api_key: str, user_id: str, password: str):
+        """
+        Initialize BraiinsPoolAPI with required authentication credentials.
+
+        Args:
+            api_key (str): The API key for Braiins pool
+            user_id (str): User ID for miners
+            password (str): Password for miners
+        """
+        super().__init__(api_key)
+        if not user_id or not password:
+            raise ValueError("Both user_id and password are required for Braiins pool")
+        self.user_id = user_id
+        self.password = password
+
     def _hashrate_to_gh(hashrate: float, unit: str) -> float:
+        """
+        Convert hashrate from a given unit to Gigahashes per second.
+        """
         return __UNIT_TO_GHS[unit] * hashrate
 
     def _worker_name_to_worker_id(worker_name: str) -> str:
+        """
+        Extract the worker ID from a worker name (assumes format 'prefix.workerID').
+        """
         return worker_name.split(".", maxsplit=1)[1]
 
     @cachetools.func.ttl_cache(maxsize=64, ttl=HASHRATE_TTL)
     @on_exception(expo, RateLimitException, max_tries=8)
     @limits(calls=1, period=5)  # rate limit once per 5s
     def _get_shares_for_workers(self, coin: str) -> Dict[str, float]:
-        coin_name = __COIN_TO_COIN_NAME[coin]
+        if coin != "bitcoin":
+            raise ValueError("BraiinsPool only supports bitcoin")
+
+        coin_name = COIN_TO_COIN_NAME[coin]
         url = f"https://pool.braiins.com/accounts/workers/json/{coin_name}"
 
         response = requests.get(
@@ -74,7 +98,7 @@ class BraiinsPoolAPI(PoolAPI):
         if coin != "bitcoin":
             raise ValueError("BraiinsPool only supports bitcoin")
 
-        coin_name = __COIN_TO_COIN_NAME[coin]
+        coin_name = COIN_TO_COIN_NAME[coin]
         url = f"https://pool.braiins.com/stats/json/{coin_name}"
 
         response = requests.get(
