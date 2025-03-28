@@ -11,7 +11,7 @@ class CoinGeckoAPI(NetworkedCoinPriceAPI):
     """
 
     def __init__(self, api_key: Optional[str]) -> None:
-        self.is_pro = api_key is not None
+        self.is_pro = bool(api_key) 
         super().__init__(api_key)
         
     def _get_price(self, coin: str, vs: str = "usd") -> float:
