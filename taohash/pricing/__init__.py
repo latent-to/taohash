@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+from typing import Dict, Type
+from enum import Enum
 import argparse
 
 from .price import CoinPriceAPIBase, UnitCoinPriceAPI
@@ -6,40 +7,40 @@ from .coingecko import CoinGeckoAPI
 from .coinmarketcap import CoinMarketCapAPI
 
 
-__CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
-    "coingecko": CoinGeckoAPI,
-    "unit": UnitCoinPriceAPI,
-    "coinmarketcap": CoinMarketCapAPI,
-    # Aliases
-    "cmc": CoinMarketCapAPI,
-    "cg": CoinGeckoAPI,
+class PriceAPIMethod(Enum):
+    CoinGecko = "coingecko"
+    CoinMarketCap = "coinmarketcap"
+    UnitCoinPrice = "unitcoinprice"
+
+
+_CLASS_MAP: Dict[PriceAPIMethod, Type[CoinPriceAPIBase]] = {
+    PriceAPIMethod.CoinGecko: CoinGeckoAPI,
+    PriceAPIMethod.CoinMarketCap: CoinMarketCapAPI,
+    PriceAPIMethod.UnitCoinPrice: UnitCoinPriceAPI,
 }
 
 
 class CoinPriceAPI:
-    """
-    Factory class
-    """
+    def __new__(cls, method: PriceAPIMethod, api_key: str) -> CoinPriceAPIBase:
+        if method not in _CLASS_MAP:
+            raise ValueError(f"Unknown price API method: {method}")
 
-    def __new__(cls, method: str, api_key: Optional[str]) -> "CoinPriceAPIBase":
-        if method not in __CLASS_MAP:
-            raise ValueError(
-                f"Unknown price method: {method}. Available methods: {list(__CLASS_MAP.keys())}"
-            )
-        return __CLASS_MAP[method](api_key)
+        api_class = _CLASS_MAP[method]
+        return api_class(api_key)
 
     @classmethod
-    def add_args(cls, parser: "argparse.ArgumentParser", _: Optional[str] = None):
-        parser.add_argument(
+    def add_args(cls, parser: argparse.ArgumentParser):
+        price_group = parser.add_argument_group("price")
+        price_group.add_argument(
             "--price.method",
-            default="unit",
-            type=str,
-            choices=list(__CLASS_MAP.keys()),
-            help="Price API to use (default: unit)",
+            type=PriceAPIMethod,
+            choices=list(PriceAPIMethod),
+            default=PriceAPIMethod.CoinGecko,
+            help="Price API to use",
         )
-        parser.add_argument(
+        price_group.add_argument(
             "--price.api_key",
-            required=False,
             type=str,
-            help="API key for the selected price API (if required)",
+            default="",  # CoinGecko offers basic usage without an API key
+            help="API key for price service",
         )
