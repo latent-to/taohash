@@ -1,6 +1,6 @@
 from typing import Optional
 from cachetools import TTLCache, cached
-from taohash.pool.pool_base import Pool
+from taohash.pool.pool import PoolBase
 from taohash.pricing.price import CoinPriceAPIBase
 
 
@@ -14,7 +14,7 @@ SECONDS_PER_DAY = 86400
 class HashPriceCalculator:
     """Calculator for mining hash price based on pool FPPS and coin price"""
 
-    def __init__(self, pool_api: Pool, price_api: CoinPriceAPIBase) -> None:
+    def __init__(self, pool_api: PoolBase, price_api: CoinPriceAPIBase) -> None:
         self.pool_api = pool_api
         self.price_api = price_api
 
