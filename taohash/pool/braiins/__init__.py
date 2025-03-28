@@ -1,1 +1,3 @@
-from .pool import BraiinsPool as BraiinsPool
+from .pool import BraiinsPool
+
+__all__ = ['BraiinsPool']
