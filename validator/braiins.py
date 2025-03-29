@@ -4,15 +4,18 @@ import os
 import argparse
 import traceback
 import bittensor as bt
+from bittensor_wallet import Wallet
 
 from taohash.node import Node
-from taohash.pool import Pool, PoolIndex
-import taohash.utils as utils
+from taohash.pool import Pool, PoolIndex, PoolBase
 from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
+from taohash.chain_data import publish_pool_info
 
+TESTNET_NETUID = 332
+COIN = "bitcoin"
 
-class Validator:
+class BraiinsValidator:
     def __init__(self):
         self.config = self.get_config()
         self.setup_logging()
@@ -34,30 +37,37 @@ class Validator:
     def get_config(self):
         # Set up the configuration parser.
         parser = argparse.ArgumentParser()
-        # TODO: Add your custom validator arguments to the parser.
+
         parser.add_argument(
-            "--custom",
-            default="my_custom_value",
-            help="Adds a custom value to the parser.",
+            "--username",
+            required=True,
+            help="The username for the Braiins pool.",
+        )
+        parser.add_argument(
+            "--worked_prefix",
+            required=False,
+            default="",
+            help="A prefix for the workers names miners will use.",
         )
         # Adds override arguments for network and netuid.
         parser.add_argument(
-            "--netuid", type=int, default=1, help="The chain subnet uid."
+            "--netuid", type=int, default=TESTNET_NETUID, help="The chain subnet uid."
         )
 
-        parser.add_argument(
-            "--coins",
-            type=str,
-            nargs="+",
-            default=["bitcoin"],
-            help="The coins you wish to reward miners for. Use CoinGecko token naming",
-        )
+        # parser.add_argument(
+        #     "--coins",
+        #     type=str,
+        #     nargs="+",
+        #     default=["bitcoin"],
+        #     help="The coins you wish to reward miners for. Use CoinGecko token naming",
+        # )
+        
         # Adds subtensor specific arguments.
         bt.subtensor.add_args(parser)
         # Adds logging specific arguments.
         bt.logging.add_args(parser)
         # Adds wallet specific arguments.
-        bt.wallet.add_args(parser)
+        Wallet.add_args(parser)
 
         Pool.add_args(parser)
         CoinPriceAPI.add_args(parser)
@@ -80,6 +90,10 @@ class Validator:
         )
         # Ensure the logging directory exists.
         os.makedirs(config.full_path, exist_ok=True)
+
+        # TODO: support multiple coins
+        config.coins = [COIN]
+
         return config
 
     def setup_logging(self):
@@ -95,7 +109,7 @@ class Validator:
         bt.logging.info("Setting up Bittensor objects.")
 
         # Initialize wallet.
-        self.wallet = bt.wallet(config=self.config)
+        self.wallet = Wallet(config=self.config)
         bt.logging.info(f"Wallet: {self.wallet}")
 
         # Initialize subtensor.
@@ -124,51 +138,24 @@ class Validator:
         self.scores = [1.0] * len(self.metagraph.S)
         bt.logging.info(f"Weights: {self.scores}")
 
-        # Set an axon of the pool address
-        self._serve_axon(
+        # Publish Validator's pool info to the chain.
+        self._publish_pool_info(
+            self.node,
             self.wallet,
-            port=self.pool.port,
-            ip=self.pool.ip,
-            pool_index=self.pool.index,
+            self.pool
         )
-
-    def _serve_axon(
-        self, wallet: bt.wallet, ip: str, port: int, pool_index: PoolIndex
+    
+    def _publish_pool_info(
+        self, node: Node, wallet: 'Wallet', pool: PoolBase
     ) -> None:
-        wallet.hotkey
-        params = {
-            "version": bt.__version_as_int__,
-            "ip": utils.ip_to_int(ip),
-            "port": port,
-            "ip_type": utils.ip_version(ip),
-            "netuid": self.config.netuid,
-            "hotkey": wallet.hotkey.ss58_address,
-            "coldkey": wallet.coldkeypub.ss58_address,
-            "protocol": pool_index.value,  # Use protocol for setting the pool
-            "placeholder1": 0,
-            "placeholder2": 0,
-        }
-        uid = self.metagraph.hotkeys.index(wallet.hotkey.ss58_address)
-        current_axon = self.metagraph.axons[uid]
-        if current_axon.protocol == params["protocol"]:
-            return  # same pool, don't serve twice
-
-        axon_call = self.node.compose_call(
-            call_module="SubtensorModule",
-            call_function="serve_axon",
-            call_params=params,
+        pool_info_bytes = pool.get_pool_info()
+        
+        # Publish the pool info to the chain.
+        publish_pool_info(
+            node,
+            wallet,
+            pool_info_bytes
         )
-        extrinsic = self.node.create_signed_extrinsic(
-            call=axon_call, keypair=wallet.hotkey
-        )
-        response = self.node.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=True,
-            wait_for_finalization=True,
-        )
-        response.process_events()
-        if not response.is_success:
-            raise RuntimeError("Pool address could not be served")
 
     def node_query(self, module, method, params):
         result = self.node.query(module, method, params).value
@@ -185,19 +172,19 @@ class Validator:
 
                 for coin in self.config.coins:
                     miner_metrics: List[MiningMetrics] = [
-                        get_metrics_for_miners(self.pool, self.metagraph.neurons)
+                        get_metrics_for_miners(self.pool, self.metagraph.neurons, coin)
                     ]
                     coin_price: Optional[float] = self.price_api.get_price(coin)
                     if coin_price is None:
                         # If we can't grab the price, don't count the shares
                         continue
 
-                    fpps: float = self.pool.get_fpps(coin)
+                    fpps: float = self.pool.get_fpps(COIN)
 
                     for metric in miner_metrics:
                         uid = hotkey_to_uid[metric.hotkey]
 
-                        shares_value: float = MiningMetrics.get_shares_value(fpps)
+                        shares_value: float = metric.get_shares_value(fpps)
                         in_usd: float = shares_value * coin_price
 
                         current_scores[uid] += in_usd
@@ -243,5 +230,5 @@ class Validator:
 
 # Run the validator.
 if __name__ == "__main__":
-    validator = Validator()
+    validator = BraiinsValidator()
     validator.run()

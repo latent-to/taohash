@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from bittensor import NeuronInfo, NeuronInfoLite
 from substrateinterface import SubstrateInterface
 
-from . import Pool
+from . import PoolBase
 
 
 NETUID = 111  # TODO
@@ -20,7 +20,7 @@ class MiningMetrics:
 
 
 def get_metrics_for_miner_by_hotkey(
-    pool: Pool, hotkey_ss58: str, coin: str = "bitcoin"
+    pool: PoolBase, hotkey_ss58: str, coin: str
 ) -> MiningMetrics:
     shares = pool.get_shares_for_hotkey(hotkey_ss58, coin)
 
@@ -32,7 +32,7 @@ def _get_hotkey_by_uid(node: SubstrateInterface, uid: int, netuid: int) -> int:
 
 
 def get_metrics_for_miners(
-    pool: Pool, neurons: List[Union[NeuronInfo, NeuronInfoLite]], coin: str = "bitcoin"
+    pool: PoolBase, neurons: List[Union[NeuronInfo, NeuronInfoLite]], coin: str
 ) -> List[MiningMetrics]:
     metrics = []
     for neuron in neurons:

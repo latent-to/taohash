@@ -1,6 +1,6 @@
 from .api import BraiinsPoolAPI
+from .config import BraiinsPoolAPIConfig
 from ..pool import PoolBase, PoolIndex
-
 
 class BraiinsPool(PoolBase):
     api: BraiinsPoolAPI
@@ -18,5 +18,8 @@ class BraiinsPool(PoolBase):
             return 0.0  # No shares
 
     @classmethod
-    def create_api(cls, api_key: str) -> BraiinsPoolAPI:
-        return BraiinsPoolAPI(api_key)
+    def create_api(cls, config: BraiinsPoolAPIConfig) -> BraiinsPoolAPI:
+        return BraiinsPoolAPI(config.api_key)
+    
+    def get_pool_info(self) -> bytes:
+        pass

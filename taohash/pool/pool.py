@@ -2,7 +2,7 @@ import abc
 from enum import IntEnum, Enum
 
 from .api import PoolAPI
-
+from .config import PoolAPIConfig
 
 class PoolEnum(Enum):
     Braiins = "braiins"
@@ -39,5 +39,9 @@ class PoolBase(metaclass=abc.ABCMeta):
 
     @classmethod
     @abc.abstractmethod
-    def create_api(cls, api_key: str) -> PoolAPI:
+    def create_api(cls, config: PoolAPIConfig) -> PoolAPI:
+        pass
+
+    @abc.abstractmethod
+    def get_pool_info(self) -> bytes:
         pass
