@@ -1,14 +1,15 @@
 from .api import BraiinsPoolAPI
 from .config import BraiinsPoolAPIConfig
 from ..pool import PoolBase, PoolIndex
+from ...chain_data.chain_data import PoolInfo
 
 
 class BraiinsPool(PoolBase):
     api: BraiinsPoolAPI
-    api_key: str
-    ip: int = 0
-    port: int = 0
     index = PoolIndex.Braiins
+
+    def __init__(self, pool_info: PoolInfo, api: BraiinsPoolAPI) -> None:
+        super().__init__(pool_info, api)
 
     def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
         worker_id = self._get_worker_id_for_hotkey(hotkey)
@@ -19,6 +20,3 @@ class BraiinsPool(PoolBase):
     @classmethod
     def create_api(cls, config: BraiinsPoolAPIConfig) -> BraiinsPoolAPI:
         return BraiinsPoolAPI(config.api_key)
-
-    def get_pool_info(self) -> bytes:
-        pass

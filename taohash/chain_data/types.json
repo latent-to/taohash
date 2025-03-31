@@ -1,0 +1,89 @@
+{
+  "types": [
+    { "id": 0, "type": { "def": { "primitive": "u8" } } },
+    { "id": 1, "type": { "def": { "primitive": "u16" } } },
+    { "id": 2, "type": { "def": { "primitive": "str" } } },
+    { "id": 3, "type": { "def": { "compact": { "type": 0 } } } },
+    { "id": 4, "type": { "def": { "compact": { "type": 1 } } } },
+    {
+      "id": 5,
+      "type": {
+        "path": ["Option"],
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "None",
+                "index": 0
+              },
+              {
+                "name": "Some",
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "path": ["Option"],
+        "params": [
+          {
+            "name": "T",
+            "type": 2
+          }
+        ],
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "name": "None",
+                "index": 0
+              },
+              {
+                "name": "Some",
+                "fields": [
+                  {
+                    "type": 2
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "path": ["PoolInfo"],
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              { "name": "pool_index", "type": 3 },
+              { "name": "ip", "type": 5 },
+              { "name": "port", "type": 4 },
+              { "name": "domain", "type": 6 },
+              { "name": "username", "type": 6 },
+              { "name": "password", "type": 6 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

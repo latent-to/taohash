@@ -12,13 +12,13 @@ import time
 import bittensor as bt
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.pool import Pool, PoolBase, PoolEnum
+from taohash.pool import Pool, PoolBase, PoolIndex
+from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
+from taohash.chain_data.chain_data import publish_pool_info, get_pool_info, PoolInfo
 
 from taohash.pool.braiins.config import BraiinsPoolAPIConfig
 
-from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
-from taohash.chain_data import publish_pool_info
 from validator import BaseValidator
 
 COIN = "bitcoin"
@@ -30,7 +30,13 @@ class BraiinsValidator(BaseValidator):
         self.setup_logging()
 
         self.pool_config = BraiinsPoolAPIConfig(api_key=self.config.pool.api_key)
-        self.pool = Pool(pool=PoolEnum.Braiins, config=self.pool_config)
+        pool_info = PoolInfo(
+            pool_index=int(PoolIndex.Braiins),
+            domain="stratum.braiins.com",
+            port=3333,
+            username=self.config.pool.username,
+        )
+        self.pool = Pool(pool_info=pool_info, config=self.pool_config)
         self.price_api: CoinPriceAPIBase = CoinPriceAPI(
             method=self.config.price.method, api_key=self.config.price.api_key
         )
@@ -133,15 +139,40 @@ class BraiinsValidator(BaseValidator):
         bt.logging.info(f"Weights: {self.scores}")
 
         # Publish Validator's pool info to the chain.
-        self._publish_pool_info(self.subtensor, self.wallet, self.pool)
+        self._publish_pool_info(
+            self.subtensor, self.config.netuid, self.wallet, self.pool
+        )
+
+    def _get_pool_info_bytes(
+        self, node: "bt.subtensor", netuid: int, wallet: "Wallet"
+    ) -> bytes:
+        return get_pool_info(node, netuid, wallet.hotkey.ss58_address)
 
     def _publish_pool_info(
-        self, node: "bt.subtensor", wallet: "Wallet", pool: PoolBase
+        self, node: "bt.subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
     ) -> None:
-        pool_info_bytes = pool.get_pool_info()
+        bt.logging.info(f"Publishing pool info to netuid: {netuid}")
 
+        bt.logging.info("Checking if pool info is already published.")
+        pool_info_bytes = pool.get_pool_info().encode()
+        curr_pool_info_bytes = self._get_pool_info_bytes(node, netuid, wallet)
+
+        if curr_pool_info_bytes is not None:
+            bt.logging.info("Pool info detected.")
+            if curr_pool_info_bytes == pool_info_bytes:
+                bt.logging.info("Pool info is already published.")
+                return
+            else:
+                bt.logging.info("Pool info is outdated.")
+
+        bt.logging.info("Publishing pool info to the chain.")
         # Publish the pool info to the chain.
-        publish_pool_info(node, wallet, pool_info_bytes)
+        success = publish_pool_info(node, netuid, wallet, pool_info_bytes)
+        if not success:
+            bt.logging.error("Failed to publish pool info")
+            exit(1)
+        else:
+            bt.logging.info("Pool info published successfully")
 
     def node_query(self, module, method, params):
         result = self.subtensor.query_module(

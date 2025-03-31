@@ -1,9 +1,7 @@
-from typing import Optional, Any, TypedDict
+from typing import Optional, TypedDict
 
 import netaddr
 import bittensor
-
-from .pool import PoolIndex, POOL_URLS_FMT
 
 
 def ip_to_int(ip: str) -> int:
@@ -12,16 +10,6 @@ def ip_to_int(ip: str) -> int:
 
 def ip_version(ip: str) -> int:
     return netaddr.IPAddress(ip).version
-
-
-def get_pool_from_axon(axon: bittensor.AxonInfo) -> Optional[str]:
-    if not PoolIndex.has_value(axon.protocol):
-        return None
-
-    pool = PoolIndex[axon.protocol]
-    pool_url = POOL_URLS_FMT[pool](axon)
-
-    return pool_url
 
 
 class Certificate(TypedDict):
