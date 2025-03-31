@@ -2,6 +2,7 @@ from .api import BraiinsPoolAPI
 from .config import BraiinsPoolAPIConfig
 from ..pool import PoolBase, PoolIndex
 
+
 class BraiinsPool(PoolBase):
     api: BraiinsPoolAPI
     api_key: str
@@ -11,15 +12,13 @@ class BraiinsPool(PoolBase):
 
     def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
         worker_id = self._get_worker_id_for_hotkey(hotkey)
-        if self.api.work_exists(worker_id):
-            shares = self.api.get_shares_for_worker(worker_id, coin)
-            return shares
-        else:
-            return 0.0  # No shares
+
+        shares = self.api.get_shares_for_worker(worker_id, coin)
+        return shares
 
     @classmethod
     def create_api(cls, config: BraiinsPoolAPIConfig) -> BraiinsPoolAPI:
         return BraiinsPoolAPI(config.api_key)
-    
+
     def get_pool_info(self) -> bytes:
         pass

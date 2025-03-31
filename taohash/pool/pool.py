@@ -4,6 +4,7 @@ from enum import IntEnum, Enum
 from .api import PoolAPI
 from .config import PoolAPIConfig
 
+
 class PoolEnum(Enum):
     Braiins = "braiins"
 
@@ -19,11 +20,9 @@ class PoolIndex(IntEnum):
 
 
 class PoolBase(metaclass=abc.ABCMeta):
-    api_key: str
     api: PoolAPI
 
-    def __init__(self, api_key: str, api: PoolAPI) -> None:
-        self.api_key = api_key
+    def __init__(self, api: PoolAPI) -> None:
         self.api = api
 
     @staticmethod

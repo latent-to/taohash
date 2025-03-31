@@ -1,5 +1,6 @@
 from ..config import PoolAPIConfig
 
+
 class BraiinsPoolAPIConfig(PoolAPIConfig):
     api_key: str
 

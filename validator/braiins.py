@@ -1,82 +1,76 @@
+#! /usr/bin/env python3
+
+# Copyright © 2025 Latent Holdings
+# Licensed under GPLv3
+
 from typing import List, Optional
 
 import os
 import argparse
 import traceback
+import time
 import bittensor as bt
-from bittensor_wallet import Wallet
+from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.node import Node
-from taohash.pool import Pool, PoolIndex, PoolBase
+from taohash.pool import Pool, PoolBase, PoolEnum
+
+from taohash.pool.braiins.config import BraiinsPoolAPIConfig
+
 from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
 from taohash.chain_data import publish_pool_info
+from validator import BaseValidator
 
-TESTNET_NETUID = 332
 COIN = "bitcoin"
 
-class BraiinsValidator:
+
+class BraiinsValidator(BaseValidator):
     def __init__(self):
         self.config = self.get_config()
         self.setup_logging()
-        self.setup_bittensor_objects()
-        self.last_update = 0
-        self.my_uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-        self.scores = [1.0] * len(self.metagraph.S)
-        self.last_update = 0
-        self.current_block = 0
-        self.tempo = self.node_query("SubtensorModule", "Tempo", [self.config.netuid])
-        self.moving_avg_scores = [1.0] * len(self.metagraph.S)
-        self.alpha = 0.1
-        self.node = Node(url=self.config.subtensor.chain_endpoint)
-        self.pool = Pool(pool=self.config.pool.pool, api_key=self.config.pool.api_key)
+
+        self.pool_config = BraiinsPoolAPIConfig(api_key=self.config.pool.api_key)
+        self.pool = Pool(pool=PoolEnum.Braiins, config=self.pool_config)
         self.price_api: CoinPriceAPIBase = CoinPriceAPI(
             method=self.config.price.method, api_key=self.config.price.api_key
         )
 
+        self.setup_bittensor_objects()
+        self.last_update = 0
+        self.my_uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        self.scores = [0.0] * len(self.metagraph.S)
+        self.last_update = 0
+        self.current_block = 0
+        self.tempo = self.node_query("SubtensorModule", "Tempo", [self.config.netuid])
+        self.moving_avg_scores = [0.0] * len(self.metagraph.S)
+        self.alpha = 0.1
+
     def get_config(self):
         # Set up the configuration parser.
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(
+            description="TAOHash (Braiins) Validator",
+            usage="python3 validator/braiins.py <command> [options]",
+            add_help=True,
+        )
+        command_parser = parser.add_subparsers(dest="command")
+        run_command_parser = command_parser.add_parser(
+            "run", help="""Run the validator"""
+        )
 
-        parser.add_argument(
+        run_command_parser.add_argument(
             "--username",
             required=True,
             help="The username for the Braiins pool.",
         )
-        parser.add_argument(
-            "--worker_prefix",
-            required=False,
-            default="",
-            help="A prefix for the workers names miners will use.",
-        )
-        # Adds override arguments for network and netuid.
-        parser.add_argument(
-            "--netuid", type=int, default=TESTNET_NETUID, help="The chain subnet uid."
-        )
 
-        # parser.add_argument(
-        #     "--coins",
-        #     type=str,
-        #     nargs="+",
-        #     default=["bitcoin"],
-        #     help="The coins you wish to reward miners for. Use CoinGecko token naming",
-        # )
-        
-        # Adds subtensor specific arguments.
-        bt.subtensor.add_args(parser)
-        # Adds logging specific arguments.
-        bt.logging.add_args(parser)
-        # Adds wallet specific arguments.
-        Wallet.add_args(parser)
-
-        Pool.add_args(parser)
-        CoinPriceAPI.add_args(parser)
+        # Add the base validator arguments.
+        super().add_args(run_command_parser)
 
         # Parse the config.
         try:
             config = bt.config(parser)
         except ValueError as e:
-            bt.logging.error(f"Error parsing config: {e}")
+            print(f"Error parsing config: {e}")
             exit(1)
         # Set up logging directory.
         config.full_path = os.path.expanduser(
@@ -135,30 +129,24 @@ class BraiinsValidator:
 
         # Set up initial scoring weights for validation.
         bt.logging.info("Building validation weights.")
-        self.scores = [1.0] * len(self.metagraph.S)
+        self.scores = [0.0] * len(self.metagraph.S)
         bt.logging.info(f"Weights: {self.scores}")
 
         # Publish Validator's pool info to the chain.
-        self._publish_pool_info(
-            self.node,
-            self.wallet,
-            self.pool
-        )
-    
+        self._publish_pool_info(self.subtensor, self.wallet, self.pool)
+
     def _publish_pool_info(
-        self, node: Node, wallet: 'Wallet', pool: PoolBase
+        self, node: "bt.subtensor", wallet: "Wallet", pool: PoolBase
     ) -> None:
         pool_info_bytes = pool.get_pool_info()
-        
+
         # Publish the pool info to the chain.
-        publish_pool_info(
-            node,
-            wallet,
-            pool_info_bytes
-        )
+        publish_pool_info(node, wallet, pool_info_bytes)
 
     def node_query(self, module, method, params):
-        result = self.node.query(module, method, params).value
+        result = self.subtensor.query_module(
+            module=module, name=method, params=params
+        ).value
 
         return result
 
@@ -171,9 +159,10 @@ class BraiinsValidator:
                 hotkey_to_uid = {n.hotkey: n.uid for n in self.metagraph.neurons}
 
                 for coin in self.config.coins:
-                    miner_metrics: List[MiningMetrics] = [
-                        get_metrics_for_miners(self.pool, self.metagraph.neurons, coin)
-                    ]
+                    miner_metrics: List[MiningMetrics] = get_metrics_for_miners(
+                        self.pool, self.metagraph.neurons, coin
+                    )
+
                     coin_price: Optional[float] = self.price_api.get_price(coin)
                     if coin_price is None:
                         # If we can't grab the price, don't count the shares
@@ -207,7 +196,25 @@ class BraiinsValidator:
                 # set weights once every tempo + 1
                 if self.last_update > self.tempo + 1:
                     total = sum(self.moving_avg_scores)
-                    weights = [score / total for score in self.moving_avg_scores]
+                    if total == 0:
+                        bt.logging.info(
+                            "No miners are mining, we should burn the alpha"
+                        )
+                        # No miners are mining, we should burn the alpha
+                        owner_hotkey = self.node_query(
+                            "SubtensorModule", "SubnetOwnerHotkey", [self.config.netuid]
+                        )
+                        owner_uid = self.metagraph.hotkey.index(owner_hotkey)
+                        if owner_uid is not None:
+                            weights = [0.0] * len(self.metagraph.S)
+                            weights[owner_uid] = 1.0
+                        else:
+                            bt.logging.error(
+                                "No owner found for subnet. Skipping weight update."
+                            )
+                            continue
+                    else:
+                        weights = [score / total for score in self.moving_avg_scores]
                     bt.logging.info(f"Setting weights: {weights}")
                     # Update the incentive mechanism on the Bittensor blockchain.
                     result = self.subtensor.set_weights(
@@ -218,6 +225,12 @@ class BraiinsValidator:
                         wait_for_inclusion=True,
                     )
                     self.metagraph.sync()
+
+                # Wait for a bit before running again
+                bt.logging.info(
+                    f"Waiting {self.config.eval_interval} seconds before running again."
+                )
+                time.sleep(self.config.eval_interval)
 
             except RuntimeError as e:
                 bt.logging.error(e)
