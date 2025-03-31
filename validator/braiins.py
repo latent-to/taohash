@@ -44,7 +44,7 @@ class BraiinsValidator:
             help="The username for the Braiins pool.",
         )
         parser.add_argument(
-            "--worked_prefix",
+            "--worker_prefix",
             required=False,
             default="",
             help="A prefix for the workers names miners will use.",
