@@ -1,6 +1,10 @@
 from dataclasses import dataclass
+import os
+from typing import Optional
+import logging
 
 import bt_decode
+import netaddr
 from bittensor import subtensor as bt_subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 
@@ -20,13 +24,14 @@ class PoolInfo:
         return encode_pool_info(self)
 
     def to_raw(self) -> dict:
-        fields = ["pool_index", "ip", "domain", "port", "username", "password"]
-        pool_info_raw = {field: getattr(self, field, default=None) for field in fields}
-
-        pool_info_raw["pool_index"] = self.pool_index.value
-        pool_info_raw["ip"] = ip_to_int(self.ip) if self.ip else None
-
-        return pool_info_raw
+        return {
+            "pool_index": self.pool_index,
+            "ip": ip_to_int(self.ip) if self.ip else None,
+            "port": self.port,
+            "domain": self.domain,
+            "username": self.username,
+            "password": self.password,
+        }
 
     @classmethod
     def decode(cls, pool_info_bytes: bytes) -> "PoolInfo":
@@ -36,17 +41,15 @@ class PoolInfo:
 def publish_pool_info(
     subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_info_bytes: bytes
 ) -> bool:
-    wallet.hotkey
     if len(pool_info_bytes) > 128:
         raise ValueError("Pool info bytes must be at most 128 bytes")
 
-    pool_info_bytes_length = len(pool_info_bytes)
     pool_info_call = subtensor.substrate.compose_call(
-        "Commitments",
-        "set_commitment",
+        call_module="Commitments",
+        call_function="set_commitment",
         call_params={
             "netuid": netuid,
-            "info": {"fields": [{f"Raw{pool_info_bytes_length}": pool_info_bytes}]},
+            "info": {"fields": [[{f"Raw{len(pool_info_bytes)}": pool_info_bytes}]]},
         },
     )
 
@@ -62,30 +65,52 @@ def publish_pool_info(
     return response.is_success
 
 
-def get_pool_info(subtensor: bt_subtensor, netuid: int, hotkey: str) -> bytes:
-    commitments = subtensor.query_module(
-        "Commitments",
-        "commitment_of",
-        params=[netuid, hotkey],
-    )
-    if commitments is None:
+def get_pool_info(
+    subtensor: bt_subtensor, netuid: int, hotkey: str
+) -> Optional[PoolInfo]:
+    commitments = subtensor.get_all_commitments(netuid)
+    if not commitments or hotkey not in commitments:
         return None
-    return commitments["info"]["fields"][0]["Raw128"]
+
+    try:
+        raw_data = commitments[hotkey]
+
+        if isinstance(raw_data, str):
+            raw_bytes = bytes(raw_data, "latin1")
+        elif isinstance(raw_data, bytes):
+            raw_bytes = raw_data
+        else:
+            logging.error(f"Unexpected data type in commitments: {type(raw_data)}")
+            return None
+
+        return decode_pool_info(raw_bytes)
+    except Exception as e:
+        logging.error(f"Failed to get pool info: {e}")
+        return None
 
 
 def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
-    with open("types.json", "r") as f:
+    types_path = os.path.join(os.path.dirname(__file__), "types.json")
+    with open(types_path, "r") as f:
         types = f.read()
 
     reg = bt_decode.PortableRegistry.from_json(types)
 
-    return bt_decode.bt_decode("PoolInfo", reg, pool_info_bytes)
+    data = bt_decode.decode("PoolInfo", reg, pool_info_bytes)
+
+    if data["ip"] is not None:
+        data["ip"] = str(netaddr.IPAddress(data["ip"]))
+
+    return PoolInfo(**data)
 
 
 def encode_pool_info(pool_info: PoolInfo) -> bytes:
-    with open("types.json", "r") as f:
+    types_path = os.path.join(os.path.dirname(__file__), "types.json")
+    with open(types_path, "r") as f:
         types = f.read()
 
     reg = bt_decode.PortableRegistry.from_json(types)
 
-    return bt_decode.bt_encode("PoolInfo", reg, pool_info.to_raw())
+    raw_data = pool_info.to_raw()
+
+    return bt_decode.encode("PoolInfo", reg, raw_data)
