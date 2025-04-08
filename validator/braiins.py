@@ -15,13 +15,20 @@ from bittensor_wallet.bittensor_wallet import Wallet
 from taohash.pool import Pool, PoolBase, PoolIndex
 from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
-from taohash.chain_data.chain_data import publish_pool_info, get_pool_info, PoolInfo
+from taohash.chain_data.chain_data import (
+    publish_pool_info,
+    get_pool_info,
+    PoolInfo,
+    encode_pool_info,
+)
 
 from taohash.pool.braiins.config import BraiinsPoolAPIConfig
 
 from validator import BaseValidator
 
 COIN = "bitcoin"
+BRAIINS_DOMAIN = "stratum.braiins.com"
+BRAIINS_PORT = 3333
 
 
 class BraiinsValidator(BaseValidator):
@@ -32,9 +39,10 @@ class BraiinsValidator(BaseValidator):
         self.pool_config = BraiinsPoolAPIConfig(api_key=self.config.pool.api_key)
         pool_info = PoolInfo(
             pool_index=int(PoolIndex.Braiins),
-            domain="stratum.braiins.com",
-            port=3333,
-            username=self.config.pool.username,
+            domain=BRAIINS_DOMAIN,
+            port=BRAIINS_PORT,
+            username=self.config.username,
+            password=self.config.password,
         )
         self.pool = Pool(pool_info=pool_info, config=self.pool_config)
         self.price_api: CoinPriceAPIBase = CoinPriceAPI(
@@ -47,7 +55,7 @@ class BraiinsValidator(BaseValidator):
         self.scores = [0.0] * len(self.metagraph.S)
         self.last_update = 0
         self.current_block = 0
-        self.tempo = self.node_query("SubtensorModule", "Tempo", [self.config.netuid])
+        self.tempo = self.subtensor.tempo(self.config.netuid)
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.1
 
@@ -67,6 +75,11 @@ class BraiinsValidator(BaseValidator):
             "--username",
             required=True,
             help="The username for the Braiins pool.",
+        )
+        run_command_parser.add_argument(
+            "--password",
+            required=False,
+            help="The password for the Braiins pool.",
         )
 
         # Add the base validator arguments.
@@ -146,7 +159,10 @@ class BraiinsValidator(BaseValidator):
     def _get_pool_info_bytes(
         self, node: "bt.subtensor", netuid: int, wallet: "Wallet"
     ) -> bytes:
-        return get_pool_info(node, netuid, wallet.hotkey.ss58_address)
+        pool_info = get_pool_info(node, netuid, wallet.hotkey.ss58_address)
+        if pool_info is None:
+            return None
+        return encode_pool_info(pool_info)
 
     def _publish_pool_info(
         self, node: "bt.subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
@@ -154,7 +170,9 @@ class BraiinsValidator(BaseValidator):
         bt.logging.info(f"Publishing pool info to netuid: {netuid}")
 
         bt.logging.info("Checking if pool info is already published.")
-        pool_info_bytes = pool.get_pool_info().encode()
+        pool_info = pool.get_pool_info()
+        pool_info_bytes = encode_pool_info(pool_info)
+
         curr_pool_info_bytes = self._get_pool_info_bytes(node, netuid, wallet)
 
         if curr_pool_info_bytes is not None:
@@ -175,11 +193,10 @@ class BraiinsValidator(BaseValidator):
             bt.logging.info("Pool info published successfully")
 
     def node_query(self, module, method, params):
-        result = self.subtensor.query_module(
-            module=module, name=method, params=params
-        ).value
-
-        return result
+        result = self.subtensor.query_module(module=module, name=method, params=params)
+        if method == "SubnetOwnerHotkey":
+            return result
+        return result.value
 
     def run(self):
         # The Main Validation Loop.
@@ -215,13 +232,9 @@ class BraiinsValidator(BaseValidator):
                     ) * self.moving_avg_scores[i] + self.alpha * current_score
 
                 bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
-
-                self.current_block = self.node_query("System", "Number", [])
-                self.last_update = (
-                    self.current_block
-                    - self.node_query(
-                        "SubtensorModule", "LastUpdate", [self.config.netuid]
-                    )[self.my_uid]
+                self.current_block = self.subtensor.get_current_block()
+                self.last_update = self.subtensor.blocks_since_last_update(
+                    self.config.netuid, self.my_uid
                 )
 
                 # set weights once every tempo + 1
@@ -235,7 +248,7 @@ class BraiinsValidator(BaseValidator):
                         owner_hotkey = self.node_query(
                             "SubtensorModule", "SubnetOwnerHotkey", [self.config.netuid]
                         )
-                        owner_uid = self.metagraph.hotkey.index(owner_hotkey)
+                        owner_uid = self.metagraph.hotkeys.index(owner_hotkey)
                         if owner_uid is not None:
                             weights = [0.0] * len(self.metagraph.S)
                             weights[owner_uid] = 1.0
