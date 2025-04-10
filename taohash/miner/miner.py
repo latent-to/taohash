@@ -21,6 +21,7 @@ class Miner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
+        self.worker_id = self.create_worker_id()
 
     def get_config(self):
         parser = argparse.ArgumentParser()
@@ -117,6 +118,11 @@ class Miner:
         )
         return sorted_by_stake[:max_validators]
 
+    def create_worker_id(self) -> str:
+        """Create a worker ID based on the miner's hotkey address."""
+        hotkey = self.wallet.hotkey.ss58_address
+        return hotkey[:4] + hotkey[-4:]
+
     def get_pool_mapping(self, validators: List[Tuple[int, float]]) -> Dict:
         """Create a mapping of validator pool information."""
         # Calculate total stake across all validators
@@ -140,11 +146,15 @@ class Miner:
                     "uid": uid,
                     "total_stake": total_stake.tao,
                     "stake_percentage": normalized_weight * 100,
+                    "full_username": f"{pool_info.username}.{self.worker_id}",
                 }
             else:
                 bt.logging.debug(
                     f"Skipping validator {uid} ({validator_hotkey}) - no pool information available"
                 )
+
+        if not pool_mapping:
+            bt.logging.warning("No validators found with pool information")
 
         return pool_mapping
 
@@ -160,6 +170,20 @@ class Miner:
             json.dump(pool_mapping, f, indent=4)
         bt.logging.info(f"Updated pool data saved to {pool_data_file}")
 
+    def sync_and_collect_data(self) -> None:
+        """Sync metagraph and collect pool data."""
+        self.metagraph.sync()
+        current_block = self.metagraph.block.item()
+        bt.logging.info(f"Collecting pool info at block {current_block}")
+
+        validators = self.get_sorted_validators()
+        pool_mapping = self.get_pool_mapping(validators)
+
+        if pool_mapping:
+            self.save_pool_data(pool_mapping)
+
+        return current_block
+
     def run(self) -> None:
         """Run the main miner loop."""
         bt.logging.info("Starting main loop")
@@ -167,25 +191,22 @@ class Miner:
         # Calculate blocks between syncs
         blocks_between_syncs = BLOCKS_PER_EPOCH // self.config.sync_frequency
 
-        # Calculate next sync block
-        self.metagraph.sync()
-        current_block = self.metagraph.block.item()
+        # Sync immediately on startup
+        current_block = self.sync_and_collect_data()
+        bt.logging.info(f"Performed initial sync at block {current_block}")
+
         next_sync_block = current_block + (
             blocks_between_syncs - (current_block % blocks_between_syncs)
+        )
+        bt.logging.info(
+            f"Next scheduled sync at block: {next_sync_block} | Current block: {current_block}"
         )
 
         while True:
             try:
                 # Wait for the next sync block
                 if self.subtensor.wait_for_block(next_sync_block):
-                    self.metagraph.sync()
-                    current_block = self.metagraph.block.item()
-
-                    bt.logging.info(f"Collecting pool info at block {current_block}")
-                    validators = self.get_sorted_validators()
-                    pool_mapping = self.get_pool_mapping(validators)
-                    self.save_pool_data(pool_mapping)
-
+                    current_block = self.sync_and_collect_data()
                     next_sync_block = current_block + blocks_between_syncs
 
                     log = (
