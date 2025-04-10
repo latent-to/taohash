@@ -50,10 +50,10 @@ class BraiinsPoolAPI(PoolAPI):
     def _worker_name_to_worker_id(worker_name: str) -> str:
         return worker_name.split(".", maxsplit=1)[1]
 
-    @cachetools.func.ttl_cache(maxsize=64, ttl=HASHRATE_TTL)
+    # @cachetools.func.ttl_cache(maxsize=64, ttl=HASHRATE_TTL)
     @on_exception(expo, RateLimitException, max_tries=8)
     @limits(calls=1, period=5)  # rate limit once per 5s
-    def _get_shares_for_workers(self, coin: str) -> Dict[str, float]:
+    def _get_worker_data(self, coin: str) -> Dict[str, float]:
         coin_name = self.__COIN_TO_COIN_NAME[coin]
         url = f"https://pool.braiins.com/accounts/workers/json/{coin_name}"
 
@@ -69,23 +69,28 @@ class BraiinsPoolAPI(PoolAPI):
         workers = result[coin_name]["workers"]
 
         output = {
-            self._worker_name_to_worker_id(worker_name): worker_data["shares_5m"]
+            self._worker_name_to_worker_id(worker_name): {
+                'shares': worker_data["shares_5m"],
+                'hash_rate_gh': self._hashrate_to_gh(
+                    worker_data["hash_rate_5m"], # Most recent accurate hashrate recorded. Maybe we can tweak based on evaluation configuration later. 
+                    worker_data["hash_rate_unit"]
+                )
+            }
             for worker_name, worker_data in workers.items()
         }
 
         return output
 
-    def get_shares_for_worker(self, worker_id: str, coin: str) -> float:
+    def get_worker_data(self, worker_id: str, coin: str) -> dict:
         if coin != "bitcoin":
             raise ValueError("BraiinsPool only supports bitcoin")
 
-        shares_for_all_workers = self._get_shares_for_workers(coin)
+        workers_data = self._get_worker_data(coin)
         
-        # Improve this 
-        for worker, shares in shares_for_all_workers.items():
+        for worker, data in workers_data.items():
             if worker in worker_id:
-                return shares
-        return shares_for_all_workers.get(worker_id, 0.0)
+                return data
+        return workers_data.get(worker_id, {'shares': 0.0, 'hash_rate_gh': 0.0})
 
     def get_fpps(self, coin: str) -> float:
         if coin != "bitcoin":

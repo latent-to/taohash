@@ -206,8 +206,8 @@ class BraiinsValidator(BaseValidator):
                     for metric in miner_metrics:
                         uid = hotkey_to_uid[metric.hotkey]
 
-                        shares_value: float = metric.get_shares_value(fpps)
-                        in_usd: float = shares_value * coin_price
+                        mining_value: float = metric.get_value_per_day(fpps)
+                        in_usd: float = mining_value * coin_price
 
                         current_scores[uid] += in_usd
 
