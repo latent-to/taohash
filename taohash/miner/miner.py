@@ -1,16 +1,13 @@
-import json
 import os
 import argparse
 import traceback
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 import bittensor as bt
 
 from taohash.chain_data.chain_data import get_pool_info
+from taohash.miner.storage import JsonStorage, RedisStorage, get_storage
 
-
-JSON_BASE_PATH = "~/.bittensor/data/pools"
 BLOCKS_PER_EPOCH = 360
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -22,17 +19,19 @@ class Miner:
         self.setup_logging()
         self.setup_bittensor_objects()
         self.worker_id = self.create_worker_id()
+        self.storage = get_storage(self.config.storage, self.config)
 
     def get_config(self):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
         )
-        # Json path to save the pool configuration
         parser.add_argument(
-            "--json_path",
+            "--storage",
             type=str,
-            help=f"Path to save the pool configuration JSON file. If not provided, will use {JSON_BASE_PATH}.",
+            choices=["json", "redis"],
+            default="json",
+            help="Storage backend to use (json or redis)"
         )
         # Sync frequency
         parser.add_argument(
@@ -43,6 +42,8 @@ class Miner:
             help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
 
+        JsonStorage.add_args(parser)
+        RedisStorage.add_args(parser)
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
         bt.wallet.add_args(parser)
@@ -59,10 +60,6 @@ class Miner:
             )
         )
         os.makedirs(config.full_path, exist_ok=True)
-
-        # Default JSON path
-        if not hasattr(config, "json_path") or not config.json_path:
-            config.json_path = os.path.expanduser(JSON_BASE_PATH)
 
         return config
 
@@ -158,18 +155,6 @@ class Miner:
 
         return pool_mapping
 
-    def save_pool_data(self, pool_mapping: Dict) -> None:
-        """Save pool data to a JSON file."""
-        pools_dir = Path(self.config.json_path)
-        pools_dir.mkdir(parents=True, exist_ok=True)
-
-        current_block = self.metagraph.block.item()
-        pool_data_file = pools_dir / f"{current_block}-pools.json"
-
-        with open(pool_data_file, "w") as f:
-            json.dump(pool_mapping, f, indent=4)
-        bt.logging.info(f"Updated pool data saved to {pool_data_file}")
-
     def sync_and_collect_data(self) -> None:
         """Sync metagraph and collect pool data."""
         self.metagraph.sync()
@@ -180,7 +165,8 @@ class Miner:
         pool_mapping = self.get_pool_mapping(validators)
 
         if pool_mapping:
-            self.save_pool_data(pool_mapping)
+            self.storage.save_pool_data(current_block, pool_mapping)
+            bt.logging.info(f"Updated pool data for block {current_block}")
 
         return current_block
 
@@ -207,8 +193,11 @@ class Miner:
                 # Wait for the next sync block
                 if self.subtensor.wait_for_block(next_sync_block):
                     current_block = self.sync_and_collect_data()
-                    next_sync_block = current_block + blocks_between_syncs
+                    latest_pool_info = self.storage.get_latest_pool_info()
+                    if latest_pool_info:
+                        bt.logging.success(f"Latest pool info: {latest_pool_info}")
 
+                    next_sync_block = current_block + blocks_between_syncs
                     log = (
                         f"Block: {current_block} | "
                         f"Incentive: {self.metagraph.I[self.my_subnet_uid]} | "
