@@ -12,23 +12,20 @@ import time
 import bittensor as bt
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.pool import Pool, PoolBase, PoolIndex
+from taohash.pool import Pool, PoolBase
 from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
 from taohash.chain_data.chain_data import (
     publish_pool_info,
     get_pool_info,
-    PoolInfo,
     encode_pool_info,
 )
 
-from taohash.pool.braiins.config import BraiinsPoolAPIConfig
+from taohash.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 
 from validator import BaseValidator
 
 COIN = "bitcoin"
-BRAIINS_DOMAIN = "stratum.braiins.com"
-BRAIINS_PORT = 3333
 
 
 class BraiinsValidator(BaseValidator):
@@ -36,15 +33,11 @@ class BraiinsValidator(BaseValidator):
         self.config = self.get_config()
         self.setup_logging()
 
-        self.pool_config = BraiinsPoolAPIConfig(api_key=self.config.pool.api_key)
-        pool_info = PoolInfo(
-            pool_index=int(PoolIndex.Braiins),
-            domain=BRAIINS_DOMAIN,
-            port=BRAIINS_PORT,
-            username=self.config.username,
-            password=self.config.password,
+        self.pool_config = BraiinsPoolConfig.from_args(self.config)
+        self.api_config = BraiinsPoolAPIConfig.from_args(self.config)
+        self.pool = Pool(
+            pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
-        self.pool = Pool(pool_info=pool_info, config=self.pool_config)
         self.price_api: CoinPriceAPIBase = CoinPriceAPI(
             method=self.config.price.method, api_key=self.config.price.api_key
         )
@@ -71,16 +64,8 @@ class BraiinsValidator(BaseValidator):
             "run", help="""Run the validator"""
         )
 
-        run_command_parser.add_argument(
-            "--username",
-            required=True,
-            help="The username for the Braiins pool.",
-        )
-        run_command_parser.add_argument(
-            "--password",
-            required=False,
-            help="The password for the Braiins pool.",
-        )
+        BraiinsPoolConfig.add_args(run_command_parser)
+        BraiinsPoolAPIConfig.add_args(run_command_parser)
 
         # Add the base validator arguments.
         super().add_args(run_command_parser)

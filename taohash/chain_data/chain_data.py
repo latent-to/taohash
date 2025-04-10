@@ -33,6 +33,19 @@ class PoolInfo:
             "password": self.password,
         }
 
+    def to_json(self) -> dict:
+        return {
+            "pool_index": self.pool_index,
+            "ip": self.ip,
+            "port": self.port,
+            "domain": self.domain,
+            "username": self.username,
+            "password": self.password,
+            "pool_url": f"{self.domain}:{self.port}"
+            if self.domain
+            else f"{self.ip}:{self.port}",
+        }
+
     @classmethod
     def decode(cls, pool_info_bytes: bytes) -> "PoolInfo":
         return decode_pool_info(pool_info_bytes)
