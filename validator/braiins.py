@@ -100,7 +100,7 @@ class BraiinsValidator(BaseValidator):
         bt.logging.info(
             f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:"
         )
-        bt.logging.info(self.config)
+        bt.logging.set_info()
 
     def setup_bittensor_objects(self):
         # Build Bittensor validator objects.
