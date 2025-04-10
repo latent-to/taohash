@@ -86,10 +86,6 @@ class BraiinsPoolAPI(PoolAPI):
             raise ValueError("BraiinsPool only supports bitcoin")
 
         workers_data = self._get_worker_data(coin)
-        
-        for worker, data in workers_data.items():
-            if worker in worker_id:
-                return data
         return workers_data.get(worker_id, {'shares': 0.0, 'hash_rate_gh': 0.0})
 
     def get_fpps(self, coin: str) -> float:
