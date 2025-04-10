@@ -5,12 +5,25 @@ import requests
 from ratelimit import limits, RateLimitException
 from backoff import on_exception, expo
 
+import bittensor as bt
+
 from ..api import PoolAPI
 
 HASHRATE_TTL = 10 * 60  # 10min TTL for grabbing hashrate from all workers
 
+class BraiinsPoolConnectionError(Exception):
+    """Custom exception for Braiins Pool API errors"""
+    pass
 
 class BraiinsPoolAPI(PoolAPI):
+    def __init__(self, api_key: str) -> None:
+        super().__init__(api_key)
+        if not self.test_connection():
+            bt.logging.error("Failed to connect to Braiins Pool API. Please check your API key and try again.")
+            raise BraiinsPoolConnectionError("Failed to connect to Braiins Pool API. Please check your API key and try again.")
+        else:
+            bt.logging.success("Successfully pinged Braiins Pool API.")
+
     __UNIT_TO_GHS: Dict[str, float] = {
         "H/s": 1e-9,
         "Kh/s": 1e-6,
@@ -94,3 +107,12 @@ class BraiinsPoolAPI(PoolAPI):
         fpps = stats_data["fpps_rate"]
 
         return fpps
+
+    def test_connection(self) -> bool:
+        """Test API connection and credentials"""
+        try:
+            self.get_fpps("bitcoin")
+            return True
+        except Exception as e:
+            bt.logging.error(f"Failed to connect to Braiins Pool API: {str(e)}")
+            return False

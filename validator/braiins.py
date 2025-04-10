@@ -163,7 +163,7 @@ class BraiinsValidator(BaseValidator):
         if curr_pool_info_bytes is not None:
             bt.logging.info("Pool info detected.")
             if curr_pool_info_bytes == pool_info_bytes:
-                bt.logging.info("Pool info is already published.")
+                bt.logging.success("Pool info is already published.")
                 return
             else:
                 bt.logging.info("Pool info is outdated.")
@@ -175,7 +175,7 @@ class BraiinsValidator(BaseValidator):
             bt.logging.error("Failed to publish pool info")
             exit(1)
         else:
-            bt.logging.info("Pool info published successfully")
+            bt.logging.success("Pool info published successfully")
 
     def node_query(self, module, method, params):
         result = self.subtensor.query_module(module=module, name=method, params=params)
