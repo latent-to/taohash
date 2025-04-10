@@ -8,7 +8,7 @@ class PoolAPI(metaclass=abc.ABCMeta):
         self.api_key = api_key
 
     @abc.abstractmethod
-    def get_shares_for_worker(worker_id: str) -> float:
+    def get_worker_data(self, worker_id: str, coin: str) -> dict:
         pass
 
     @abc.abstractmethod

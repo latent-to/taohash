@@ -14,7 +14,7 @@ class BraiinsPool(PoolBase):
     def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
         worker_id = self._get_worker_id_for_hotkey(hotkey)
 
-        shares = self.api.get_shares_for_worker(worker_id, coin)
+        shares = self.api.get_worker_data(worker_id, coin)
         return shares
 
     @classmethod

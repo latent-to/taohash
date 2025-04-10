@@ -25,4 +25,5 @@ class Pool:
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser", _: Optional[str] = None):
         # parser.add_argument("--pool.pool", type=PoolEnum, choices=list(PoolEnum))
-        parser.add_argument("--pool.api_key", required=True, type=str)
+        # parser.add_argument("--pool.api_key", required=True, type=str)
+        pass

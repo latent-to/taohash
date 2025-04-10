@@ -69,8 +69,8 @@
     },
     {
       "id": 7,
-      "path": ["PoolInfo"],
       "type": {
+        "path": ["PoolInfo"],
         "def": {
           "composite": {
             "fields": [

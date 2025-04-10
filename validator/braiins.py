@@ -12,12 +12,16 @@ import time
 import bittensor as bt
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.pool import Pool, PoolBase, PoolIndex
+from taohash.pool import Pool, PoolBase
 from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.pricing import CoinPriceAPI, CoinPriceAPIBase
-from taohash.chain_data.chain_data import publish_pool_info, get_pool_info, PoolInfo
+from taohash.chain_data.chain_data import (
+    publish_pool_info,
+    get_pool_info,
+    encode_pool_info,
+)
 
-from taohash.pool.braiins.config import BraiinsPoolAPIConfig
+from taohash.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 
 from validator import BaseValidator
 
@@ -29,14 +33,11 @@ class BraiinsValidator(BaseValidator):
         self.config = self.get_config()
         self.setup_logging()
 
-        self.pool_config = BraiinsPoolAPIConfig(api_key=self.config.pool.api_key)
-        pool_info = PoolInfo(
-            pool_index=int(PoolIndex.Braiins),
-            domain="stratum.braiins.com",
-            port=3333,
-            username=self.config.pool.username,
+        self.pool_config = BraiinsPoolConfig.from_args(self.config)
+        self.api_config = BraiinsPoolAPIConfig.from_args(self.config)
+        self.pool = Pool(
+            pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
-        self.pool = Pool(pool_info=pool_info, config=self.pool_config)
         self.price_api: CoinPriceAPIBase = CoinPriceAPI(
             method=self.config.price.method, api_key=self.config.price.api_key
         )
@@ -47,7 +48,7 @@ class BraiinsValidator(BaseValidator):
         self.scores = [0.0] * len(self.metagraph.S)
         self.last_update = 0
         self.current_block = 0
-        self.tempo = self.node_query("SubtensorModule", "Tempo", [self.config.netuid])
+        self.tempo = self.subtensor.tempo(self.config.netuid)
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.1
 
@@ -63,11 +64,8 @@ class BraiinsValidator(BaseValidator):
             "run", help="""Run the validator"""
         )
 
-        run_command_parser.add_argument(
-            "--username",
-            required=True,
-            help="The username for the Braiins pool.",
-        )
+        BraiinsPoolConfig.add_args(run_command_parser)
+        BraiinsPoolAPIConfig.add_args(run_command_parser)
 
         # Add the base validator arguments.
         super().add_args(run_command_parser)
@@ -146,7 +144,10 @@ class BraiinsValidator(BaseValidator):
     def _get_pool_info_bytes(
         self, node: "bt.subtensor", netuid: int, wallet: "Wallet"
     ) -> bytes:
-        return get_pool_info(node, netuid, wallet.hotkey.ss58_address)
+        pool_info = get_pool_info(node, netuid, wallet.hotkey.ss58_address)
+        if pool_info is None:
+            return None
+        return encode_pool_info(pool_info)
 
     def _publish_pool_info(
         self, node: "bt.subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
@@ -154,13 +155,15 @@ class BraiinsValidator(BaseValidator):
         bt.logging.info(f"Publishing pool info to netuid: {netuid}")
 
         bt.logging.info("Checking if pool info is already published.")
-        pool_info_bytes = pool.get_pool_info().encode()
+        pool_info = pool.get_pool_info()
+        pool_info_bytes = encode_pool_info(pool_info)
+
         curr_pool_info_bytes = self._get_pool_info_bytes(node, netuid, wallet)
 
         if curr_pool_info_bytes is not None:
             bt.logging.info("Pool info detected.")
             if curr_pool_info_bytes == pool_info_bytes:
-                bt.logging.info("Pool info is already published.")
+                bt.logging.success("Pool info is already published.")
                 return
             else:
                 bt.logging.info("Pool info is outdated.")
@@ -172,14 +175,13 @@ class BraiinsValidator(BaseValidator):
             bt.logging.error("Failed to publish pool info")
             exit(1)
         else:
-            bt.logging.info("Pool info published successfully")
+            bt.logging.success("Pool info published successfully")
 
     def node_query(self, module, method, params):
-        result = self.subtensor.query_module(
-            module=module, name=method, params=params
-        ).value
-
-        return result
+        result = self.subtensor.query_module(module=module, name=method, params=params)
+        if method == "SubnetOwnerHotkey":
+            return result
+        return result.value
 
     def run(self):
         # The Main Validation Loop.
@@ -204,8 +206,8 @@ class BraiinsValidator(BaseValidator):
                     for metric in miner_metrics:
                         uid = hotkey_to_uid[metric.hotkey]
 
-                        shares_value: float = metric.get_shares_value(fpps)
-                        in_usd: float = shares_value * coin_price
+                        mining_value: float = metric.get_value_per_day(fpps)
+                        in_usd: float = mining_value * coin_price
 
                         current_scores[uid] += in_usd
 
@@ -215,13 +217,9 @@ class BraiinsValidator(BaseValidator):
                     ) * self.moving_avg_scores[i] + self.alpha * current_score
 
                 bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
-
-                self.current_block = self.node_query("System", "Number", [])
-                self.last_update = (
-                    self.current_block
-                    - self.node_query(
-                        "SubtensorModule", "LastUpdate", [self.config.netuid]
-                    )[self.my_uid]
+                self.current_block = self.subtensor.get_current_block()
+                self.last_update = self.subtensor.blocks_since_last_update(
+                    self.config.netuid, self.my_uid
                 )
 
                 # set weights once every tempo + 1
@@ -235,7 +233,7 @@ class BraiinsValidator(BaseValidator):
                         owner_hotkey = self.node_query(
                             "SubtensorModule", "SubnetOwnerHotkey", [self.config.netuid]
                         )
-                        owner_uid = self.metagraph.hotkey.index(owner_hotkey)
+                        owner_uid = self.metagraph.hotkeys.index(owner_hotkey)
                         if owner_uid is not None:
                             weights = [0.0] * len(self.metagraph.S)
                             weights[owner_uid] = 1.0
