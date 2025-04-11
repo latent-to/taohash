@@ -239,11 +239,15 @@ class BraiinsValidator(BaseValidator):
                             in_usd: float = mining_value * coin_price
                             current_scores[uid] += in_usd
 
-                    # Update scores
-                    self.scores = current_scores
+                    for i, current_score in enumerate(current_scores):
+                        self.moving_avg_scores[i] = (
+                            1 - self.alpha
+                        ) * self.moving_avg_scores[i] + self.alpha * current_score
+
+                    bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
 
                     # Calculate weights
-                    total = sum(self.scores)
+                    total = sum(self.moving_avg_scores)
                     if total == 0:
                         bt.logging.info(
                             "No miners are mining, we should burn the alpha"
@@ -262,7 +266,7 @@ class BraiinsValidator(BaseValidator):
                             )
                             continue
                     else:
-                        weights = [score / total for score in self.scores]
+                        weights = [score / total for score in self.moving_avg_scores]
 
                     bt.logging.info(f"Setting weights: {weights}")
                     # Update the incentive mechanism on the Bittensor blockchain.
