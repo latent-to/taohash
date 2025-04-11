@@ -70,9 +70,9 @@ class BraiinsPoolAPI(PoolAPI):
 
         output = {
             self._worker_name_to_worker_id(worker_name): {
-                'shares': worker_data["shares_5m"],
-                'hash_rate_gh': self._hashrate_to_gh(
-                    worker_data["hash_rate_5m"], # Most recent accurate hashrate recorded. Maybe we can tweak based on evaluation configuration later. 
+                **worker_data,
+                'avg_hashrate_60m_ghs': self._hashrate_to_gh(
+                    worker_data["hash_rate_60m"],
                     worker_data["hash_rate_unit"]
                 )
             }
@@ -86,7 +86,7 @@ class BraiinsPoolAPI(PoolAPI):
             raise ValueError("BraiinsPool only supports bitcoin")
 
         workers_data = self._get_worker_data(coin)
-        return workers_data.get(worker_id, {'shares': 0.0, 'hash_rate_gh': 0.0})
+        return workers_data.get(worker_id, {'shares_60m': 0.0, 'avg_hashrate_60m_ghs': 0.0})
 
     def get_fpps(self, coin: str) -> float:
         if coin != "bitcoin":
