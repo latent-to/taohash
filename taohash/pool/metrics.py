@@ -22,7 +22,7 @@ class MiningMetrics:
         self.hash_rate_gh = hash_rate_gh
 
     def get_value_last_hour(self, fpps: float) -> float:
-        fpps_per_hour = fpps / 12
+        fpps_per_hour = fpps / 24
         # Convert hash rate from GH/s to TH/s
         hash_rate_th = self.hash_rate_gh / 1000
         # Fpps aggregated BTC/TH/Day
