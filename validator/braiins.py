@@ -52,7 +52,7 @@ class BraiinsValidator(BaseValidator):
         self.weights_schedule = WeightsSchedule(
             subtensor=self.subtensor,
             netuid=self.config.netuid,
-            blocks_until_eval=self.tempo - 20,  # 10 blocks before tempo ends
+            blocks_until_eval=self.tempo - 20,  # 20 blocks before tempo ends
         )
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.1

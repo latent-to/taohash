@@ -10,7 +10,7 @@ class WeightsSchedule:
         self,
         subtensor: "bt.subtensor",
         netuid: int,
-        blocks_until_eval: int = 350,
+        blocks_until_eval: int = 340,
         tempo: int = 360,
     ):
         """
