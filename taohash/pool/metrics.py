@@ -21,18 +21,19 @@ class MiningMetrics:
         self.shares = shares
         self.hash_rate_gh = hash_rate_gh
 
-    def get_value_per_day(self, fpps: float) -> float:
+    def get_value_last_hour(self, fpps: float) -> float:
+        fpps_per_hour = fpps / 24
         # Convert hash rate from GH/s to TH/s
         hash_rate_th = self.hash_rate_gh / 1000
         # Fpps aggregated BTC/TH/Day
-        return hash_rate_th * fpps
+        return hash_rate_th * fpps_per_hour
 
 
 def get_metrics_for_miner_by_hotkey(
     pool: PoolBase, hotkey_ss58: str, coin: str
 ) -> MiningMetrics:
     shares = pool.get_shares_for_hotkey(hotkey_ss58, coin)
-    return MiningMetrics(hotkey_ss58, shares['shares'], shares['hash_rate_gh'])
+    return MiningMetrics(hotkey_ss58, shares['shares_60m'], shares['avg_hashrate_60m_ghs'])
 
 
 def _get_hotkey_by_uid(node: SubstrateInterface, uid: int, netuid: int) -> int:

@@ -8,7 +8,6 @@ from typing import List, Optional
 import os
 import argparse
 import traceback
-import time
 import bittensor as bt
 from bittensor_wallet.bittensor_wallet import Wallet
 
@@ -22,6 +21,7 @@ from taohash.chain_data.chain_data import (
 )
 
 from taohash.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
+from taohash.chain_data.weights_schedule import WeightsSchedule
 
 from validator import BaseValidator
 
@@ -49,6 +49,11 @@ class BraiinsValidator(BaseValidator):
         self.last_update = 0
         self.current_block = 0
         self.tempo = self.subtensor.tempo(self.config.netuid)
+        self.weights_schedule = WeightsSchedule(
+            subtensor=self.subtensor,
+            netuid=self.config.netuid,
+            blocks_until_eval=self.tempo - 20,  # 20 blocks before tempo ends
+        )
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.1
 
@@ -98,7 +103,7 @@ class BraiinsValidator(BaseValidator):
         # Set up logging.
         bt.logging(config=self.config, logging_dir=self.config.full_path)
         bt.logging.info(
-            f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:"
+            f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:\n{self.config}"
         )
         bt.logging.info(self.config)
 
@@ -188,42 +193,60 @@ class BraiinsValidator(BaseValidator):
         bt.logging.info("Starting validator loop.")
         while True:
             try:
-                current_scores = [0.0] * len(self.metagraph.S)
-                hotkey_to_uid = {n.hotkey: n.uid for n in self.metagraph.neurons}
-
-                for coin in self.config.coins:
-                    miner_metrics: List[MiningMetrics] = get_metrics_for_miners(
-                        self.pool, self.metagraph.neurons, coin
-                    )
-
-                    coin_price: Optional[float] = self.price_api.get_price(coin)
-                    if coin_price is None:
-                        # If we can't grab the price, don't count the shares
-                        continue
-
-                    fpps: float = self.pool.get_fpps(COIN)
-
-                    for metric in miner_metrics:
-                        uid = hotkey_to_uid[metric.hotkey]
-
-                        mining_value: float = metric.get_value_per_day(fpps)
-                        in_usd: float = mining_value * coin_price
-
-                        current_scores[uid] += in_usd
-
-                for i, current_score in enumerate(current_scores):
-                    self.moving_avg_scores[i] = (
-                        1 - self.alpha
-                    ) * self.moving_avg_scores[i] + self.alpha * current_score
-
-                bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
+                # Fetch current block, when we last set weights, and when this subnet's epoch started
                 self.current_block = self.subtensor.get_current_block()
                 self.last_update = self.subtensor.blocks_since_last_update(
                     self.config.netuid, self.my_uid
                 )
+                blocks_since = self.subtensor.subnet(
+                    self.config.netuid
+                ).blocks_since_last_step
 
-                # set weights once every tempo + 1
-                if self.last_update > self.tempo + 1:
+                # Calculate when this epoch started
+                current_epoch_start = self.current_block - blocks_since
+
+                # Only set weights if:
+                # 1. We're in the evaluation zone (blocks >= blocks_until_eval)
+                # 2. We haven't set weights in this epoch (last_update < current_epoch_start)
+                if (
+                    self.weights_schedule.should_set_weights()
+                    and self.last_update < current_epoch_start
+                ):
+                    bt.logging.info(
+                        f"In evaluation zone: {self.weights_schedule.get_status()}"
+                    )
+
+                    # Reset scores for new evaluation
+                    current_scores = [0.0] * len(self.metagraph.S)
+                    hotkey_to_uid = {n.hotkey: n.uid for n in self.metagraph.neurons}
+
+                    # Evaluation loop
+                    for coin in self.config.coins:
+                        miner_metrics: List[MiningMetrics] = get_metrics_for_miners(
+                            self.pool, self.metagraph.neurons, coin
+                        )
+
+                        coin_price: Optional[float] = self.price_api.get_price(coin)
+                        if coin_price is None:
+                            # If we can't grab the price, don't count the shares
+                            continue
+
+                        fpps: float = self.pool.get_fpps(COIN)
+
+                        for metric in miner_metrics:
+                            uid = hotkey_to_uid[metric.hotkey]
+                            mining_value: float = metric.get_value_last_hour(fpps)
+                            in_usd: float = mining_value * coin_price
+                            current_scores[uid] += in_usd
+
+                    for i, current_score in enumerate(current_scores):
+                        self.moving_avg_scores[i] = (
+                            1 - self.alpha
+                        ) * self.moving_avg_scores[i] + self.alpha * current_score
+
+                    bt.logging.info(f"Moving Average Scores: {self.moving_avg_scores}")
+
+                    # Calculate weights
                     total = sum(self.moving_avg_scores)
                     if total == 0:
                         bt.logging.info(
@@ -244,6 +267,7 @@ class BraiinsValidator(BaseValidator):
                             continue
                     else:
                         weights = [score / total for score in self.moving_avg_scores]
+
                     bt.logging.info(f"Setting weights: {weights}")
                     # Update the incentive mechanism on the Bittensor blockchain.
                     result = self.subtensor.set_weights(
@@ -254,12 +278,19 @@ class BraiinsValidator(BaseValidator):
                         wait_for_inclusion=True,
                     )
                     self.metagraph.sync()
+                else:
+                    bt.logging.info(
+                        f"Not in evaluation zone: {self.weights_schedule.get_status()}"
+                    )
 
                 # Wait for a bit before running again
                 bt.logging.info(
-                    f"Waiting {self.config.eval_interval} seconds before running again."
+                    f"Waiting {self.config.eval_interval} blocks "
+                    f"(to {self.current_block + self.config.eval_interval}) before running again."
                 )
-                time.sleep(self.config.eval_interval)
+                self.subtensor.wait_for_block(
+                    self.current_block + self.config.eval_interval
+                )
 
             except RuntimeError as e:
                 bt.logging.error(e)
