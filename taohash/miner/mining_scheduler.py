@@ -50,9 +50,6 @@ class MiningScheduler:
     def __init__(
         self,
         config: "bt.Config",
-        subtensor: "bt.subtensor",
-        metagraph: "bt.metagraph",
-        worker_id: str,
         weights_schedule: "WeightsSchedule",
         min_blocks_per_validator: int = 40,
         storage: BaseStorage = None
@@ -61,17 +58,11 @@ class MiningScheduler:
         
         Args:
             config: Bittensor config object
-            subtensor: Bittensor subtensor instance 
-            metagraph: Network metagraph
-            worker_id: Unique ID for this miner
             weights_schedule: WeightsSchedule instance for tracking evaluation windows
             min_blocks_per_validator: Minimum blocks to mine for each validator
             storage: Storage backend for persistent data
         """
         self.config = config
-        self.subtensor = subtensor
-        self.metagraph = metagraph
-        self.worker_id = worker_id
         self.weights_schedule = weights_schedule
         self.storage = storage
         
