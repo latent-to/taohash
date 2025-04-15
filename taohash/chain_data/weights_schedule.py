@@ -10,20 +10,20 @@ class WeightsSchedule:
         self,
         subtensor: "bt.subtensor",
         netuid: int,
-        blocks_until_eval: int = 340,
+        blocks_until_eval: Optional[int] = None,
         tempo: int = 360,
     ):
         """
         Args:
             subtensor: Bittensor subtensor instance
             netuid: Network UID
-            blocks_until_eval: Number of blocks after which evaluation should begin (default: 350)
+            blocks_until_eval: Number of blocks after which evaluation should begin (default: tempo - 20)
             tempo: Number of blocks in an epoch (default: 360)
         """
         self.subtensor = subtensor
         self.netuid = netuid
-        self.blocks_until_eval = blocks_until_eval
         self.tempo = tempo
+        self.blocks_until_eval = blocks_until_eval or self.tempo - 20
 
     def blocks_until_evaluation(self) -> Optional[int]:
         """Get number of blocks until evaluation zone starts"""
