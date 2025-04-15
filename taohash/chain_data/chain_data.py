@@ -41,14 +41,23 @@ class PoolInfo:
             "domain": self.domain,
             "username": self.username,
             "password": self.password,
-            "pool_url": f"{self.domain}:{self.port}"
-            if self.domain
-            else f"{self.ip}:{self.port}",
+            "pool_url": self.pool_url,
         }
 
     @classmethod
     def decode(cls, pool_info_bytes: bytes) -> "PoolInfo":
         return decode_pool_info(pool_info_bytes)
+
+    @property
+    def pool_url(self) -> str:
+        """Constructs the pool URL from domain/ip and port."""
+        if self.domain:
+            return f"{self.domain}:{self.port}"
+        elif self.ip:
+            return f"{self.ip}:{self.port}"
+        else:
+            # TODO: Handle this case - maybe raise an error
+            return f":{self.port}"
 
 
 def publish_pool_info(
@@ -76,6 +85,33 @@ def publish_pool_info(
     )
 
     return response.is_success
+
+
+def get_all_pool_info(
+    subtensor: bt_subtensor, netuid: int
+) -> Optional[dict[str, PoolInfo]]:
+    commitments = subtensor.get_all_commitments(netuid)
+    if not commitments:
+        return None
+
+    all_pool_info: dict[str, PoolInfo] = {}
+    for hotkey, raw_data in commitments.items():
+        try:
+            if isinstance(raw_data, str):
+                raw_bytes = bytes(raw_data, "latin1")
+            elif isinstance(raw_data, bytes):
+                raw_bytes = raw_data
+            else:
+                logging.error(f"Unexpected data type in commitments: {type(raw_data)}")
+                continue
+
+            pool_info = decode_pool_info(raw_bytes)
+            all_pool_info[hotkey] = pool_info
+        except Exception as e:
+            logging.error(f"Failed to decode pool info: {e}")
+            continue
+
+    return all_pool_info
 
 
 def get_pool_info(
