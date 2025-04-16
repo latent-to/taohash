@@ -2,8 +2,31 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 import bittensor as bt
+from abc import ABC, abstractmethod
 
-class JsonStorage:
+class BaseStorage(ABC):
+    @classmethod
+    @abstractmethod
+    def add_args(cls, parser):
+        """Add storage-specific arguments to parser."""
+        pass
+    
+    @abstractmethod
+    def save_pool_data(self, block_number: int, pool_mapping: Dict) -> None:
+        """Save pool data for specific block."""
+        pass
+    
+    @abstractmethod
+    def get_pool_info(self, block_number: int) -> Optional[Dict]:
+        """Get pool info for specific block."""
+        pass
+    
+    @abstractmethod
+    def get_latest_pool_info(self) -> Optional[Dict]:
+        """Get most recent pool info."""
+        pass
+
+class JsonStorage(BaseStorage):
     DEFAULT_PATH = "~/.bittensor/data/pools"
     
     @classmethod
@@ -42,7 +65,7 @@ class JsonStorage:
         with open(latest_file) as f:
             return json.load(f)
 
-class RedisStorage:
+class RedisStorage(BaseStorage):
     DEFAULT_HOST = "localhost"
     DEFAULT_PORT = 6379
     DEFAULT_TTL = 3600  # 1 hour in seconds
