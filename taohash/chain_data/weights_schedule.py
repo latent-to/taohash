@@ -47,6 +47,22 @@ class WeightsSchedule:
             f"Blocks remaining: {blocks_left} | "
             f"In evaluation zone: {evaluation}"
         )
+    
+    def get_next_epoch_block(self, current_block: Optional[int] = None) -> Optional[int]:
+        """
+        Get the exact block number when the next epoch starts.
+        
+        Args:
+            current_block: The current block number. If None, fetches current block from subtensor.
+            
+        Returns:
+            Optional[int]: Block number where the next epoch starts or None if info unavailable
+        """
+        blocks_until = self.blocks_until_next_window() 
+        if current_block is None:
+            current_block = self.subtensor.get_current_block()
+        
+        return current_block + blocks_until + 1
 
     # For validators
     def should_set_weights(self) -> bool:

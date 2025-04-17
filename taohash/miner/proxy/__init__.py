@@ -1,2 +1,4 @@
-from .api import ProxyAPI as ProxyAPI
-from .api import PoolInfo as PoolInfo
+from taohash.miner.proxy.base import BaseProxyManager
+from taohash.miner.proxy.braiins import BraiinsProxyManager
+
+__all__ = ["BaseProxyManager", "BraiinsProxyManager"]

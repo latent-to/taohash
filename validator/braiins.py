@@ -44,15 +44,15 @@ class BraiinsValidator(BaseValidator):
 
         self.setup_bittensor_objects()
         self.last_update = 0
-        self.my_uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
+        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         self.scores = [0.0] * len(self.metagraph.S)
-        self.last_update = 0
         self.current_block = 0
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.weights_schedule = WeightsSchedule(
             subtensor=self.subtensor,
             netuid=self.config.netuid,
             blocks_until_eval=self.tempo - 20,  # 20 blocks before tempo ends
+            tempo=self.tempo
         )
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.1
@@ -195,9 +195,6 @@ class BraiinsValidator(BaseValidator):
             try:
                 # Fetch current block, when we last set weights, and when this subnet's epoch started
                 self.current_block = self.subtensor.get_current_block()
-                self.last_update = self.subtensor.blocks_since_last_update(
-                    self.config.netuid, self.my_uid
-                )
                 blocks_since = self.subtensor.subnet(
                     self.config.netuid
                 ).blocks_since_last_step
@@ -208,8 +205,9 @@ class BraiinsValidator(BaseValidator):
                 # Only set weights if:
                 # 1. We're in the evaluation zone (blocks >= blocks_until_eval)
                 # 2. We haven't set weights in this epoch (last_update < current_epoch_start)
+                should_set_weights = self.weights_schedule.should_set_weights()
                 if (
-                    self.weights_schedule.should_set_weights()
+                    should_set_weights
                     and self.last_update < current_epoch_start
                 ):
                     bt.logging.info(
@@ -270,13 +268,15 @@ class BraiinsValidator(BaseValidator):
 
                     bt.logging.info(f"Setting weights: {weights}")
                     # Update the incentive mechanism on the Bittensor blockchain.
-                    result = self.subtensor.set_weights(
+                    success, _ = self.subtensor.set_weights(
                         netuid=self.config.netuid,
                         wallet=self.wallet,
                         uids=self.metagraph.uids,
                         weights=weights,
                         wait_for_inclusion=True,
                     )
+                    if success:
+                        self.last_update = self.current_block
                     self.metagraph.sync()
                 else:
                     bt.logging.info(

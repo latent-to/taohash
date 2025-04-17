@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
-from typing import Optional
+from typing import Optional, Any
 import logging
 
 import bt_decode
@@ -19,6 +19,7 @@ class PoolInfo:
     domain: str | None = None
     username: str | None = None
     password: str | None = None
+    extra_data: dict[str, Any] = field(default_factory=dict)
 
     def encode(self) -> bytes:
         return encode_pool_info(self)
@@ -42,6 +43,7 @@ class PoolInfo:
             "username": self.username,
             "password": self.password,
             "pool_url": self.pool_url,
+            "extra_data": self.extra_data
         }
 
     @classmethod
