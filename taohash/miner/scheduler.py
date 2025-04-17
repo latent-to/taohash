@@ -94,8 +94,12 @@ class MiningScheduler:
         self.log_schedule(schedule)
         return schedule
 
-    def update_mining_schedule(self, current_block: int) -> Optional["MiningSlot"]:
+    def update_mining_schedule(
+        self, current_block: int, metagraph: "bt.metagraph.Metagraph" = None
+    ) -> Optional["MiningSlot"]:
         """Update the mining schedule if needed. Return the new slot if it changed."""
+        if metagraph:
+            self.metagraph = metagraph
 
         # Ensure valid schedule
         if (

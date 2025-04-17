@@ -164,7 +164,8 @@ class Miner:
             bt.logging.info(f"Saved pool data on block: {current_block}")
             if self.mining_scheduler:
                 changed_slot = self.mining_scheduler.update_mining_schedule(
-                    current_block
+                    current_block=current_block,
+                    metagraph=self.metagraph,
                 )
                 if changed_slot:
                     bt.logging.success(f"Mining slot updated at block {current_block}")

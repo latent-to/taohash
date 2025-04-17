@@ -132,7 +132,7 @@ class BaseAllocation(ABC):
 
 class StakeBased(BaseAllocation):
     """Allocates blocks proportionally based on stake"""
-    
+
     @staticmethod
     def add_args(parser: "argparse.ArgumentParser") -> None:
         """Add stake-based allocation specific arguments"""
@@ -168,6 +168,9 @@ class StakeBased(BaseAllocation):
 
             stake = metagraph.neurons[metagraph.hotkeys.index(hotkey)].total_stake.tao
             fair_share = int((stake / total_stake) * available_blocks)
+            bt.logging.info(
+                f"\nHotkey: {hotkey} - Stake_weight: {(stake / total_stake)} ({stake:.2f} / {total_stake:.2f}). Allocated: {fair_share} / {available_blocks}"
+            )
 
             blocks_allocated = max(
                 fair_share, self.min_blocks_per_validator
@@ -205,14 +208,14 @@ class StakeBased(BaseAllocation):
         # If any, add remaining to last target
         if remaining_blocks > 0 and slots and slots[-1].end_block < next_window_block:
             slots[-1].end_block = next_window_block
-            slots[-1].total_blocks = slots[-1].end_block - slots[-1].start_block + 1             
+            slots[-1].total_blocks = slots[-1].end_block - slots[-1].start_block + 1
 
         return slots
 
 
 class EqualDistribution(BaseAllocation):
     """Allocates blocks equally among targets"""
-    
+
     @staticmethod
     def add_args(parser: "argparse.ArgumentParser") -> None:
         """Add equal distribution specific arguments"""
@@ -244,8 +247,12 @@ class EqualDistribution(BaseAllocation):
                 break
 
             blocks_allocated = base_blocks + (1 if i < remainder else 0)
-            blocks_allocated = max(blocks_allocated, self.min_blocks_per_validator) # Ensure min blocks are allocated
-            blocks_allocated = min(blocks_allocated, remaining_blocks) # Ensure remaining blocks are respected
+            blocks_allocated = max(
+                blocks_allocated, self.min_blocks_per_validator
+            )  # Ensure min blocks are allocated
+            blocks_allocated = min(
+                blocks_allocated, remaining_blocks
+            )  # Ensure remaining blocks are respected
 
             end_block = current_pos + blocks_allocated - 1
 
