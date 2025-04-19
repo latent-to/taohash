@@ -5,7 +5,6 @@ import bittensor as bt
 from tabulate import tabulate
 
 if TYPE_CHECKING:
-    from taohash.chain_data.weights_schedule import WeightsSchedule
     from taohash.miner.models import MiningSlot
     from taohash.miner.storage import BaseStorage
     from taohash.miner.allocation import BaseAllocation
@@ -44,18 +43,18 @@ class MiningScheduler:
     def __init__(
         self,
         config: "bt.Config",
-        weights_schedule: "WeightsSchedule",
         metagraph: "bt.metagraph.Metagraph",
         storage: "BaseStorage",
         allocation: "BaseAllocation",
+        window_size: int,
         proxy_manager=None,
     ):
         self.config = config
-        self.weights_schedule = weights_schedule
         self.storage = storage
         self.proxy_manager = proxy_manager
         self.metagraph = metagraph
         self.allocation = allocation
+        self.window_size = window_size
 
         # State management
         self.current_schedule: Optional[MiningSchedule] = None
@@ -63,16 +62,9 @@ class MiningScheduler:
 
     def create_schedule(self, current_block: int) -> MiningSchedule:
         """Create a new mining schedule"""
-        # Available blocks
-        available_blocks = self.weights_schedule.blocks_until_next_window()
-        next_window_block = self.weights_schedule.get_next_epoch_block(current_block)
-
-        # Handle epoch boundaries
-        if available_blocks == 0 or available_blocks is None:
-            available_blocks = self.weights_schedule.tempo
-            bt.logging.info(
-                f"At epoch boundary (block {current_block}), scheduling for next epoch"
-            )
+        # Use window size for scheduling
+        available_blocks = self.window_size
+        next_window_block = current_block + self.window_size
 
         pool_info = self.storage.get_latest_pool_info()
         if not pool_info:

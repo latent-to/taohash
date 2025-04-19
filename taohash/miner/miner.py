@@ -5,13 +5,11 @@ from typing import Dict
 
 import bittensor as bt
 from taohash.chain_data.chain_data import get_all_pool_info, PoolInfo
-from taohash.chain_data.weights_schedule import WeightsSchedule
 from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
-
-DEFAULT_SYNC_FREQUENCY = 6  # Per tempo
+from taohash.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
 
 
 class Miner:
@@ -24,11 +22,6 @@ class Miner:
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.blocks_per_sync = self.tempo // self.config.sync_frequency
         self.storage = RedisStorage(self.config)
-        self.weights_schedule = WeightsSchedule(
-            subtensor=self.subtensor,
-            netuid=self.config.netuid,
-            tempo=self.tempo,
-        )
 
         self.proxy_manager = None
         if self.config.use_proxy:
@@ -44,7 +37,7 @@ class Miner:
         allocation_type = get_allocation(self.config.allocation.type, self.config)
         self.mining_scheduler = MiningScheduler(
             config=self.config,
-            weights_schedule=self.weights_schedule,
+            window_size=WINDOW_SIZE,
             storage=self.storage,
             allocation=allocation_type,
             metagraph=self.metagraph,
@@ -131,7 +124,8 @@ class Miner:
         """Create a worker ID based on the miner's hotkey address."""
         hotkey = self.wallet.hotkey.ss58_address
         return hotkey[:4] + hotkey[-4:]
-
+    
+    # They can do it in the scheduler
     def get_target_pools(self):
         """Fetch pools from the chain"""
         all_pools: Dict[str, PoolInfo] = get_all_pool_info(
@@ -171,6 +165,11 @@ class Miner:
                     bt.logging.success(f"Mining slot updated at block {current_block}")
 
         return current_block
+    
+    def blocks_until_next_epoch(self) -> int:
+        """Get number of blocks until new tempo starts"""
+        blocks = self.subtensor.subnet(self.netuid).blocks_since_last_step
+        return self.tempo - blocks
 
     def get_next_sync_block(self, current_block: int) -> tuple[int, str]:
         """Get the next block we should sync at and the reason."""
@@ -180,7 +179,7 @@ class Miner:
         sync_reason = "Regular interval"
 
         # Check epoch boundary
-        blocks_until_epoch = self.weights_schedule.blocks_until_next_window()
+        blocks_until_epoch = self.blocks_until_next_epoch()
         epoch_block = current_block + blocks_until_epoch + 1
         if epoch_block < next_sync:
             next_sync = epoch_block
@@ -238,3 +237,6 @@ class Miner:
 if __name__ == "__main__":
     miner = Miner()
     miner.run()
+
+# TODO: Nice hash, proxy miner, base miner 
+# TODO: min stake for miners
