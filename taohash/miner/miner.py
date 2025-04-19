@@ -124,7 +124,7 @@ class Miner:
         """Create a worker ID based on the miner's hotkey address."""
         hotkey = self.wallet.hotkey.ss58_address
         return hotkey[:4] + hotkey[-4:]
-    
+
     # They can do it in the scheduler
     def get_target_pools(self):
         """Fetch pools from the chain"""
@@ -165,10 +165,10 @@ class Miner:
                     bt.logging.success(f"Mining slot updated at block {current_block}")
 
         return current_block
-    
+
     def blocks_until_next_epoch(self) -> int:
         """Get number of blocks until new tempo starts"""
-        blocks = self.subtensor.subnet(self.netuid).blocks_since_last_step
+        blocks = self.subtensor.subnet(self.config.netuid).blocks_since_last_step
         return self.tempo - blocks
 
     def get_next_sync_block(self, current_block: int) -> tuple[int, str]:
@@ -178,12 +178,12 @@ class Miner:
         )
         sync_reason = "Regular interval"
 
-        # Check epoch boundary
         blocks_until_epoch = self.blocks_until_next_epoch()
-        epoch_block = current_block + blocks_until_epoch + 1
-        if epoch_block < next_sync:
-            next_sync = epoch_block
-            sync_reason = "Epoch boundary"
+        if blocks_until_epoch > 0:
+            epoch_block = current_block + blocks_until_epoch
+            if epoch_block < next_sync:
+                next_sync = epoch_block
+                sync_reason = "Epoch boundary"
 
         # Check slot changes
         if (
@@ -207,13 +207,17 @@ class Miner:
         bt.logging.info(f"Performed initial sync at block {current_block}")
 
         next_sync_block, sync_reason = self.get_next_sync_block(current_block)
-        bt.logging.info(f"Next sync at block: {next_sync_block} | Reason: {sync_reason}")
+        bt.logging.info(
+            f"Next sync at block: {next_sync_block} | Reason: {sync_reason}"
+        )
 
         while True:
             try:
                 if self.subtensor.wait_for_block(next_sync_block):
                     current_block = self.sync_and_refresh()
-                    next_sync_block, sync_reason = self.get_next_sync_block(current_block)
+                    next_sync_block, sync_reason = self.get_next_sync_block(
+                        current_block
+                    )
 
                     bt.logging.info(
                         f"Block: {current_block} | "
@@ -238,5 +242,5 @@ if __name__ == "__main__":
     miner = Miner()
     miner.run()
 
-# TODO: Nice hash, proxy miner, base miner 
+# TODO: Nice hash, proxy miner, base miner
 # TODO: min stake for miners
