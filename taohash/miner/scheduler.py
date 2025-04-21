@@ -16,6 +16,7 @@ class MiningSchedule:
     total_blocks: int
     created_at_block: int
     end_block: int
+    current_slot: Optional["MiningSlot"] = None
 
     def __init__(
         self, slots: list["MiningSlot"], total_blocks: int, created_at_block: int
@@ -23,7 +24,8 @@ class MiningSchedule:
         self.slots = slots
         self.total_blocks = total_blocks
         self.created_at_block = created_at_block
-        self.end_block = created_at_block + total_blocks - 1
+        self.end_block = self.slots[-1].end_block
+        self.current_slot = None
 
     def get_slot_for_block(self, block: int) -> Optional["MiningSlot"]:
         """Get the slot for a given block number."""
@@ -35,6 +37,17 @@ class MiningSchedule:
             ),
             None,
         )
+    
+    def update_current_slot(self, block: int) -> Optional["MiningSlot"]:
+        """
+        Update the current slot based on the given block.
+        Returns the new slot if it changed, None otherwise.
+        """
+        target_slot = self.get_slot_for_block(block)
+        if target_slot != self.current_slot:
+            self.current_slot = target_slot
+            return target_slot
+        return None
 
 
 class MiningScheduler:
@@ -58,7 +71,6 @@ class MiningScheduler:
 
         # State management
         self.current_schedule: Optional[MiningSchedule] = None
-        self.current_slot: Optional["MiningSlot"] = None
 
     def create_schedule(self, current_block: int) -> MiningSchedule:
         """Create a new mining schedule"""
@@ -84,6 +96,7 @@ class MiningScheduler:
         schedule = MiningSchedule(slots, available_blocks, current_block)
 
         self.log_schedule(schedule)
+        self.storage.save_schedule(current_block, schedule)
         return schedule
 
     def update_mining_schedule(
@@ -100,21 +113,25 @@ class MiningScheduler:
         ):
             self.current_schedule = self.create_schedule(current_block)
 
-        # Current slot
-        target_slot = self.current_schedule.get_slot_for_block(current_block)
-
-        # Check for slot change
-        if target_slot and target_slot != self.current_slot:
-            bt.logging.warning(
+        # Check and update current slot
+        changed_slot = self.current_schedule.update_current_slot(current_block)
+        if changed_slot:
+            missed_blocks = current_block - changed_slot.start_block
+            base_message = (
                 f"Switching mining slot at block {current_block}:\n"
-                f"Validator: {target_slot.validator_hotkey}\n"
-                f"Username: {target_slot.pool_info['extra_data']['full_username']}\n"
-                f"Pool URL: {target_slot.pool_info['pool_url']}\n"
-                f"Blocks: {target_slot.start_block} → {target_slot.end_block} ({target_slot.total_blocks} blocks)"
+                f"Validator: {changed_slot.validator_hotkey}\n"
+                f"Username: {changed_slot.pool_info['extra_data']['full_username']}\n"
+                f"Pool URL: {changed_slot.pool_info['pool_url']}\n"
+                f"Blocks: {changed_slot.start_block} → {changed_slot.end_block} ({changed_slot.total_blocks} blocks)"
             )
-            self.current_slot = target_slot
-            self._on_slot_change(target_slot)
-            return target_slot
+            
+            if missed_blocks > 0:
+                base_message += f"\nMissed blocks: {missed_blocks} during recovery"
+                
+            bt.logging.warning(base_message)
+            self.storage.save_schedule(current_block, self.current_schedule)
+            self._on_slot_change(changed_slot)
+            return changed_slot
 
         return None
 
