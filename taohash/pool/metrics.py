@@ -25,6 +25,7 @@ class MiningMetrics:
         fpps_per_hour = fpps / 24
         # Convert hash rate from GH/s to TH/s
         hash_rate_th = self.hash_rate_gh / 1000
+        print(f"Hash rate: {hash_rate_th} | Fpps: {fpps_per_hour} | Hotkey: {self.hotkey}") 
         # Fpps aggregated BTC/TH/Day
         return hash_rate_th * fpps_per_hour
 

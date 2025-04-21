@@ -1,15 +1,16 @@
 import os
 import argparse
 import traceback
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import bittensor as bt
-
-from taohash.chain_data.chain_data import get_pool_info
-from taohash.miner.storage import JsonStorage, RedisStorage, get_storage
-
-BLOCKS_PER_EPOCH = 360
-DEFAULT_SYNC_FREQUENCY = 6
+from taohash.chain_data.chain_data import get_all_pool_info, PoolInfo
+from taohash.miner.storage import RedisStorage
+from taohash.miner.scheduler import MiningScheduler
+from taohash.miner.proxy.braiins import BraiinsProxyManager
+from taohash.miner.allocation import BaseAllocation, get_allocation
+from taohash.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
+from taohash.pool import PoolIndex
 
 
 class Miner:
@@ -19,30 +20,60 @@ class Miner:
         self.setup_logging()
         self.setup_bittensor_objects()
         self.worker_id = self.create_worker_id()
-        self.storage = get_storage(self.config.storage, self.config)
+        self.tempo = self.subtensor.tempo(self.config.netuid)
+        self.blocks_per_sync = self.tempo // self.config.sync_frequency
+        self.storage = RedisStorage(self.config)
+
+        self.proxy_manager = None
+        if self.config.use_proxy:
+            bt.logging.info(
+                f"Setting up proxy manager with path: {self.config.proxy_base_path}"
+            )
+            self.proxy_manager = BraiinsProxyManager(
+                config=self.config,
+                proxy_base_path=self.config.proxy_base_path,
+                proxy_port=self.config.proxy_port,
+            )
+
+        allocation_type = get_allocation(self.config.allocation.type, self.config)
+        self.mining_scheduler = MiningScheduler(
+            config=self.config,
+            window_size=WINDOW_SIZE,
+            storage=self.storage,
+            allocation=allocation_type,
+            metagraph=self.metagraph,
+            proxy_manager=self.proxy_manager,
+        )
+        self._first_sync = True
+        self._recover_schedule = self.config.recover_schedule
 
     def get_config(self):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
         )
-        parser.add_argument(
-            "--storage",
-            type=str,
-            choices=["json", "redis"],
-            default="json",
-            help="Storage backend to use (json or redis)"
-        )
         # Sync frequency
         parser.add_argument(
             "--sync_frequency",
             type=int,
             default=DEFAULT_SYNC_FREQUENCY,
-            choices=range(1, 360),
             help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
-
-        JsonStorage.add_args(parser)
+        parser.add_argument(
+            "--recover_schedule",
+            type=bool,
+            default=True,
+            help="Whether to recover the schedule from storage in-between restarts.",
+        )
+        parser.add_argument(
+            "--blacklist",
+            type=str,
+            nargs="+",
+            default=[],
+            help="List of validator hotkeys to exclude from mining",
+        )
+        BaseAllocation.add_args(parser)
+        BraiinsProxyManager.add_args(parser)
         RedisStorage.add_args(parser)
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
@@ -66,7 +97,6 @@ class Miner:
     def setup_logging(self) -> None:
         """Set up logging for the miner."""
         bt.logging(config=self.config, logging_dir=self.config.full_path)
-        bt.logging.set_info()
         bt.logging.info(
             f"Running miner for subnet: {self.config.netuid} on network: {self.config.subtensor.network}"
         )
@@ -99,112 +129,152 @@ class Miner:
         )
         bt.logging.info(f"Running miner on uid: {self.my_subnet_uid}")
 
-    def get_sorted_validators(self) -> List[Tuple[int, float]]:
-        """Fetch and sort validators by stake."""
-        # TODO:Should we also add condition of min 10k stake weight?
-        max_validators = self.subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="MaxAllowedValidators",
-            params=[self.config.netuid],
-        ).value
-
-        sorted_by_stake = sorted(
-            [(n.uid, n.stake) for n in self.metagraph.neurons],
-            key=lambda x: x[1],
-            reverse=True,
-        )
-        return sorted_by_stake[:max_validators]
-
     def create_worker_id(self) -> str:
         """Create a worker ID based on the miner's hotkey address."""
         hotkey = self.wallet.hotkey.ss58_address
         return hotkey[:4] + hotkey[-4:]
 
-    def get_pool_mapping(self, validators: List[Tuple[int, float]]) -> Dict:
-        """Create a mapping of validator pool information."""
-        # Calculate total stake across all validators
-        stake_sum = sum(
-            [self.metagraph.neurons[uid].total_stake for uid, _ in validators]
+    # They can do it in the scheduler
+    def get_target_pools(self):
+        """Fetch pools from the chain"""
+        all_pools: Dict[str, PoolInfo] = get_all_pool_info(
+            self.subtensor,
+            self.config.netuid,
         )
-
-        pool_mapping = {}
-        for uid, _ in validators:
-            validator_hotkey = self.metagraph.hotkeys[uid]
-            pool_info = get_pool_info(
-                self.subtensor, self.config.netuid, validator_hotkey
-            )
-            total_stake = self.metagraph.neurons[uid].total_stake
-
-            if pool_info is not None:
-                normalized_weight = total_stake.tao / stake_sum.tao
-                pool_mapping[validator_hotkey] = {
-                    "pool_info": pool_info.to_json(),
-                    "pool_weight": normalized_weight,
-                    "uid": uid,
-                    "total_stake": total_stake.tao,
-                    "stake_percentage": normalized_weight * 100,
-                    "full_username": f"{pool_info.username}.{self.worker_id}",
-                }
-            else:
-                bt.logging.debug(
-                    f"Skipping validator {uid} ({validator_hotkey}) - no pool information available"
-                )
-
-        if not pool_mapping:
+        if not all_pools:
             bt.logging.warning("No validators found with pool information")
+            return {}
 
-        return pool_mapping
+        # Filter from metagraph and only include btc braiins pools
+        target_pools = {}
+        for hotkey, pool_info in all_pools.items():
+            if (
+                hotkey in self.metagraph.hotkeys
+                and pool_info.pool_index == PoolIndex.Braiins
+            ):
+                pool_info.extra_data["full_username"] = (
+                    f"{pool_info.username}.{self.worker_id}"
+                )
+                target_pools[hotkey] = pool_info.to_json()
+        return target_pools
 
-    def sync_and_collect_data(self) -> None:
+    def restore_schedule(self, current_block: int):
+        """Restore the schedule from storage."""
+        if self._recover_schedule:
+            recovered_schedule = self.storage.load_latest_schedule()
+            if recovered_schedule:
+                self.mining_scheduler.current_schedule = recovered_schedule
+                bt.logging.success(
+                    f"Recovered schedule from creation block {recovered_schedule.created_at_block}"
+                )
+                changed_slot = self.mining_scheduler.update_mining_schedule(
+                    current_block=current_block,
+                    metagraph=self.metagraph,
+                )
+                if self.mining_scheduler.current_schedule != recovered_schedule:
+                    bt.logging.warning(
+                        "Recovered schedule was outdated - created new schedule."
+                    )
+                elif changed_slot:
+                    bt.logging.success(
+                        f"Mining slot updated at block {current_block} from recovered schedule."
+                    )
+                else:
+                    bt.logging.info(
+                        "No slot change detected - current slot is still valid."
+                    )
+            else:
+                bt.logging.info("No schedule to recover; will create fresh.")
+
+    def sync_and_refresh(self) -> int:
         """Sync metagraph and collect pool data."""
         self.metagraph.sync()
         current_block = self.metagraph.block.item()
-        bt.logging.info(f"Collecting pool info at block {current_block}")
+        bt.logging.info(f"Syncing at block {current_block}")
 
-        validators = self.get_sorted_validators()
-        pool_mapping = self.get_pool_mapping(validators)
+        target_pools = self.get_target_pools()
+        if target_pools:
+            self.storage.save_pool_data(current_block, target_pools)
+            bt.logging.info(f"Saved pool data on block: {current_block}")
 
-        if pool_mapping:
-            self.storage.save_pool_data(current_block, pool_mapping)
-            bt.logging.info(f"Updated pool data for block {current_block}")
+        if self.mining_scheduler:
+            if self._first_sync:
+                self._first_sync = False
+                self.restore_schedule(current_block)
+            else:
+                changed_slot = self.mining_scheduler.update_mining_schedule(
+                    current_block=current_block,
+                    metagraph=self.metagraph,
+                )
+                if changed_slot:
+                    bt.logging.success(f"Mining slot updated at block {current_block}")
 
         return current_block
+
+    def blocks_until_next_epoch(self) -> int:
+        """Get number of blocks until new tempo starts"""
+        blocks = self.subtensor.subnet(self.config.netuid).blocks_since_last_step
+        return self.tempo - blocks
+
+    def get_next_sync_block(self, current_block: int) -> tuple[int, str]:
+        """Get the next block we should sync at and the reason."""
+        next_sync = current_block + (
+            self.blocks_per_sync - (current_block % self.blocks_per_sync)
+        )
+        sync_reason = "Regular interval"
+
+        blocks_until_epoch = self.blocks_until_next_epoch()
+        if blocks_until_epoch > 0:
+            epoch_block = current_block + blocks_until_epoch
+            if epoch_block < next_sync:
+                next_sync = epoch_block
+                sync_reason = "Epoch boundary"
+
+        # Check slot changes
+        if (
+            self.mining_scheduler
+            and self.mining_scheduler.current_schedule
+            and self.mining_scheduler.current_schedule.current_slot
+        ):
+            # If we have a mining slot, check when it ends
+            current_schedule = self.mining_scheduler.current_schedule
+            slot_end = current_schedule.current_slot.end_block + 1
+            if slot_end >= current_block and slot_end < next_sync:
+                next_sync = slot_end
+                if slot_end == current_schedule.end_block + 1:
+                    sync_reason = "New window"
+                else:
+                    sync_reason = "Slot change"
+
+        return next_sync, sync_reason
 
     def run(self) -> None:
         """Run the main miner loop."""
         bt.logging.info("Starting main loop")
 
-        # Calculate blocks between syncs
-        blocks_between_syncs = BLOCKS_PER_EPOCH // self.config.sync_frequency
-
-        # Sync immediately on startup
-        current_block = self.sync_and_collect_data()
+        current_block = self.sync_and_refresh()
         bt.logging.info(f"Performed initial sync at block {current_block}")
 
-        next_sync_block = current_block + (
-            blocks_between_syncs - (current_block % blocks_between_syncs)
-        )
+        next_sync_block, sync_reason = self.get_next_sync_block(current_block)
         bt.logging.info(
-            f"Next scheduled sync at block: {next_sync_block} | Current block: {current_block}"
+            f"Next sync at block: {next_sync_block} | Reason: {sync_reason}"
         )
 
         while True:
             try:
-                # Wait for the next sync block
                 if self.subtensor.wait_for_block(next_sync_block):
-                    current_block = self.sync_and_collect_data()
-                    latest_pool_info = self.storage.get_latest_pool_info()
-                    if latest_pool_info:
-                        bt.logging.success(f"Latest pool info: {latest_pool_info}")
-
-                    next_sync_block = current_block + blocks_between_syncs
-                    log = (
-                        f"Block: {current_block} | "
-                        f"Incentive: {self.metagraph.I[self.my_subnet_uid]} | "
-                        f"Blocks since epoch: {self.metagraph.blocks_since_last_step} | "
-                        f"Next sync at block: {next_sync_block}"
+                    current_block = self.sync_and_refresh()
+                    next_sync_block, sync_reason = self.get_next_sync_block(
+                        current_block
                     )
-                    bt.logging.info(log)
+
+                    bt.logging.info(
+                        f"Block: {current_block} | "
+                        f"Next sync: {next_sync_block} | "
+                        f"Reason: {sync_reason} | "
+                        f"Incentive: {self.metagraph.I[self.my_subnet_uid]} | "
+                        f"Blocks since epoch: {self.metagraph.blocks_since_last_step}"
+                    )
                 else:
                     bt.logging.warning("Timeout waiting for block, retrying...")
                     continue
@@ -220,3 +290,6 @@ class Miner:
 if __name__ == "__main__":
     miner = Miner()
     miner.run()
+
+# TODO: Nice hash, proxy miner, base miner
+# TODO: min stake for miners
