@@ -55,29 +55,6 @@ class BaseAllocation(ABC):
     ) -> list["MiningSlot"]:
         """Create mining schedule based on allocation strategy"""
 
-        # Safety checks
-        available_blocks_this_window = max(1, available_blocks_this_window)
-
-        # For very short periods, just use top validator
-        if available_blocks_this_window < self.min_blocks_for_split:
-            filtered = self._filter_validators(pool_info, metagraph)
-            if not filtered:
-                return []
-
-            top_hotkey, top_info = next(iter(filtered.items()))
-            return [
-                MiningSlot(
-                    start_block=current_block,
-                    end_block=min(
-                        current_block + available_blocks_this_window - 1,
-                        next_window_block - 1,
-                    ),
-                    total_blocks=available_blocks_this_window,
-                    validator_hotkey=top_hotkey,
-                    pool_info=top_info,
-                )
-            ]
-
         return self.allocate_slots(
             current_block,
             available_blocks_this_window,
@@ -90,6 +67,7 @@ class BaseAllocation(ABC):
         self, pool_info: Dict[str, "PoolInfo"], metagraph: "bt.metagraph.Metagraph"
     ) -> Dict[str, "PoolInfo"]:
         """Filter and sort validators based on criteria"""
+        # TODO: Min stake and V Permit 
         # Filter based on blacklist and metagraph
         filtered = {
             hotkey: info
@@ -212,7 +190,9 @@ class StakeBased(BaseAllocation):
 
         return slots
 
-
+# TODO: EMA Stake Based
+class EMAStakeBased(BaseAllocation):
+    """Allocates blocks proportionally based on EMA of stake"""
 class EqualDistribution(BaseAllocation):
     """Allocates blocks equally among targets"""
 
