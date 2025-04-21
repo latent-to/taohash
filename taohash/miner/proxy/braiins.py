@@ -81,8 +81,6 @@ class BraiinsProxyManager(BaseProxyManager):
     def _create_initial_config(self) -> None:
         """Create initial proxy configuration file"""
         initial_config = {
-            "description": "Initial taohash mining proxy configuration",
-            
             "server": [{
                 "name": "S1",
                 "port": self.proxy_port
@@ -91,7 +89,6 @@ class BraiinsProxyManager(BaseProxyManager):
             "target": [],
             
             "routing": [{
-                "name": "TaoHash",
                 "from": ["S1"],
                 "goal": []
             }]
@@ -189,24 +186,28 @@ class BraiinsProxyManager(BaseProxyManager):
             username = slot_data.pool_info["extra_data"]["full_username"]
             validator_id = slot_data.validator_hotkey[:8]
             
-            config["description"] = f"Mining to {validator_id} for blocks {slot_data.start_block}-{slot_data.end_block}"
-            
-            # Set up target with proper fields
-            target_name = f"Pool-{validator_id}"
-            config["target"] = [{
-                "name": target_name,
-                "url": f"stratum+tcp://{pool_url}",
-                "user_identity": username
-            }]
-            
-            # Set up proper routing structure with goal and level
-            goal_name = f"Mine-{username}"
-            config["routing"][0]["goal"] = [{
-                "name": goal_name,
-                "level": [{
-                    "targets": [target_name]
+            config = {
+                "server": [{
+                    "name": "S1",
+                    "port": self.proxy_port
+                }],
+                
+                "target": [{
+                    "name": f"Pool-{validator_id}",
+                    "url": f"stratum+tcp://{pool_url}",
+                    "user_identity": username
+                }],
+                
+                "routing": [{
+                    "from": ["S1"],
+                    "goal": [{
+                        "name": f"Mine-{username}",
+                        "level": [{
+                            "targets": [f"Pool-{validator_id}"]
+                        }]
+                    }]
                 }]
-            }]
+            }
             
             with open(self.config_path, "w") as f:
                 toml.dump(config, f)
