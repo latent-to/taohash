@@ -67,16 +67,20 @@ class BaseAllocation(ABC):
         self, pool_info: Dict[str, "PoolInfo"], metagraph: "bt.metagraph.Metagraph"
     ) -> Dict[str, "PoolInfo"]:
         """Filter and sort validators based on criteria"""
-        # TODO: Min stake and V Permit 
-        # Filter based on blacklist and metagraph
+        # TODO: Min stake
+        # Filter based on blacklist, metagraph, and validator permit
         filtered = {
             hotkey: info
             for hotkey, info in pool_info.items()
-            if hotkey not in self.validator_blacklist and hotkey in metagraph.hotkeys
+            if (
+                hotkey not in self.validator_blacklist
+                and hotkey in metagraph.hotkeys
+                and metagraph.neurons[metagraph.hotkeys.index(hotkey)].validator_permit
+            )
         }
 
         if not filtered:
-            bt.logging.warning("No filteredvalidators found")
+            bt.logging.warning("No filtered validators found")
             return {}
 
         # Sort by stake
@@ -190,9 +194,12 @@ class StakeBased(BaseAllocation):
 
         return slots
 
+
 # TODO: EMA Stake Based
 class EMAStakeBased(BaseAllocation):
     """Allocates blocks proportionally based on EMA of stake"""
+
+
 class EqualDistribution(BaseAllocation):
     """Allocates blocks equally among targets"""
 
