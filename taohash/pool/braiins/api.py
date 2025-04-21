@@ -70,23 +70,25 @@ class BraiinsPoolAPI(PoolAPI):
 
         output = {
             self._worker_name_to_worker_id(worker_name): {
-                **worker_data,
-                'avg_hashrate_60m_ghs': self._hashrate_to_gh(
-                    worker_data["hash_rate_60m"],
-                    worker_data["hash_rate_unit"]
-                )
+                **worker_data
             }
             for worker_name, worker_data in workers.items()
         }
 
         return output
 
+    def get_all_worker_data(self, coin: str) -> dict:
+        if coin != "bitcoin":
+            raise ValueError("BraiinsPool only supports bitcoin")
+
+        return self._get_worker_data(coin)
+
     def get_worker_data(self, worker_id: str, coin: str) -> dict:
         if coin != "bitcoin":
             raise ValueError("BraiinsPool only supports bitcoin")
 
         workers_data = self._get_worker_data(coin)
-        return workers_data.get(worker_id, {'shares_60m': 0.0, 'avg_hashrate_60m_ghs': 0.0})
+        return workers_data.get(worker_id, None)
 
     def get_fpps(self, coin: str) -> float:
         if coin != "bitcoin":
