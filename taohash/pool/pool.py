@@ -14,7 +14,7 @@ class PoolIndex(IntEnum):
     @classmethod
     def has_value(cls, value):
         return value in cls.__members__.values()
-# TRODO: Explore config file 
+# TODO: Explore config file 
 
 class PoolBase(metaclass=abc.ABCMeta):
     api: PoolAPI
