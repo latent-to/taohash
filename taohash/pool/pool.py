@@ -14,7 +14,7 @@ class PoolIndex(IntEnum):
     @classmethod
     def has_value(cls, value):
         return value in cls.__members__.values()
-
+# TRODO: Explore config file 
 
 class PoolBase(metaclass=abc.ABCMeta):
     api: PoolAPI
@@ -29,8 +29,12 @@ class PoolBase(metaclass=abc.ABCMeta):
         return hotkey
 
     @abc.abstractmethod
-    def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
+    def get_hotkey_contribution(self, hotkey: str, coin: str) -> dict:
         return
+
+    @abc.abstractmethod
+    def get_all_miner_contributions(self, coin: str) -> dict[str, dict]:
+        pass
 
     def get_fpps(self, coin: str) -> float:
         return self.api.get_fpps(coin)
