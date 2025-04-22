@@ -1,10 +1,13 @@
 import json
 import pickle
+import zlib
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional
-import zlib
+
 import bittensor as bt
-from abc import ABC, abstractmethod
+
+import taohash.core.constants as constants
 
 
 class BaseStorage(ABC):
@@ -78,7 +81,7 @@ class JsonStorage(BaseStorage):
         latest_file = max(files, key=lambda f: int(f.stem.split("-")[0]))
         with open(latest_file) as f:
             return json.load(f)
-        
+
     # TODO: Implement schedule data
     def save_schedule(self, block_number: int, schedule_obj) -> None:
         pass
@@ -88,23 +91,25 @@ class JsonStorage(BaseStorage):
 
 
 class RedisStorage(BaseStorage):
-    DEFAULT_HOST = "localhost"
-    DEFAULT_PORT = 6379
-    DEFAULT_TTL = 7200  # 2 hours in seconds
-
     @classmethod
     def add_args(cls, parser):
         redis_group = parser.add_argument_group("redis storage")
         redis_group.add_argument(
-            "--redis_host", type=str, default=cls.DEFAULT_HOST, help="Redis host"
+            "--redis_host",
+            type=str,
+            default=constants.REDIS_DEFAULT_HOST,
+            help="Redis host",
         )
         redis_group.add_argument(
-            "--redis_port", type=int, default=cls.DEFAULT_PORT, help="Redis port"
+            "--redis_port",
+            type=int,
+            default=constants.REDIS_DEFAULT_PORT,
+            help="Redis port",
         )
         redis_group.add_argument(
             "--redis_ttl",
             type=int,
-            default=cls.DEFAULT_TTL,
+            default=constants.REDIS_DEFAULT_TTL,
             help="TTL for pool data in seconds",
         )
 

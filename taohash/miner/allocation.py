@@ -6,7 +6,7 @@ import bittensor as bt
 from taohash.miner.models import MiningSlot
 
 if TYPE_CHECKING:
-    from taohash.chain_data.chain_data import PoolInfo
+    from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class BaseAllocation(ABC):

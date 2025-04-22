@@ -1,10 +1,10 @@
-from typing import List, Optional, Union
+from typing import List, Union
 
 from dataclasses import dataclass
 from bittensor import NeuronInfo, NeuronInfoLite
 from substrateinterface import SubstrateInterface
 
-from . import PoolBase
+from taohash.core.pool.pool import PoolBase
 
 
 NETUID = 111  # TODO

@@ -1,7 +1,7 @@
 import requests
 from typing import Optional, Dict
 
-from .price import NetworkedCoinPriceAPI
+from taohash.core.pricing.price import NetworkedCoinPriceAPI
 
 
 class CoinGeckoAPI(NetworkedCoinPriceAPI):

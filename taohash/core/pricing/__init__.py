@@ -1,10 +1,10 @@
 from typing import Dict, Optional
 import argparse
 
-from .price import CoinPriceAPIBase, UnitCoinPriceAPI, HashPriceAPIBase
-from .coingecko import CoinGeckoAPI
-from .coinmarketcap import CoinMarketCapAPI
-from .hash_price import BraiinsHashPriceAPI
+from taohash.core.pricing.price import CoinPriceAPIBase, UnitCoinPriceAPI, HashPriceAPIBase
+from taohash.core.pricing.coingecko import CoinGeckoAPI
+from taohash.core.pricing.coinmarketcap import CoinMarketCapAPI
+from taohash.core.pricing.hash_price import BraiinsHashPriceAPI
 
 
 class CoinPriceAPI:

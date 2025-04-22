@@ -8,6 +8,8 @@ import bittensor as bt
 from taohash.miner.proxy.base import BaseProxyManager
 
 
+DEFAULT_PROXY_BASE_PATH = os.path.abspath(os.path.dirname(__file__))
+
 class BraiinsProxyManager(BaseProxyManager):
     """
     Manager for Braiins Farm Proxy configuration.
@@ -30,7 +32,7 @@ class BraiinsProxyManager(BaseProxyManager):
         proxy_group.add_argument(
             "--proxy_base_path",
             type=str,
-            default="~/braiins-farm-proxy",
+            default=DEFAULT_PROXY_BASE_PATH,
             help="Path to the Braiins Farm Proxy directory with docker-compose.yml",
         )
         proxy_group.add_argument(
@@ -43,7 +45,7 @@ class BraiinsProxyManager(BaseProxyManager):
     def __init__(
         self,
         config: "bt.Config",
-        proxy_base_path: str = "~/braiins-farm-proxy",
+        proxy_base_path: str = DEFAULT_PROXY_BASE_PATH,
         proxy_port: int = 3333,
     ):
         """
