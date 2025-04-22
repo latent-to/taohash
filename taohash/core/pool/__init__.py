@@ -2,10 +2,10 @@ from typing import Dict, Optional, Callable
 
 import argparse
 
-from .pool import PoolBase, PoolIndex
-from .braiins import BraiinsPool
-from .config import PoolAPIConfig
-from ..chain_data.chain_data import PoolInfo
+from taohash.core.pool.pool import PoolBase, PoolIndex
+from taohash.core.pool.braiins import BraiinsPool
+from taohash.core.pool.config import PoolAPIConfig
+from taohash.core.chain_data.pool_info import PoolInfo
 
 POOL_URLS_FMT: Dict[PoolIndex, Callable[[PoolInfo], str]] = {
     PoolIndex.Braiins: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",

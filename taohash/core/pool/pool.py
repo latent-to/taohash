@@ -1,9 +1,9 @@
 import abc
-from enum import IntEnum, Enum
+from enum import IntEnum
 
-from .api import PoolAPI
-from .config import PoolAPIConfig
-from ..chain_data.chain_data import PoolInfo
+from taohash.core.pool.api import PoolAPI
+from taohash.core.pool.config import PoolAPIConfig
+from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class PoolIndex(IntEnum):

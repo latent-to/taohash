@@ -1,8 +1,8 @@
 import argparse
 
-from taohash.pool.config import PoolAPIConfig
-from taohash.pool.pool import PoolIndex
-from taohash.chain_data.chain_data import PoolInfo
+from taohash.core.pool.config import PoolAPIConfig
+from taohash.core.pool.pool import PoolIndex
+from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class BraiinsPoolAPIConfig(PoolAPIConfig):

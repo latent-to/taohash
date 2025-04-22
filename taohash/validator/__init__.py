@@ -4,8 +4,8 @@ import bittensor as bt
 from bittensor_wallet import Wallet
 
 from tabulate import tabulate
-from taohash.pool import Pool
-from taohash.pricing import CoinPriceAPI
+from taohash.core.pool import Pool
+from taohash.core.pricing import CoinPriceAPI
 
 TESTNET_NETUID = 332
 

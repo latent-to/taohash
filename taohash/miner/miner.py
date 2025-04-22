@@ -4,13 +4,14 @@ import traceback
 from typing import Dict
 
 import bittensor as bt
-from taohash.chain_data.chain_data import get_all_pool_info, PoolInfo
+
+import taohash.core.constants as constants
+from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
 from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
-from taohash.core.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
-from taohash.pool import PoolIndex
+from taohash.core.pool import PoolIndex
 
 
 class Miner:
@@ -38,7 +39,7 @@ class Miner:
         allocation_type = get_allocation(self.config.allocation.type, self.config)
         self.mining_scheduler = MiningScheduler(
             config=self.config,
-            window_size=WINDOW_SIZE,
+            window_size=constants.WINDOW_SIZE,
             storage=self.storage,
             allocation=allocation_type,
             metagraph=self.metagraph,
@@ -56,8 +57,8 @@ class Miner:
         parser.add_argument(
             "--sync_frequency",
             type=int,
-            default=DEFAULT_SYNC_FREQUENCY,
-            help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
+            default=constants.DEFAULT_SYNC_FREQUENCY,
+            help=f"Number of times to sync and update pool info per epoch (1-359). Default is {constants.DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
         parser.add_argument(
             "--no-recover_schedule",

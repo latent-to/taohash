@@ -1,13 +1,12 @@
 from typing import Dict
 
-import cachetools.func
 import requests
 from ratelimit import limits, RateLimitException
 from backoff import on_exception, expo
 
 import bittensor as bt
 
-from ..api import PoolAPI
+from taohash.core.pool.api import PoolAPI
 
 HASHRATE_TTL = 10 * 60  # 10min TTL for grabbing hashrate from all workers
 
