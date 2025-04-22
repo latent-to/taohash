@@ -4,7 +4,7 @@ from cachetools import TTLCache
 import requests
 from ratelimit import limits, RateLimitException
 from backoff import on_exception, expo
-from taohash.pricing.price import HashPriceAPIBase
+from taohash.core.pricing.price import HashPriceAPIBase
 
 HASH_PRICE_TTL = 30 * 60  # 30 minutes
 _hash_price_cache = TTLCache(maxsize=64, ttl=HASH_PRICE_TTL)

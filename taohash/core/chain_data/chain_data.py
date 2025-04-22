@@ -8,7 +8,7 @@ import netaddr
 from bittensor import subtensor as bt_subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.utils import ip_to_int
+from taohash.core.utils import ip_to_int
 
 
 @dataclass

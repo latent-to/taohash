@@ -9,7 +9,7 @@ from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
-from taohash.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
+from taohash.core.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
 from taohash.pool import PoolIndex
 
 

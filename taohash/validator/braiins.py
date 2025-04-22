@@ -10,15 +10,15 @@ import bittensor as bt
 
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.pool import Pool, PoolBase
-from taohash.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.pricing import BraiinsHashPriceAPI
-from taohash.chain_data.chain_data import (
+from taohash.core.pool import Pool, PoolBase
+from taohash.core.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.core.pricing import BraiinsHashPriceAPI
+from taohash.core.chain_data.chain_data import (
     publish_pool_info,
     get_pool_info,
     encode_pool_info,
 )
-from taohash.constants import BLOCK_TIME
+from taohash.core.constants import BLOCK_TIME
 from taohash.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from validator import BaseValidator
 
