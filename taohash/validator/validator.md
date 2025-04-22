@@ -6,7 +6,7 @@ This guide will walk you through setting up and running a TaoHash validator on t
 
 1. A Bittensor wallet
 2. Braiins Pool account
-3. Python environment (Python 3.8 or higher recommended)
+3. Python environment (Python 3.9 or higher recommended)
 
 ## Setup Steps
 
