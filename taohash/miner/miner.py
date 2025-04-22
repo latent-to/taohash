@@ -60,10 +60,10 @@ class Miner:
             help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
         parser.add_argument(
-            "--recover_schedule",
-            type=bool,
-            default=True,
-            help="Whether to recover the schedule from storage in-between restarts.",
+            "--no-recover_schedule",
+            action="store_false",
+            dest="recover_schedule",
+            help="Disable schedule recovery between restarts.",
         )
         parser.add_argument(
             "--blacklist",
