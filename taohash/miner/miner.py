@@ -9,7 +9,7 @@ import taohash.core.constants as constants
 from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
 from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
-from taohash.miner.proxy.braiins import BraiinsProxyManager
+from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
 from taohash.core.pool import PoolIndex
 

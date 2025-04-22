@@ -23,9 +23,10 @@ class BaseProxyManager(ABC):
         """
         proxy_group = parser.add_argument_group("proxy")
         proxy_group.add_argument(
-            "--use_proxy",
-            action="store_true",
-            help="Use a mining proxy for slot-based mining",
+            "--no-proxy",
+            dest="use_proxy",
+            action="store_false",
+            help="Disable slot‑based mining proxy"
         )
 
     def __init__(self, config: "bt.Config"):
