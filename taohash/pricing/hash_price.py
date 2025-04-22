@@ -6,7 +6,7 @@ from ratelimit import limits, RateLimitException
 from backoff import on_exception, expo
 from taohash.pricing.price import HashPriceAPIBase
 
-HASH_PRICE_TTL = 5 * 60  # 5 minutes
+HASH_PRICE_TTL = 30 * 60  # 30 minutes
 _hash_price_cache = TTLCache(maxsize=64, ttl=HASH_PRICE_TTL)
 
 
@@ -20,7 +20,7 @@ class BraiinsHashPriceAPI(HashPriceAPIBase):
         pass
     
     @on_exception(expo, RateLimitException, max_tries=8)
-    @limits(calls=1, period=5)  # rate limit once per 5s
+    @limits(calls=1, period=10)  # rate limit once per 10s
     def get_hashrate_stats(self) -> Dict:
         """
         Get current network hashrate statistics from Braiins Pool for BTC.
