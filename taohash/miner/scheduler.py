@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from taohash.miner.models import MiningSlot
     from taohash.miner.storage import BaseStorage
     from taohash.miner.allocation import BaseAllocation
+    from taohash.miner.manager.base import BaseSlotManager
 
 
 @dataclass
@@ -52,6 +53,7 @@ class MiningSchedule:
 
 class MiningScheduler:
     """Manages mining schedule creation and updates."""
+    manager: "BaseSlotManager"
 
     def __init__(
         self,
@@ -60,11 +62,11 @@ class MiningScheduler:
         storage: "BaseStorage",
         allocation: "BaseAllocation",
         window_size: int,
-        proxy_manager=None,
+        slot_manager: "BaseSlotManager" = None,
     ):
         self.config = config
         self.storage = storage
-        self.proxy_manager = proxy_manager
+        self.slot_manager = slot_manager
         self.metagraph = metagraph
         self.allocation = allocation
         self.window_size = window_size
@@ -192,7 +194,5 @@ class MiningScheduler:
 
     def _on_slot_change(self, new_slot: "MiningSlot") -> None:
         """Handle slot change events."""
-        if self.proxy_manager:
-            success = self.proxy_manager.update_config(new_slot)
-            if not success:
-                bt.logging.warning("Failed to update proxy configuration")
+        if self.slot_manager:
+            self.slot_manager.on_slot_change(new_slot)

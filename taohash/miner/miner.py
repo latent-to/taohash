@@ -7,6 +7,7 @@ import bittensor as bt
 from taohash.chain_data.chain_data import get_all_pool_info, PoolInfo
 from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
+from taohash.miner.manager.proxy import ProxySlotManager
 from taohash.miner.proxy.braiins import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
 from taohash.constants import DEFAULT_SYNC_FREQUENCY, WINDOW_SIZE
@@ -25,6 +26,7 @@ class Miner:
         self.storage = RedisStorage(self.config)
 
         self.proxy_manager = None
+        self.slot_manager = None
         if self.config.use_proxy:
             bt.logging.info(
                 f"Setting up proxy manager with path: {self.config.proxy_base_path}"
@@ -34,6 +36,9 @@ class Miner:
                 proxy_base_path=self.config.proxy_base_path,
                 proxy_port=self.config.proxy_port,
             )
+            self.slot_manager = ProxySlotManager(
+                proxy_manager=self.proxy_manager,
+            )
 
         allocation_type = get_allocation(self.config.allocation.type, self.config)
         self.mining_scheduler = MiningScheduler(
@@ -42,7 +47,7 @@ class Miner:
             storage=self.storage,
             allocation=allocation_type,
             metagraph=self.metagraph,
-            proxy_manager=self.proxy_manager,
+            slot_manager=self.slot_manager,
         )
         self._first_sync = True
         self._recover_schedule = self.config.recover_schedule
