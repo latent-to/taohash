@@ -1,12 +1,12 @@
 <div align="center">
 
 # **TAO Hash** <!-- omit in toc -->
-</div>
+![License: MIT](https://img.shields.io/badge/Subnet-14_%CE%BE-blue) 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+  
+</div>
 
-TAO Hash is a Subnet for decentralizing mining hash rental. Validators set weights on miners based on the PoW mining hash rate they provide to the Validators pool. Although the initial implementation will only support Bitcoin mining, this can be extended to other pooled-mining projects with the same ability to verify miner performance quickly.
-
-Another extension might be weighting different mining contributions based on their perceived value, or reducing hashrate automatically based on the hash-value.
+TAO Hash is a Subnet for decentralizing PoW mining hashrate rental. Validators set weights on miners based on the PoW mining hash rate they provide to the Validators pool. Although the initial implementation will only support Bitcoin mining, this can be extended to other mine-able projects with the same ability to verify miner performance quickly.
 
 ---
 - [Incentive Design](#incentive-design)
@@ -19,7 +19,7 @@ Another extension might be weighting different mining contributions based on the
 ---
 
 # Incentive Design
-![Hash Tensor Diagram](docs/incentive-design.png)
+![TAO Hash Diagram](docs/incentive-design.png)
 # Requirements
 
 <!-- TODO -->
