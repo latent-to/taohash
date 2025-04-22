@@ -6,7 +6,7 @@
   
 </div>
 
-TAO Hash is a Subnet for decentralizing PoW mining hashrate rental. Validators set weights on miners based on the PoW mining hash rate they provide to the Validators pool. Although the initial implementation will only support Bitcoin mining, this can be extended to other mine-able projects with the same ability to verify miner performance quickly.
+TAOHash is a Subnet for decentralizing PoW mining hashrate- rental and exchange. Validators receive hashrate in exchange for weights, and miners speculate on hashrate, hashprice, and Alpha emissions. Effectively, Alpha is swapped for BTC automatically. Although the initial implementation only supports Bitcoin mining, this can be extended to other mine-able projects with the same ability to verify miner performance quickly.
 
 ---
 - [Incentive Design](#incentive-design)
