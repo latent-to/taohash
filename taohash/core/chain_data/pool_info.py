@@ -13,6 +13,11 @@ from taohash.core.utils import ip_to_int
 
 @dataclass
 class PoolInfo:
+    """
+    Contains Stratum pool information published by the validators through commitments. 
+    This is used by the miners to connect to the pool and provide hashrate.
+    'extra_data' is open to use by the miners in their operations.
+    """
     pool_index: int
     port: int
     ip: str | None = None
@@ -65,6 +70,10 @@ class PoolInfo:
 def publish_pool_info(
     subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_info_bytes: bytes
 ) -> bool:
+    """
+    Publishes the pool info to the network through commitments.
+    Each validator can have one commitment active at a time.
+    """
     if len(pool_info_bytes) > 128:
         raise ValueError("Pool info bytes must be at most 128 bytes")
 
@@ -92,6 +101,10 @@ def publish_pool_info(
 def get_all_pool_info(
     subtensor: bt_subtensor, netuid: int
 ) -> Optional[dict[str, PoolInfo]]:
+    """
+    Retrieves all the pool info from the network.
+    No filtering is done at this point. 
+    """
     commitments = subtensor.get_all_commitments(netuid)
     if not commitments:
         return None
@@ -119,6 +132,9 @@ def get_all_pool_info(
 def get_pool_info(
     subtensor: bt_subtensor, netuid: int, hotkey: str
 ) -> Optional[PoolInfo]:
+    """
+    Retrieves the pool info for a given validator hotkey.
+    """
     commitments = subtensor.get_all_commitments(netuid)
     if not commitments or hotkey not in commitments:
         return None

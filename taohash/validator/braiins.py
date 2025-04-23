@@ -13,7 +13,7 @@ from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.core.pricing import BraiinsHashPriceAPI
+from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.core.chain_data.pool_info import (
     publish_pool_info,
     get_pool_info,
@@ -38,7 +38,7 @@ class BraiinsValidator(BaseValidator):
         self.pool = Pool(
             pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
-        self.hash_price_api: BraiinsHashPriceAPI = BraiinsHashPriceAPI()
+        self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.setup_bittensor_objects()
         self.scores = [0.0] * len(self.metagraph.S)
         self.current_block = 0
