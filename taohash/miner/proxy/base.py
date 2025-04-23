@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Any
 import argparse
 import bittensor as bt
+import os
 
 
 class BaseProxyManager(ABC):
@@ -26,6 +27,7 @@ class BaseProxyManager(ABC):
             "--no-proxy",
             dest="use_proxy",
             action="store_false",
+            default=os.getenv("USE_PROXY", "true").lower() == "true",
             help="Disable slot‑based mining proxy"
         )
 
