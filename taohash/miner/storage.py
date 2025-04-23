@@ -1,13 +1,12 @@
 import json
 import pickle
 import zlib
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional
 
 import bittensor as bt
-
-import taohash.core.constants as constants
 
 
 class BaseStorage(ABC):
@@ -51,7 +50,7 @@ class JsonStorage(BaseStorage):
         parser.add_argument(
             "--json_path",
             type=str,
-            default=cls.DEFAULT_PATH,
+            default=os.getenv("JSON_PATH", cls.DEFAULT_PATH),
             help="Path to save pool configuration JSON files",
         )
 
@@ -91,25 +90,29 @@ class JsonStorage(BaseStorage):
 
 
 class RedisStorage(BaseStorage):
+    REDIS_DEFAULT_HOST = "localhost"
+    REDIS_DEFAULT_PORT = 6379
+    REDIS_DEFAULT_TTL = 7200
+
     @classmethod
     def add_args(cls, parser):
         redis_group = parser.add_argument_group("redis storage")
         redis_group.add_argument(
             "--redis_host",
             type=str,
-            default=constants.REDIS_DEFAULT_HOST,
+            default=os.getenv("REDIS_HOST", cls.REDIS_DEFAULT_HOST),
             help="Redis host",
         )
         redis_group.add_argument(
             "--redis_port",
             type=int,
-            default=constants.REDIS_DEFAULT_PORT,
+            default=os.getenv("REDIS_PORT", cls.REDIS_DEFAULT_PORT),
             help="Redis port",
         )
         redis_group.add_argument(
             "--redis_ttl",
             type=int,
-            default=constants.REDIS_DEFAULT_TTL,
+            default=os.getenv("REDIS_TTL", cls.REDIS_DEFAULT_TTL),
             help="TTL for pool data in seconds",
         )
 
