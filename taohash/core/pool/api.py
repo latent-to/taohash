@@ -2,13 +2,16 @@ import abc
 
 
 class PoolAPI(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for pool APIs.
+    """
     api_key: str
 
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
     @abc.abstractmethod
-    def get_shares_for_worker(worker_id: str) -> float:
+    def get_worker_data(self, worker_id: str, coin: str) -> dict:
         pass
 
     @abc.abstractmethod

@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  farm-proxy:
+    image: braiinssystems/farm-proxy:24.06
+    container_name: farm-proxy
+    command: ["run"]
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_BACKTRACE=full
+      - CONFIG_FILE=/config/config_cache/last_used_config.toml
+    volumes:
+      - ./config:/config/profiles
+      - config_cache:/config/config_cache
+    ports:
+      - "3333:3333"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: curl --fail http://localhost:8080/metrics || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  farm-proxy-configurator:
+    image: braiinssystems/farm-proxy:24.06
+    container_name: farm-proxy-configurator
+    command: ["configure"]
+    environment:
+      - HTTP_SOCKET_OVERRIDE=farm-proxy:8080
+      - CONFIG_FILE=/config/profiles/active_profile.toml
+    volumes:
+      - ./config:/config/profiles
+    depends_on:
+      farm-proxy:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  config_cache:
+  

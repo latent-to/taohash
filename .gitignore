@@ -160,3 +160,9 @@ cython_debug/
 #.idea/
 
 testing/
+
+*.ipynb
+.DS_Store
+
+# Improve
+taohash/miner/proxy/braiins_farm/config/
