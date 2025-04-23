@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, TYPE_CHECKING
 import argparse
+import os
 
 import bittensor as bt
 from taohash.miner.models import MiningSlot
@@ -10,8 +11,13 @@ if TYPE_CHECKING:
 
 
 class BaseAllocation(ABC):
-    @staticmethod
-    def add_args(parser: "argparse.ArgumentParser") -> None:
+    ALLOCATION_TYPE = "stake_based"
+    MIN_BLOCKS = 40
+    MAX_VALIDATORS = None
+    MIN_STAKE = 12_000
+
+    @classmethod
+    def add_args(cls, parser: "argparse.ArgumentParser") -> None:
         """Add common allocation arguments to parser"""
         allocation_group = parser.add_argument_group("allocation")
 
@@ -19,22 +25,30 @@ class BaseAllocation(ABC):
             "--allocation.type",
             type=str,
             choices=["stake_based", "equal"],
-            default="stake_based",
+            default=os.getenv("ALLOCATION_TYPE", cls.ALLOCATION_TYPE),
             help="Allocation type",
         )
 
         allocation_group.add_argument(
             "--allocation.min_blocks",
             type=int,
-            default=40,
+            default=os.getenv("ALLOCATION_MIN_BLOCKS", cls.MIN_BLOCKS),
             help="Minimum blocks to allocate per validator",
         )
 
         allocation_group.add_argument(
             "--allocation.max_validators",
             type=int,
-            default=None,
+            default=os.getenv("ALLOCATION_MAX_VALIDATORS", cls.MAX_VALIDATORS)
+            or None,
             help="Maximum number of validators to include (None for all)",
+        )
+
+        allocation_group.add_argument(
+            "--allocation.min_stake",
+            type=float,
+            default=os.getenv("ALLOCATION_MIN_STAKE", cls.MIN_STAKE),
+            help="Minimum stake required for a validator to be included",
         )
 
     def __init__(

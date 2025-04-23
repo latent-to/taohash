@@ -32,13 +32,13 @@ class BraiinsProxyManager(BaseProxyManager):
         proxy_group.add_argument(
             "--proxy_base_path",
             type=str,
-            default=DEFAULT_PROXY_BASE_PATH,
+            default=os.getenv("PROXY_BASE_PATH", DEFAULT_PROXY_BASE_PATH),
             help="Path to the Braiins Farm Proxy directory with docker-compose.yml",
         )
         proxy_group.add_argument(
             "--proxy_port",
             type=int,
-            default=3333,
+            default=int(os.getenv("PROXY_PORT", "3333")),
             help="Port the proxy is running on",
         )
     

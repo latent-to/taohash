@@ -7,12 +7,13 @@ import os
 import argparse
 import traceback
 import bittensor as bt
+from dotenv import load_dotenv
 
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.core.pricing import BraiinsHashPriceAPI
+from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.core.chain_data.pool_info import (
     publish_pool_info,
     get_pool_info,
@@ -37,14 +38,15 @@ class BraiinsValidator(BaseValidator):
         self.pool = Pool(
             pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
-        self.hash_price_api: BraiinsHashPriceAPI = BraiinsHashPriceAPI()
+        self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.setup_bittensor_objects()
         self.scores = [0.0] * len(self.metagraph.S)
         self.current_block = 0
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.moving_avg_scores = [0.0] * len(self.metagraph.S)
         self.alpha = 0.8
-        self.sync_interval_blocks = 25  # Every 5 minutes
+        self.blocks_per_sync = 25  # Every 5 minutes
+        self.blocks_per_weights_set = self.tempo * 2
 
     def get_config(self):
         """
@@ -118,7 +120,9 @@ class BraiinsValidator(BaseValidator):
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
             bt.logging.error(
-                f"\nYour validator: {self.wallet} is not registered to chain connection: {self.subtensor} \nRun 'btcli register' and try again."
+                f"\nYour validator: {self.wallet}"
+                f" is not registered to chain connection: {self.subtensor}"
+                f"\nRun 'btcli register' and try again."
             )
             exit()
         else:
@@ -149,11 +153,13 @@ class BraiinsValidator(BaseValidator):
         pool_info = pool.get_pool_info()
         pool_info_bytes = encode_pool_info(pool_info)
 
-        _curr_pool_info_bytes = get_pool_info(subtensor, netuid, wallet.hotkey.ss58_address)
-        if _curr_pool_info_bytes is not None:
+        published_pool_info = get_pool_info(
+            subtensor, netuid, wallet.hotkey.ss58_address
+        )
+        if published_pool_info is not None:
             bt.logging.info("Pool info detected.")
-            curr_pool_info_bytes = encode_pool_info(_curr_pool_info_bytes)
-            if curr_pool_info_bytes == pool_info_bytes:
+            published_pool_info_bytes = encode_pool_info(published_pool_info)
+            if published_pool_info_bytes == pool_info_bytes:
                 bt.logging.success("Pool info is already published.")
                 return
             else:
@@ -176,16 +182,18 @@ class BraiinsValidator(BaseValidator):
             - sync_reason: reason for the sync ("Regular sync" or "Weights due")
         """
         sync_reason = "Regular sync"
-        next_sync = self.current_block + self.sync_interval_blocks
+        next_sync = self.current_block + self.blocks_per_sync
 
         blocks_since_last_weights = self.subtensor.blocks_since_last_update(
             self.config.netuid, self.uid
         )
         # Calculate when we'll need to set weights
-        blocks_until_weights = self.tempo - blocks_since_last_weights
+        blocks_until_weights = (
+            self.blocks_per_weights_set - blocks_since_last_weights
+        )
         next_weights_block = self.current_block + blocks_until_weights + 1
 
-        if blocks_since_last_weights >= self.tempo:
+        if blocks_since_last_weights >= self.blocks_per_weights_set:
             sync_reason = "Weights due"
             return self.current_block + 1, sync_reason
 
@@ -212,11 +220,15 @@ class BraiinsValidator(BaseValidator):
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
                 # If we can't grab the price, don't count the shares
+                bt.logging.error(f"Failed to get hash price for coin: {coin}")
                 continue
 
             for metric in miner_metrics:
                 uid = hotkey_to_uid[metric.hotkey]
                 mining_value: float = metric.get_value_last_5m(hash_price)
+                bt.logging.info(
+                    f"Mining value: {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                )
                 self.scores[uid] += mining_value
             self._log_scores(coin, hash_price)
 
@@ -320,7 +332,7 @@ class BraiinsValidator(BaseValidator):
 
         self.ensure_validator_permit()
 
-        next_sync_block = self.current_block + self.sync_interval_blocks
+        next_sync_block = self.current_block + self.blocks_per_sync
         bt.logging.info(f"Next sync at block {next_sync_block}")
 
         while True:
@@ -334,7 +346,7 @@ class BraiinsValidator(BaseValidator):
 
                     self.evaluate_miner_hashrate()
 
-                    if blocks_since_last_weights >= self.tempo:
+                    if blocks_since_last_weights >= self.blocks_per_weights_set:
                         success, err_msg = self.set_weights()
                         if not success:
                             bt.logging.error(f"Failed to set weights: {err_msg}")
@@ -362,5 +374,6 @@ class BraiinsValidator(BaseValidator):
 
 # Run the validator.
 if __name__ == "__main__":
+    load_dotenv()
     validator = BraiinsValidator()
     validator.run()
