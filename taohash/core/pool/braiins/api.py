@@ -1,6 +1,7 @@
 from typing import Dict
 
 import requests
+from requests.exceptions import RequestException, JSONDecodeError
 from ratelimit import limits, RateLimitException
 from backoff import on_exception, expo
 
@@ -8,18 +9,23 @@ import bittensor as bt
 
 from taohash.core.pool.api import PoolAPI
 
-HASHRATE_TTL = 10 * 60  # 10min TTL for grabbing hashrate from all workers
 
 class BraiinsPoolConnectionError(Exception):
     """Custom exception for Braiins Pool API errors"""
+
     pass
+
 
 class BraiinsPoolAPI(PoolAPI):
     def __init__(self, api_key: str) -> None:
         super().__init__(api_key)
         if not self.test_connection():
-            bt.logging.error("Failed to connect to Braiins Pool API. Please check your API key and try again.")
-            raise BraiinsPoolConnectionError("Failed to connect to Braiins Pool API. Please check your API key and try again.")
+            bt.logging.error(
+                "Failed to connect to Braiins Pool API. Please check your API key and try again."
+            )
+            raise BraiinsPoolConnectionError(
+                "Failed to connect to Braiins Pool API. Please check your API key and try again."
+            )
         else:
             bt.logging.success("Successfully pinged Braiins Pool API.")
 
@@ -49,8 +55,9 @@ class BraiinsPoolAPI(PoolAPI):
     def _worker_name_to_worker_id(worker_name: str) -> str:
         return worker_name.split(".", maxsplit=1)[1]
 
-    # @cachetools.func.ttl_cache(maxsize=64, ttl=HASHRATE_TTL)
-    @on_exception(expo, RateLimitException, max_tries=8)
+    @on_exception(
+        expo, (RateLimitException, RequestException, JSONDecodeError), max_tries=8
+    )
     @limits(calls=1, period=5)  # rate limit once per 5s
     def _get_worker_data(self, coin: str) -> Dict[str, float]:
         coin_name = self.__COIN_TO_COIN_NAME[coin]
@@ -63,14 +70,12 @@ class BraiinsPoolAPI(PoolAPI):
                 "accept": "application/json",
             },
         )
+        response.raise_for_status()
 
         result = response.json()
         workers = result[coin_name]["workers"]
-
         output = {
-            self._worker_name_to_worker_id(worker_name): {
-                **worker_data
-            }
+            self._worker_name_to_worker_id(worker_name): {**worker_data}
             for worker_name, worker_data in workers.items()
         }
 
@@ -89,6 +94,10 @@ class BraiinsPoolAPI(PoolAPI):
         workers_data = self._get_worker_data(coin)
         return workers_data.get(worker_id, None)
 
+    @on_exception(
+        expo, (RateLimitException, RequestException, JSONDecodeError), max_tries=8
+    )
+    @limits(calls=1, period=5)  # rate limit once per 5s
     def get_fpps(self, coin: str) -> float:
         if coin != "bitcoin":
             raise ValueError("BraiinsPool only supports bitcoin")
@@ -103,6 +112,7 @@ class BraiinsPoolAPI(PoolAPI):
                 "accept": "application/json",
             },
         )
+        response.raise_for_status()
 
         result = response.json()
         stats_data = result[coin_name]
