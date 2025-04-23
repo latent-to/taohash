@@ -1,8 +1,8 @@
 <div align="center">
 
 # **TAO Hash** <!-- omit in toc -->
-![License: MIT](https://img.shields.io/badge/Subnet-14_%CE%BE-blue) 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue) 
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-yellow.svg)](https://opensource.org/licenses/gpl-3-0) 
   
 </div>
 
