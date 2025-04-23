@@ -1,9 +1,9 @@
 import abc
-from enum import IntEnum, Enum
+from enum import IntEnum
 
-from .api import PoolAPI
-from .config import PoolAPIConfig
-from ..chain_data.chain_data import PoolInfo
+from taohash.core.pool.api import PoolAPI
+from taohash.core.pool.config import PoolAPIConfig
+from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class PoolIndex(IntEnum):
@@ -14,7 +14,7 @@ class PoolIndex(IntEnum):
     @classmethod
     def has_value(cls, value):
         return value in cls.__members__.values()
-
+# TODO: Explore config file 
 
 class PoolBase(metaclass=abc.ABCMeta):
     api: PoolAPI
@@ -29,8 +29,12 @@ class PoolBase(metaclass=abc.ABCMeta):
         return hotkey
 
     @abc.abstractmethod
-    def get_shares_for_hotkey(self, hotkey: str, coin: str) -> float:
+    def get_hotkey_contribution(self, hotkey: str, coin: str) -> dict:
         return
+
+    @abc.abstractmethod
+    def get_all_miner_contributions(self, coin: str) -> dict[str, dict]:
+        pass
 
     def get_fpps(self, coin: str) -> float:
         return self.api.get_fpps(coin)

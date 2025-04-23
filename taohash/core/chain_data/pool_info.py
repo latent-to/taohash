@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
-from typing import Optional
+from typing import Optional, Any
 import logging
 
 import bt_decode
@@ -8,17 +8,23 @@ import netaddr
 from bittensor import subtensor as bt_subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.utils import ip_to_int
+from taohash.core.utils import ip_to_int
 
 
 @dataclass
 class PoolInfo:
+    """
+    Contains Stratum pool information published by the validators through commitments. 
+    This is used by the miners to connect to the pool and provide hashrate.
+    'extra_data' is open to use by the miners in their operations.
+    """
     pool_index: int
     port: int
     ip: str | None = None
     domain: str | None = None
     username: str | None = None
     password: str | None = None
+    extra_data: dict[str, Any] = field(default_factory=dict)
 
     def encode(self) -> bytes:
         return encode_pool_info(self)
@@ -41,19 +47,33 @@ class PoolInfo:
             "domain": self.domain,
             "username": self.username,
             "password": self.password,
-            "pool_url": f"{self.domain}:{self.port}"
-            if self.domain
-            else f"{self.ip}:{self.port}",
+            "pool_url": self.pool_url,
+            "extra_data": self.extra_data
         }
 
     @classmethod
     def decode(cls, pool_info_bytes: bytes) -> "PoolInfo":
         return decode_pool_info(pool_info_bytes)
 
+    @property
+    def pool_url(self) -> str:
+        """Constructs the pool URL from domain/ip and port."""
+        if self.domain:
+            return f"{self.domain}:{self.port}"
+        elif self.ip:
+            return f"{self.ip}:{self.port}"
+        else:
+            # TODO: Handle this case - maybe raise an error
+            return f":{self.port}"
+
 
 def publish_pool_info(
     subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_info_bytes: bytes
 ) -> bool:
+    """
+    Publishes the pool info to the network through commitments.
+    Each validator can have one commitment active at a time.
+    """
     if len(pool_info_bytes) > 128:
         raise ValueError("Pool info bytes must be at most 128 bytes")
 
@@ -78,9 +98,43 @@ def publish_pool_info(
     return response.is_success
 
 
+def get_all_pool_info(
+    subtensor: bt_subtensor, netuid: int
+) -> Optional[dict[str, PoolInfo]]:
+    """
+    Retrieves all the pool info from the network.
+    No filtering is done at this point. 
+    """
+    commitments = subtensor.get_all_commitments(netuid)
+    if not commitments:
+        return None
+
+    all_pool_info: dict[str, PoolInfo] = {}
+    for hotkey, raw_data in commitments.items():
+        try:
+            if isinstance(raw_data, str):
+                raw_bytes = bytes(raw_data, "latin1")
+            elif isinstance(raw_data, bytes):
+                raw_bytes = raw_data
+            else:
+                logging.error(f"Unexpected data type in commitments: {type(raw_data)}")
+                continue
+
+            pool_info = decode_pool_info(raw_bytes)
+            all_pool_info[hotkey] = pool_info
+        except Exception as e:
+            logging.error(f"Failed to decode pool info: {e}")
+            continue
+
+    return all_pool_info
+
+
 def get_pool_info(
     subtensor: bt_subtensor, netuid: int, hotkey: str
 ) -> Optional[PoolInfo]:
+    """
+    Retrieves the pool info for a given validator hotkey.
+    """
     commitments = subtensor.get_all_commitments(netuid)
     if not commitments or hotkey not in commitments:
         return None

@@ -105,3 +105,16 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
                 return {coin: None for coin in coins}
 
         return result
+
+class HashPriceAPIBase(metaclass=abc.ABCMeta):
+    """Base class for hash price APIs"""
+    
+    @abc.abstractmethod
+    def get_hash_price(self, coin: str) -> Optional[float]:
+        """
+        Get the current hash price in USD/TH/day
+        
+        Returns:
+            float: Current hash price or None if unavailable
+        """
+        pass

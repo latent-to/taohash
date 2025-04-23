@@ -2,6 +2,9 @@ import abc
 
 
 class PoolAPI(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for pool APIs.
+    """
     api_key: str
 
     def __init__(self, api_key: str) -> None:
