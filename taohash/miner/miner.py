@@ -2,16 +2,18 @@ import os
 import argparse
 import traceback
 from typing import Dict
+from dotenv import load_dotenv
 
 import bittensor as bt
 
-import taohash.core.constants as constants
 from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
 from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
 from taohash.miner.allocation import BaseAllocation, get_allocation
 from taohash.core.pool import PoolIndex
+
+DEFAULT_SYNC_FREQUENCY = 6
 
 
 class Miner:
@@ -53,26 +55,32 @@ class Miner:
     def get_config(self):
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "--netuid", type=int, default=1, help="The chain subnet uid."
+            "--netuid",
+            type=int,
+            default=os.getenv("NETUID", 14),
+            help="The chain subnet uid.",
         )
         # Sync frequency
         parser.add_argument(
             "--sync_frequency",
             type=int,
-            default=constants.DEFAULT_SYNC_FREQUENCY,
-            help=f"Number of times to sync and update pool info per epoch (1-359). Default is {constants.DEFAULT_SYNC_FREQUENCY} times per epoch.",
+            default=os.getenv("SYNC_FREQUENCY", DEFAULT_SYNC_FREQUENCY),
+            help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
         parser.add_argument(
             "--no-recover_schedule",
             action="store_false",
             dest="recover_schedule",
+            default=os.getenv("RECOVER_SCHEDULE", "true").lower() == "true",
             help="Disable schedule recovery between restarts.",
         )
         parser.add_argument(
             "--blacklist",
             type=str,
             nargs="+",
-            default=[],
+            default=os.getenv("BLACKLIST", "").split(",")
+            if os.getenv("BLACKLIST")
+            else [],
             help="List of validator hotkeys to exclude from mining",
         )
         BaseAllocation.add_args(parser)
@@ -88,7 +96,7 @@ class Miner:
             "{}/{}/{}/netuid{}/{}".format(
                 config.logging.logging_dir,
                 config.wallet.name,
-                config.wallet.hotkey_str,
+                config.wallet.hotkey,
                 config.netuid,
                 "miner",
             )
@@ -101,7 +109,7 @@ class Miner:
         """Set up logging for the miner."""
         bt.logging(config=self.config, logging_dir=self.config.full_path)
         bt.logging.info(
-            f"Running miner for subnet: {self.config.netuid} on network: {self.config.subtensor.network}"
+            f"Running miner for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:\n{self.config}"
         )
         bt.logging.info(f"Sync frequency: {self.config.sync_frequency} times per epoch")
 
@@ -214,7 +222,7 @@ class Miner:
             )
             if changed_slot:
                 bt.logging.success(f"Mining slot updated at block {self.current_block}")
-        return 
+        return
 
     def blocks_until_next_epoch(self) -> int:
         """Get number of blocks until new tempo starts"""
@@ -291,6 +299,7 @@ class Miner:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     miner = Miner()
     miner.run()
 
