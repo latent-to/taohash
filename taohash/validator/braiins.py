@@ -7,6 +7,7 @@ import os
 import argparse
 import traceback
 import bittensor as bt
+from dotenv import load_dotenv
 
 from bittensor_wallet.bittensor_wallet import Wallet
 
@@ -362,5 +363,6 @@ class BraiinsValidator(BaseValidator):
 
 # Run the validator.
 if __name__ == "__main__":
+    load_dotenv()
     validator = BraiinsValidator()
     validator.run()

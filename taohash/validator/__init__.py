@@ -1,3 +1,4 @@
+import os
 import argparse
 import copy
 import bittensor as bt
@@ -12,8 +13,7 @@ TESTNET_NETUID = 332
 
 class BaseValidator:
     def __init__(self):
-        """Base initialization for all validator instances.
-        """
+        """Base initialization for all validator instances."""
         self.config = None
         self.subtensor = None
         self.wallet = None
@@ -34,7 +34,10 @@ class BaseValidator:
         )
         # Adds override arguments for network and netuid.
         run_command_parser.add_argument(
-            "--netuid", type=int, default=TESTNET_NETUID, help="The chain subnet uid."
+            "--netuid",
+            type=int,
+            default=os.getenv("NETUID", TESTNET_NETUID),
+            help="The chain subnet uid.",
         )
 
         run_command_parser.add_argument(

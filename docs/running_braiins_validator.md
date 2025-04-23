@@ -70,6 +70,30 @@ pip install --upgrade pip
 pip install -e .
 ```
 
+### 4. Configuration Methods
+
+You have two ways to configure the validator:
+
+#### Option A: Using a `.env` File (Recommended)
+
+1. Create a `.env` file in the project root based on the provided example:
+```bash
+cp .env.validator.example .env
+```
+
+2. Edit the `.env` file with your credentials:
+```bash
+nano .env
+```
+
+This approach keeps your credentials secure and simplifies your command-line commands.
+
+#### Option B: Using Command-Line Arguments
+
+Use all required parameters directly in the command line (see "Important Parameters" section below).
+
+### 5. Running the Validator
+
 Now you have two options to run the validator: using PM2 for process management (recommended) or directly with Python.
 
 #### Option A: Using PM2 (Recommended)
@@ -97,30 +121,48 @@ Now you have two options to run the validator: using PM2 for process management 
    ```
 
 2. Start the validator with PM2:
-```bash
-pm2 start python3 --name "taohash-validator" -- validator/braiins.py run \
-    --netuid 14 \
-    --subtensor.network finney \
-    --wallet.name YOUR_WALLET_NAME \
-    --wallet.hotkey YOUR_HOTKEY \
-    --pool.api_key YOUR_BRAIINS_API_KEY \
-    --pool.username YOUR_BRAIINS_USERNAME \
-    --pool.password YOUR_BRAIINS_PASSWORD \
-    --logging.info
-```
+
+   Using `.env` configuration:
+   ```bash
+   pm2 start python3 --name "taohash-validator" -- validator/braiins.py run \
+       --subtensor.network finney \
+       --logging.info
+   ```
+
+   Or with command-line arguments:
+   ```bash
+   pm2 start python3 --name "taohash-validator" -- validator/braiins.py run \
+       --netuid 14 \
+       --subtensor.network finney \
+       --wallet.name YOUR_WALLET_NAME \
+       --wallet.hotkey YOUR_HOTKEY \
+       --pool.api_key YOUR_BRAIINS_API_KEY \
+       --pool.username YOUR_BRAIINS_USERNAME \
+       --pool.password YOUR_BRAIINS_PASSWORD \
+       --logging.info
+   ```
 
 #### Option B: Direct Python Execution
-```bash
-python3 validator/braiins.py run \
-    --netuid 14 \
-    --subtensor.network finney \
-    --wallet.name YOUR_WALLET_NAME \
-    --wallet.hotkey YOUR_HOTKEY \
-    --pool.api_key YOUR_BRAIINS_API_KEY \
-    --pool.username YOUR_BRAIINS_USERNAME \
-    --pool.password YOUR_BRAIINS_PASSWORD \
-    --logging.info
-```
+
+   Using `.env` configuration:
+   ```bash
+   python3 validator/braiins.py run \
+       --subtensor.network finney \
+       --logging.info
+   ```
+
+   Or with command-line arguments:
+   ```bash
+   python3 validator/braiins.py run \
+       --netuid 14 \
+       --subtensor.network finney \
+       --wallet.name YOUR_WALLET_NAME \
+       --wallet.hotkey YOUR_HOTKEY \
+       --pool.api_key YOUR_BRAIINS_API_KEY \
+       --pool.username YOUR_BRAIINS_USERNAME \
+       --pool.password YOUR_BRAIINS_PASSWORD \
+       --logging.info
+   ```
 
 ## Important Parameters
 
