@@ -84,7 +84,7 @@ def get_metrics_for_miners(
 
     for neuron in neurons:
         hotkey = neuron.hotkey
-        worker_id = pool.get_worker_id_for_hotkey(hotkey)
+        worker_id = pool._get_worker_id_for_hotkey(hotkey)
         worker_metrics = all_workers.get(worker_id, None)
         if worker_metrics is None:
             metrics.append(MiningMetrics(hotkey))
