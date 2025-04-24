@@ -19,6 +19,15 @@ dependencies = [
     "tabulate~=0.9.0",
     "python-dotenv>=0.21.0",
 ]
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "pytest-cov==6.1.1",
+    "responses==0.25.7",
+    "ruff==0.11.7"
+]
+
+[tool.flit.metadata]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
