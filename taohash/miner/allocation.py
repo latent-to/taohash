@@ -4,7 +4,7 @@ import argparse
 import os
 
 import bittensor as bt
-from taohash.miner.models import MiningSlot
+from taohash.miner.models import MiningSlot, PoolTarget
 
 if TYPE_CHECKING:
     from taohash.core.chain_data.pool_info import PoolInfo
@@ -185,13 +185,19 @@ class StakeBased(BaseAllocation):
                     f"Limiting slot to epoch boundary (block {next_window_block})"
                 )
 
+            # Single target with 100% proportion
+            pool_target = PoolTarget(
+                validator_hotkey=hotkey,
+                proportion=1.0,
+                pool_info=pool_info
+            )
+
             slots.append(
                 MiningSlot(
                     start_block=current_pos,
                     end_block=end_block,
                     total_blocks=blocks_allocated,
-                    validator_hotkey=hotkey,
-                    pool_info=pool_info,
+                    pool_targets=[pool_target]
                 )
             )
 
@@ -264,13 +270,19 @@ class EqualDistribution(BaseAllocation):
                     f"Limiting slot to epoch boundary (block {next_window_block})"
                 )
 
+            # Single target with 100% proportion
+            pool_target = PoolTarget(
+                validator_hotkey=hotkey,
+                proportion=1.0,
+                pool_info=pool_info
+            )
+
             slots.append(
                 MiningSlot(
                     start_block=current_pos,
                     end_block=end_block,
                     total_blocks=blocks_allocated,
-                    validator_hotkey=hotkey,
-                    pool_info=pool_info,
+                    pool_targets=[pool_target]
                 )
             )
 
