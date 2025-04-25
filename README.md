@@ -24,7 +24,7 @@ Although the initial implementation primarily supports Bitcoin mining via Braiin
 # Incentive Design
 The core incentive mechanism aligns miners and validators through a market where hashrate is exchanged for on-chain rewards (Alpha). Validators evaluate the hashrate contributed by miners, and miners are incentivized to distribute their hashrate across validator pools proportionally to stake weight to maximize their expected return.
 
-![TAO Hash Diagram](docs/incentive-design.png)
+![TAO Hash Diagram](docs/images/incentive-design.png)
 
 # Requirements
 
