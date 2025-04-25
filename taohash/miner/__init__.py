@@ -16,7 +16,7 @@ class BaseMiner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
-        self.storage = get_miner_storage(self.config)
+        self.storage = get_miner_storage(storage_type="json", config=self.config)
 
         self.worker_id = self.create_worker_id()
         self.tempo = self.subtensor.tempo(self.config.netuid)

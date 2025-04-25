@@ -20,7 +20,7 @@ class BaseValidator:
         self.config = self.get_config()
         self.setup_logging_path()
         self.setup_logging()
-        self.storage = get_validator_storage(self.config)
+        self.storage = get_validator_storage(storage_type="json", config=self.config)
 
         self.subtensor = None
         self.wallet = None
