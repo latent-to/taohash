@@ -3,12 +3,11 @@
 # Copyright © 2025 Latent Holdings
 # Licensed under GPLv3
 
-import os
 import argparse
 import traceback
-import bittensor as bt
 from dotenv import load_dotenv
 
+from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.core.pool import Pool, PoolBase
@@ -19,19 +18,20 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.validator import BaseValidator
-from taohash.validator.storage import get_validator_storage
+
 COIN = "bitcoin"
 
 
 class BraiinsValidator(BaseValidator):
+    """
+    Braiins BTC Validator.
+    """
+
     def __init__(self):
         # Base validator initialization
         super().__init__()
-        self.config = self.get_config()
-        self.setup_logging()
 
         self.pool_config = BraiinsPoolConfig.from_args(self.config)
         self.api_config = BraiinsPoolAPIConfig.from_args(self.config)
@@ -40,113 +40,31 @@ class BraiinsValidator(BaseValidator):
         )
         self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.setup_bittensor_objects()
-        self.scores = [0.0] * len(self.metagraph.S)
-        self.current_block = 0
-        self.tempo = self.subtensor.tempo(self.config.netuid)
-        self.moving_avg_scores = [0.0] * len(self.metagraph.S)
-        self.hotkeys = self.metagraph.hotkeys
+
         self.alpha = 0.8
-        self.eval_interval = 25  # Every 5 minutes
         self.weights_interval = self.tempo * 2  # 720 blocks
-        self.storage = get_validator_storage(self.config)
+        self.config.coins = [COIN]
 
-    def get_config(self):
-        """
-        Set up the configuration parser.
-        """
-        parser = argparse.ArgumentParser(
-            description="TAOHash (Braiins) Validator",
-            usage="python3 validator/braiins.py <command> [options]",
-            add_help=True,
-        )
-        command_parser = parser.add_subparsers(dest="command")
-        run_command_parser = command_parser.add_parser(
-            "run", help="""Run the validator"""
-        )
-
-        BraiinsPoolConfig.add_args(run_command_parser)
-        BraiinsPoolAPIConfig.add_args(run_command_parser)
-
-        # Add the base validator arguments.
-        super().add_args(run_command_parser)
-
-        # Parse the config.
-        try:
-            config = bt.config(parser)
-        except ValueError as e:
-            print(f"Error parsing config: {e}")
-            exit(1)
-        # Set up logging directory.
-        config.full_path = os.path.expanduser(
-            "{}/{}/{}/netuid{}/{}".format(
-                config.logging.logging_dir,
-                config.wallet.name,
-                config.wallet.hotkey,
-                config.netuid,
-                "validator",
-            )
-        )
-        # Ensure the logging directory exists.
-        os.makedirs(config.full_path, exist_ok=True)
-
-        # TODO: support multiple coins
-        config.coins = [COIN]
-
-        return config
+    def add_args(self, parser: argparse.ArgumentParser):
+        """Add Braiins-specific arguments to the parser."""
+        super().add_args(parser)
+        BraiinsPoolConfig.add_args(parser)
+        BraiinsPoolAPIConfig.add_args(parser)
 
     def setup_bittensor_objects(self):
         """
-        Setup Bittensor objects.
-        1. Initialize wallet.
-        2. Initialize subtensor.
-        3. Initialize metagraph.
-        4. Ensure validator is registered to the network.
-        5. Set up initial scoring weights for validation.
-        6. Publish validator's pool info to the chain.
+        Extend base setup with Braiins-specific setup.
         """
-        # Build Bittensor validator objects.
-        bt.logging.info("Setting up Bittensor objects.")
-
-        # Initialize wallet.
-        self.wallet = Wallet(config=self.config)
-        bt.logging.info(f"Wallet: {self.wallet}")
-
-        # Initialize subtensor.
-        self.subtensor = bt.subtensor(config=self.config)
-        bt.logging.info(f"Subtensor: {self.subtensor}")
-
-        # Initialize metagraph.
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        bt.logging.info(f"Metagraph: {self.metagraph}")
-
-        # Connect the validator to the network.
-        if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
-            bt.logging.error(
-                f"\nYour validator: {self.wallet}"
-                f" is not registered to chain connection: {self.subtensor}"
-                f"\nRun 'btcli register' and try again."
-            )
-            exit()
-        else:
-            # Each validator gets a unique identity (UID) in the network.
-            self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-            bt.logging.info(f"Running validator on uid: {self.uid}")
-
-        # Set up initial scoring weights for validation.
-        bt.logging.info("Building validation weights.")
-        self.scores = [0.0] * len(self.metagraph.S)
-        bt.logging.info(f"Weights: {self.scores}")
-
-        # Publish Validator's pool info to the chain.
+        super().setup_bittensor_objects()
         self.publish_pool_info(
             self.subtensor, self.config.netuid, self.wallet, self.pool
         )
 
     def publish_pool_info(
-        self, subtensor: "bt.subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
+        self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
     ) -> None:
         """
-        Publish the pool info to the chain.
+        Publish the mining pool info to bittensor.
         Process:
             1. Check if pool info is already published.
             2. If not, publish the pool info to the chain.
@@ -159,57 +77,33 @@ class BraiinsValidator(BaseValidator):
             subtensor, netuid, wallet.hotkey.ss58_address
         )
         if published_pool_info is not None:
-            bt.logging.info("Pool info detected.")
+            logging.info("Pool info detected.")
             published_pool_info_bytes = encode_pool_info(published_pool_info)
             if published_pool_info_bytes == pool_info_bytes:
-                bt.logging.success("Pool info is already published.")
+                logging.success("Pool info is already published.")
                 return
             else:
-                bt.logging.info("Pool info is outdated.")
+                logging.info("Pool info is outdated.")
 
-        bt.logging.info("Publishing pool info to the chain.")
+        logging.info("Publishing pool info to the chain.")
         success = publish_pool_info(subtensor, netuid, wallet, pool_info_bytes)
         if not success:
-            bt.logging.error("Failed to publish pool info")
+            logging.error("Failed to publish pool info")
             exit(1)
         else:
-            bt.logging.success("Pool info published successfully")
+            logging.success("Pool info published successfully")
 
-    def get_next_sync_block(self) -> tuple[int, str]:
-        """
-        Calculate the next block to sync at.
-        Returns:
-            tuple[int, str]: (next_block, sync_reason)
-            - next_block: the block number to sync at
-            - sync_reason: reason for the sync ("Regular sync" or "Weights due")
-        """
-        sync_reason = "Regular sync"
-        next_sync = self.current_block + self.eval_interval
-
-        blocks_since_last_weights = self.subtensor.blocks_since_last_update(
-            self.config.netuid, self.uid
-        )
-        # Calculate when we'll need to set weights
-        blocks_until_weights = self.weights_interval - blocks_since_last_weights
-        next_weights_block = self.current_block + blocks_until_weights + 1
-
-        if blocks_since_last_weights >= self.weights_interval:
-            sync_reason = "Weights due"
-            return self.current_block + 1, sync_reason
-
-        elif next_weights_block <= next_sync:
-            sync_reason = "Weights due"
-            return next_weights_block, sync_reason
-
-        return next_sync, sync_reason
-
-    def evaluate_miner_hashrate(self):
+    def evaluate_miner_hashrate(self, timeframe: str = "5m") -> None:
         """
         Evaluate value provided by miners.
-        Process:
-            1. Fetch miner metrics (API fetches hashrate for the last 5m).
+
+        Args:
+            timeframe: The timeframe to evaluate ("5m" for 5 minutes or "60m" for 60 minutes)
+
+        Evaluation:
+            1. Fetch miner metrics (API fetches hashrate for the last 5m or 60m).
             2. Fetch hash price for the coin (USD/TH/day).
-            3. Calculate value provided in the past 5m
+            3. Calculate value provided in the specified timeframe
             4. Update scores for each miner.
         """
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
@@ -220,90 +114,41 @@ class BraiinsValidator(BaseValidator):
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
                 # If we can't grab the price, don't count the shares
-                bt.logging.error(f"Failed to get hash price for coin: {coin}")
+                logging.error(f"Failed to get hash price for coin: {coin}")
                 continue
 
             for metric in miner_metrics:
                 uid = hotkey_to_uid[metric.hotkey]
-                mining_value: float = metric.get_value_last_5m(hash_price)
-                bt.logging.info(
-                    f"Mining value: {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                if timeframe == "5m":
+                    mining_value: float = metric.get_value_last_5m(hash_price)
+                else:  # "60m"
+                    mining_value: float = metric.get_value_past_hour(hash_price)
+
+                logging.info(
+                    f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
                 )
                 self.scores[uid] += mining_value
             self._log_scores(coin, hash_price)
 
-    def evaluate_miner_hashrate_past_hour(self):
+    def restore_state_and_evaluate(self) -> None:
         """
-        Evaluate value provided by miners in the past hour.
-        """
-        hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
-        for coin in self.config.coins:
-            miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, coin
-            )
-            hash_price = self.hash_price_api.get_hash_price(coin)
-            if hash_price is None:
-                continue
-
-            for metric in miner_metrics:
-                uid = hotkey_to_uid[metric.hotkey]
-                mining_value: float = metric.get_value_past_hour(hash_price)
-                bt.logging.info(
-                    f"Mining value: {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
-                )
-                self.scores[uid] += mining_value
-            self._log_scores(coin, hash_price)
-
-    def get_burn_uid(self):
-        """
-        Get the UID of the subnet owner.
-        """
-        sn_owner_hotkey = self.subtensor.query_subtensor(
-            "SubnetOwnerHotkey",
-            params=[self.config.netuid],
-        )
-        owner_uid = self.metagraph.hotkeys.index(sn_owner_hotkey)
-        return owner_uid
-
-    def ensure_validator_permit(self):
-        """
-        Ensure the validator has a permit to participate in the network.
-        If not, wait for the next step.
-        """
-        validator_permits = self.subtensor.query_subtensor(
-            "ValidatorPermit",
-            params=[self.config.netuid],
-        ).value
-        if not validator_permits[self.uid]:
-            blocks_since_last_step = self.subtensor.query_subtensor(
-                "BlocksSinceLastStep",
-                block=self.current_block,
-                params=[self.config.netuid],
-            ).value
-            time_to_wait = (self.tempo - blocks_since_last_step) * BLOCK_TIME + 0.1
-            bt.logging.error(
-                f"Validator permit not found. Waiting {time_to_wait} seconds."
-            )
-            target_block = self.current_block + (self.tempo - blocks_since_last_step)
-            self.subtensor.wait_for_block(target_block)
-
-    def restore_state(self):
-        """
-        Attempt to restore validator state from storage.
+        Braiins specific: Attempt to restore validator state from storage.
         Handles different recovery scenarios based on how long the validator was down.
+
+        Process:
             1. No previous state: start fresh.
             2. Down >= 1.5 hours: start fresh.
-            3. Down >= 1 hour: fetch last hour's scores.
+            3. Down >= 1 hour: evaluate last hour's scores.
             4. Down < 1 hour: restore the state.
         """
         state = self.storage.get_latest_state()
         if state is None:
-            bt.logging.info("No previous state found, starting fresh")
+            logging.info("No previous state found, starting fresh")
             return
 
         blocks_down = self.current_block - state["current_block"]
         if blocks_down >= (self.tempo * 1.5):
-            bt.logging.warning(
+            logging.warning(
                 f"Validator was down for {blocks_down} blocks (> {self.tempo * 1.5}). Starting fresh."
             )
             return
@@ -316,22 +161,27 @@ class BraiinsValidator(BaseValidator):
         self.resync_metagraph()
 
         if blocks_down > 230:  # 1 hour
-            bt.logging.warning(
+            logging.warning(
                 f"Validator was down for {blocks_down} blocks (> 230). Will fetch last hour's scores."
             )
-            self.evaluate_miner_hashrate_past_hour()
-        bt.logging.success("Successfully restored validator state")
+            self.evaluate_miner_hashrate(timeframe="60m")
+        logging.success("Successfully restored validator state")
 
-    def set_weights(self):
-        """
-        Set the weights for all miners once per tempo.
-        Process:
-            1. Update moving average scores from base scores.
+    def set_weights(self) -> tuple[bool, str]:
+        """Set weights for all miners.
+
+        Returns:
+            tuple[bool, str]: A tuple containing:
+                - bool: True if weights were set successfully, False otherwise
+                - str: Error message if weights were not set successfully, empty string otherwise
+
+        Evaluation:
+            1. Update moving_avg_scores from base scores.
             2. Ensure miners are still active - otherwise burn the alpha.
-            3. Set weights using moving average scores.
+            3. Set weights using moving_avg_scores.
             4. Reset scores for next evaluation.
         """
-        # Update moving average scores from base scores.
+        # Update moving_avg_scores from base scores.
         for i, current_score in enumerate(self.scores):
             self.moving_avg_scores[i] = (1 - self.alpha) * self.moving_avg_scores[
                 i
@@ -340,19 +190,19 @@ class BraiinsValidator(BaseValidator):
         # Calculate weights
         total = sum(self.moving_avg_scores)
         if total == 0:
-            bt.logging.info("No miners are mining, we should burn the alpha")
+            logging.info("No miners are mining, we should burn the alpha")
             # No miners are mining, we should burn the alpha
             owner_uid = self.get_burn_uid()
             if owner_uid is not None:
                 weights = [0.0] * len(self.hotkeys)
                 weights[owner_uid] = 1.0
             else:
-                bt.logging.error("No owner found for subnet. Skipping weight update.")
+                logging.error("No owner found for subnet. Skipping weight update.")
                 return False, "No owner found for the subnet"
         else:
             weights = [score / total for score in self.moving_avg_scores]
 
-        bt.logging.info("Setting weights")
+        logging.info("Setting weights")
         # Update the incentive mechanism on the Bittensor blockchain.
         success, err_msg = self.subtensor.set_weights(
             netuid=self.config.netuid,
@@ -365,7 +215,7 @@ class BraiinsValidator(BaseValidator):
         if success:
             self._log_weights_and_scores(weights)
             self.last_update = self.current_block
-            # Reset scores for next evaluation
+            # Reset base scores for next evaluation
             self.scores = [0.0] * len(self.hotkeys)
             return True, err_msg
         return False, err_msg
@@ -373,63 +223,60 @@ class BraiinsValidator(BaseValidator):
     def run(self):
         """
         The Main Validation Loop.
+
         Process:
-            1. Sync the metagraph.
+            1. Restore state and/or resync metagraph.
             2. Ensure the validator has a permit.
             3. Sync on every `sync_interval_blocks` (25 blocks) to:
                 - Sync the metagraph.
                 - Evaluate miner hashrate.
-                - Set weights for all miners once per tempo.
+                - Set weights for all miners once per `weights_interval`.
         """
         if self.config.state == "restore":
-            self.restore_state()
+            self.restore_state_and_evaluate()
         else:
             self.resync_metagraph()
 
-        bt.logging.info("Starting validator loop.")
-        self.current_block = self.metagraph.block.item()
-        bt.logging.info(f"Performed initial sync at block {self.current_block}")
+        logging.info(f"Starting validator loop, current block: {self.current_block}")
 
         self.ensure_validator_permit()
 
         next_sync_block = self.current_block + self.eval_interval
-        bt.logging.info(f"Next sync at block {next_sync_block}")
+        logging.info(f"Next sync at block {next_sync_block}")
 
         while True:
             try:
                 if self.subtensor.wait_for_block(next_sync_block):
                     self.resync_metagraph()
-                    self.current_block = self.metagraph.block.item()
+                    self.evaluate_miner_hashrate(timeframe="5m")
+
                     blocks_since_last_weights = self.subtensor.blocks_since_last_update(
                         self.config.netuid, self.uid
                     )
-
-                    self.evaluate_miner_hashrate()
-
                     if blocks_since_last_weights >= self.weights_interval:
                         success, err_msg = self.set_weights()
                         if not success:
-                            bt.logging.error(f"Failed to set weights: {err_msg}")
+                            logging.error(f"Failed to set weights: {err_msg}")
                             continue
 
                     self.save_state()
                     next_sync_block, sync_reason = self.get_next_sync_block()
-                    bt.logging.info(
+                    logging.info(
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Sync reason: {sync_reason} | "
                         f"VTrust: {self.metagraph.validator_trust[self.uid]}"
                     )
                 else:
-                    bt.logging.warning("Timeout waiting for block, retrying...")
+                    logging.warning("Timeout waiting for block, retrying...")
                     continue
 
             except RuntimeError as e:
-                bt.logging.error(e)
+                logging.error(e)
                 traceback.print_exc()
 
             except KeyboardInterrupt:
-                bt.logging.success("Keyboard interrupt detected. Exiting validator.")
+                logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
 
 
