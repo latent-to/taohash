@@ -49,13 +49,6 @@ classifiers = [
 Homepage = "https://github.com/latent-to/taohash"
 Repository = "https://github.com/latent-to/taohash.git"
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "responses",
-    "pytest-cov",
-]
-
 [tool.setuptools]
 packages = ["taohash"]
 
