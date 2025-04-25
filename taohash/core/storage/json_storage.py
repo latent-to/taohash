@@ -10,8 +10,9 @@ from bittensor.utils.btlogging import logging
 from taohash.core.storage.base_storage import BaseStorage
 from taohash.core.storage.utils import check_key, extract_block_number
 
-DEFAULT_PATH = Path("~", ".bittensor", "data", "pools").expanduser()
-DEFAULT_JSON_TTL = 7 * 24 * 3600
+DEFAULT_PATH = Path("~", ".bittensor", "data").expanduser()
+DEFAULT_JSON_TTL = 4 * 3600  # 4 hours
+DYNAMIC_FILES_PATH = "dynamic"
 
 
 def _read_json(file_path: Path) -> Optional[dict]:
@@ -22,6 +23,13 @@ def _read_json(file_path: Path) -> Optional[dict]:
     except (json.JSONDecodeError, FileNotFoundError):
         logging.error(f"Error loading/decoding [red]{file_path.as_posix()}[/red] file.")
         return None
+
+
+def _get_dynamic_files_path(path: Path, prefix: str):
+    """Get dynamic files' path. Create if not exists."""
+    dynamic_files_path = path / DYNAMIC_FILES_PATH / prefix
+    dynamic_files_path.mkdir(parents=True, exist_ok=True)
+    return dynamic_files_path
 
 
 class BaseJsonStorage(BaseStorage):
@@ -55,7 +63,8 @@ class BaseJsonStorage(BaseStorage):
     def _cleanup(self):
         """Remove JSON files older than the TTL."""
         now = time.time()
-        files = self.path.glob("*.json")
+        dynamic_files_path = self.path / DYNAMIC_FILES_PATH
+        files = dynamic_files_path.rglob("*.json")
 
         for file in files:
             try:
@@ -88,9 +97,14 @@ class BaseJsonStorage(BaseStorage):
         """
         check_key(key)
 
-        data_file = self.path / f"{prefix}-{key}.json" if key else self.path / f"{prefix}.json"
-        with open(data_file, "w") as f:
-            json.dump(data, f, indent=4)
+        dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
+        data_file = dynamic_files_path / f"{prefix}-{key}.json" if key else dynamic_files_path / f"{prefix}.json"
+
+        try:
+            with open(data_file, "w") as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            logging.error(f"Error saving data to {data_file.as_posix()}: {str(e)}")
 
     def load_data(self, key: Optional[Any], prefix: str = "pools") -> Optional[Any]:
         """Load pool data for specific block.
@@ -113,7 +127,8 @@ class BaseJsonStorage(BaseStorage):
         """
         check_key(key)
 
-        data_file = self.path / f"{prefix}-{key}.json" if key else self.path / f"{prefix}.json"
+        dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
+        data_file = dynamic_files_path / f"{prefix}-{key}.json" if key else dynamic_files_path / f"{prefix}.json"
         if data_file.exists():
             return _read_json(data_file)
         return None
@@ -134,7 +149,8 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             get_latest_schedule = self.get_latest(prefix)
         """
-        files = list(self.path.glob(f"{prefix}*.json"))
+        dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
+        files = list(dynamic_files_path.glob(f"{prefix}*.json"))
         if not files:
             return None
 
@@ -142,5 +158,5 @@ class BaseJsonStorage(BaseStorage):
             latest_file = max(files, key=extract_block_number)
             return _read_json(latest_file)
         except (IndexError, ValueError):
-            logging.error(f"No [red]{prefix}[/red] files found in [blue]{self.path}[/blue].")
+            logging.error(f"No [red]{prefix}[/red] files found in [blue]{dynamic_files_path.as_posix()}[/blue].")
             return None
