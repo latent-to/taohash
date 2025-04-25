@@ -13,15 +13,15 @@ class JsonStorage(BaseJsonStorage):
 
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
         """Save pool data for specific block."""
-        self.save_data(key=block_number, data=pool_mapping, prefix="pools")
+        self.save_data(key=block_number, data=pool_mapping)
 
     def get_pool_info(self, block_number: int) -> Optional[dict]:
         """Get pool info for specific block."""
-        return self.load_data(key=block_number, prefix="pools")
+        return self.load_data(key=block_number)
 
     def get_latest_pool_info(self) -> Optional[dict]:
         """Get most recent pool info."""
-        self.get_latest("pools")
+        return self.get_latest()
 
     def save_schedule(self, block_number: int, schedule_obj) -> None:
         self.save_data(key=block_number, data=schedule_obj, prefix="schedule")
@@ -37,13 +37,13 @@ class RedisStorage(BaseRedisStorage):
 
     # Pool data
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
-        self.save_data(key=block_number, data=pool_mapping, prefix="pool")
+        self.save_data(key=block_number, data=pool_mapping)
 
     def get_pool_info(self, block_number: int) -> Optional[dict]:
-        return self.load_data(key=block_number, prefix="pool")
+        return self.load_data(key=block_number)
 
     def get_latest_pool_info(self) -> Optional[dict]:
-        return self.get_latest("pool")
+        return self.get_latest()
 
     # Schedule data
     def save_schedule(self, block_number: int, schedule_obj) -> None:
