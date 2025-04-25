@@ -11,6 +11,13 @@ _price_cache = TTLCache(maxsize=64, ttl=PRICE_TTL)
 
 
 class CoinPriceAPIBase(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for cryptocurrency price APIs.
+
+    Defines the interface for retrieving coin prices from
+    various data sources, both online and offline.
+    """
+
     api_key: Optional[str]
 
     def __init__(self, api_key: Optional[str]) -> None:
@@ -18,6 +25,15 @@ class CoinPriceAPIBase(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def get_price(self, coin: str) -> Optional[float]:
+        """
+        Get the current price of a coin in USD.
+
+        Args:
+            coin: Symbol or identifier for the cryptocurrency
+
+        Returns:
+            The price in USD or None if unavailable
+        """
         pass
 
 
@@ -69,6 +85,15 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
 
     @cachetools.cached(cache=_price_cache)
     def get_price(self, coin: str) -> Optional[float]:
+        """
+        Get a coin's price with caching.
+
+        Args:
+            coin: Symbol or identifier for the cryptocurrency
+
+        Returns:
+            The current price in USD, or None if fetch fails
+        """
         try:
             return self._get_price(coin)
         except Exception as e:
@@ -77,8 +102,13 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
 
     def get_prices(self, coins: list[str]) -> dict[str, Optional[float]]:
         """
-        Get prices for multiple coins.
-        Makes a single API call for all coins if any is missing from cache.
+        Get prices for multiple coins at once.
+
+        Args:
+            coins: List of coin identifiers
+
+        Returns:
+            Dictionary mapping coin identifiers to their prices
         """
         result = {}
         all_cached = True
@@ -106,15 +136,24 @@ class NetworkedCoinPriceAPI(CoinPriceAPIBase):
 
         return result
 
+
 class HashPriceAPIBase(metaclass=abc.ABCMeta):
-    """Base class for hash price APIs"""
-    
+    """
+    Abstract base class for mining hashrate price APIs.
+
+    Used to retrieve current profitability rates for
+    different mining algorithms and cryptocurrencies.
+    """
+
     @abc.abstractmethod
     def get_hash_price(self, coin: str) -> Optional[float]:
         """
-        Get the current hash price in USD/TH/day
-        
+        Get the current hash price in USD/TH/day for a coin.
+
+        Args:
+            coin: Symbol or identifier for the cryptocurrency
+
         Returns:
-            float: Current hash price or None if unavailable
+            The current hash price or None if unavailable
         """
         pass
