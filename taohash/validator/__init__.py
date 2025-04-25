@@ -1,12 +1,14 @@
 import os
 import argparse
-import copy
-import bittensor as bt
 from bittensor_wallet import Wallet
+
+from bittensor.utils.btlogging import logging
+from bittensor import subtensor
 
 from tabulate import tabulate
 from taohash.core.pool import Pool
 from taohash.core.pricing import CoinPriceAPI
+from taohash.validator.storage import JsonValidatorStorage
 
 TESTNET_NETUID = 332
 
@@ -23,6 +25,7 @@ class BaseValidator:
         self.current_block = 0
         self.scores = []
         self.moving_avg_scores = []
+        self.hotkeys = []
         self.alpha = None
 
     def add_args(self, run_command_parser: argparse.ArgumentParser):
@@ -43,10 +46,16 @@ class BaseValidator:
         run_command_parser.add_argument(
             "--eval_interval",
             type=int,
-            default=10,
+            default=25,
             help="The interval on which to run evaluation across the metagraph.",
         )
-
+        run_command_parser.add_argument(
+            "--state",
+            type=str,
+            choices=["restore", "fresh"],
+            default="restore",
+            help="Whether to restore previous validator state ('restore') or start fresh ('fresh').",
+        )
         # run_command_parser.add_argument(
         #     "--coins",
         #     type=str,
@@ -56,20 +65,32 @@ class BaseValidator:
         # )
 
         # Adds subtensor specific arguments.
-        bt.subtensor.add_args(run_command_parser)
+        subtensor.add_args(run_command_parser)
         # Adds logging specific arguments.
-        bt.logging.add_args(run_command_parser)
+        logging.add_args(run_command_parser)
         # Adds wallet specific arguments.
         Wallet.add_args(run_command_parser)
         Pool.add_args(run_command_parser)
         CoinPriceAPI.add_args(run_command_parser)
+        JsonValidatorStorage.add_args(run_command_parser)
 
     def setup_logging(self):
         # Set up logging.
-        bt.logging(config=self.config, logging_dir=self.config.full_path)
-        bt.logging.info(
+        logging(config=self.config, logging_dir=self.config.full_path)
+        logging.info(
             f"Running validator for subnet: {self.config.netuid} on network: {self.config.subtensor.network} with config:\n{self.config}"
         )
+
+    def save_state(self):
+        """Save the current validator state to storage."""
+        state = {
+            "scores": self.scores,
+            "moving_avg_scores": self.moving_avg_scores,
+            "hotkeys": self.hotkeys,
+            "current_block": self.current_block,
+        }
+        self.storage.save_state(state)
+        logging.info(f"Saved validator state at block {self.current_block}")
 
     def resync_metagraph(self):
         """
@@ -77,22 +98,20 @@ class BaseValidator:
         1. New registrations (metagraph size increase)
         2. Hotkey replacements at existing UIDs
         """
-        bt.logging.info("Resyncing metagraph...")
+        logging.info("Resyncing metagraph...")
 
-        # Backup current state
-        previous_metagraph = copy.deepcopy(self.metagraph)
-        previous_hotkeys = previous_metagraph.hotkeys
+        previous_hotkeys = self.hotkeys
 
         # Sync metagraph
         self.metagraph.sync(subtensor=self.subtensor)
         self.current_block = self.metagraph.block.item()
 
         # Check for changes
-        if previous_metagraph.axons == self.metagraph.axons:
-            bt.logging.debug("No metagraph changes detected")
+        if previous_hotkeys == self.metagraph.hotkeys:
+            logging.debug("No metagraph changes detected")
             return
 
-        bt.logging.info("Metagraph updated, handling registrations and replacements")
+        logging.info("Metagraph updated, handling registrations and replacements")
 
         # 1. Handle hotkey replacements at existing UIDs
         for uid, hotkey in enumerate(previous_hotkeys):
@@ -100,7 +119,7 @@ class BaseValidator:
                 uid < len(self.metagraph.hotkeys)
                 and hotkey != self.metagraph.hotkeys[uid]
             ):
-                bt.logging.info(
+                logging.info(
                     f"Hotkey replaced at uid {uid}: {hotkey} -> {self.metagraph.hotkeys[uid]}"
                 )
                 # Reset scores for replaced hotkeys
@@ -111,7 +130,7 @@ class BaseValidator:
         if len(previous_hotkeys) < len(self.metagraph.hotkeys):
             old_size = len(previous_hotkeys)
             new_size = len(self.metagraph.hotkeys)
-            bt.logging.info(f"Metagraph size increased from {old_size} to {new_size}")
+            logging.info(f"Metagraph size increased from {old_size} to {new_size}")
 
             new_scores = [0.0] * new_size
             new_moving_avg = [0.0] * new_size
@@ -126,11 +145,12 @@ class BaseValidator:
 
             # Log new registrations
             for uid in range(old_size, new_size):
-                bt.logging.info(
+                logging.info(
                     f"New registration at uid {uid}: {self.metagraph.hotkeys[uid]}"
                 )
 
-        bt.logging.info(f"Metagraph sync complete at block {self.current_block}")
+        self.hotkeys = self.metagraph.hotkeys
+        logging.info(f"Metagraph sync complete at block {self.current_block}")
 
     def _log_weights_and_scores(self, weights):
         """Log weights and moving average scores in a tabular format."""
@@ -156,7 +176,7 @@ class BaseValidator:
                 )
 
         if not rows:
-            bt.logging.info(
+            logging.info(
                 f"No miners receiving weights at Block {self.current_block}"
             )
             return
@@ -165,7 +185,7 @@ class BaseValidator:
             rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
         )
         title = f"Weights set at Block: {self.current_block}"
-        bt.logging.info(f"{title}\n{table}")
+        logging.info(f"{title}\n{table}")
 
     def _log_scores(self, coin: str, hash_price: float):
         """Log current scores in a tabular format with hotkeys."""
@@ -190,7 +210,7 @@ class BaseValidator:
                 )
 
         if not rows:
-            bt.logging.info(
+            logging.info(
                 f"No active miners for {coin} (hash price: ${hash_price:.8f}) at Block {self.current_block}"
             )
             return
@@ -200,5 +220,5 @@ class BaseValidator:
         )
 
         title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Hash Price: ${hash_price:.8f})"
-        bt.logging.info(f"Scores updated at block {self.current_block}")
-        bt.logging.info(f".\n{title}\n{table}")
+        logging.info(f"Scores updated at block {self.current_block}")
+        logging.info(f".\n{title}\n{table}")
