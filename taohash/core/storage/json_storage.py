@@ -28,7 +28,8 @@ def _read_json(file_path: Path) -> Optional[dict]:
 def _get_dynamic_files_path(path: Path, prefix: str):
     """Get dynamic files' path. Create if not exists."""
     dynamic_files_path = path / DYNAMIC_FILES_PATH / prefix
-    dynamic_files_path.mkdir(parents=True, exist_ok=True)
+    if not dynamic_files_path.exists():
+        dynamic_files_path.mkdir(parents=True, exist_ok=True)
     return dynamic_files_path
 
 
@@ -37,7 +38,7 @@ class BaseJsonStorage(BaseStorage):
     def __init__(self, config):
         self.config = config or self.get_config()
 
-        self.path = Path(self.config.json_path) or DEFAULT_PATH
+        self.path = Path(self.config.json_path).expanduser() if getattr(self.config, "json_path", None) else DEFAULT_PATH
         self.path.mkdir(parents=True, exist_ok=True)
         self.json_ttl = self.config.json_ttl or DEFAULT_JSON_TTL
 
@@ -95,10 +96,15 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             save_data(current_block, data, prefix)
         """
-        check_key(key)
-
         dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
-        data_file = dynamic_files_path / f"{prefix}-{key}.json" if key else dynamic_files_path / f"{prefix}.json"
+
+        file_name = f"{prefix}.json"
+
+        if key:
+            check_key(key)
+            file_name = f"{prefix}-{key}.json"
+
+        data_file = dynamic_files_path / file_name
 
         try:
             with open(data_file, "w") as f:
@@ -125,10 +131,16 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             get_schedule_data = load_data(current_block, prefix)
         """
-        check_key(key)
-
         dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
-        data_file = dynamic_files_path / f"{prefix}-{key}.json" if key else dynamic_files_path / f"{prefix}.json"
+
+        file_name = f"{prefix}.json"
+
+        if key:
+            check_key(key)
+            file_name = f"{prefix}-{key}.json"
+
+        data_file = dynamic_files_path / file_name
+
         if data_file.exists():
             return _read_json(data_file)
         return None
