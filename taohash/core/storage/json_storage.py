@@ -15,7 +15,8 @@ DEFAULT_PATH = Path("~", ".bittensor", "data", "pools").expanduser()
 class BaseJsonStorage(BaseStorage):
 
     def __init__(self, config):
-        self.path = Path(config.json_path) or DEFAULT_PATH
+        self.config = config or self.get_config()
+        self.path = Path(self.config.json_path) or DEFAULT_PATH
         self.path.mkdir(parents=True, exist_ok=True)
 
     @classmethod
@@ -28,7 +29,7 @@ class BaseJsonStorage(BaseStorage):
             help="Path to save pool configuration JSON files",
         )
 
-    def save_data(self, key: Any, data: dict, prefix: Optional[str] = "pools") -> None:
+    def save_data(self, key: Optional[Any], data: Any, prefix: str = "pools") -> None:
         """Save pool data for specific block.
 
         Arguments:
@@ -49,11 +50,11 @@ class BaseJsonStorage(BaseStorage):
         """
         check_key(key)
 
-        data_file = self.path / f"{prefix}-{key}.json" if prefix else self.path / f"{key}.json"
+        data_file = self.path / f"{prefix}-{key}.json" if key else self.path / f"{prefix}.json"
         with open(data_file, "w") as f:
             json.dump(data, f, indent=4)
 
-    def load_data(self, key: Any, prefix: Optional[str] = "pool") -> Optional[dict]:
+    def load_data(self, key: Optional[Any], prefix: str = "pools") -> Optional[Any]:
         """Load pool data for specific block.
 
         Arguments:
@@ -74,7 +75,7 @@ class BaseJsonStorage(BaseStorage):
         """
         check_key(key)
 
-        data_file = self.path / f"{prefix}-{key}.json" if prefix else self.path / f"{key}.json"
+        data_file = self.path / f"{prefix}-{key}.json" if key else self.path / f"{prefix}.json"
         if data_file.exists():
             with data_file.open("r") as f:
                 try:
@@ -84,7 +85,7 @@ class BaseJsonStorage(BaseStorage):
                     return None
         return None
 
-    def get_latest(self, prefix: str = "pool") -> Optional[str]:
+    def get_latest(self, prefix: str = "pools") -> Optional[Any]:
         """Load the latest saved data file matching the given prefix.
 
         Arguments:
@@ -100,19 +101,19 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             get_latest_schedule = self.get_latest(prefix)
         """
-        files = list(self.path.glob(f"{prefix}-*.json"))
+        files = list(self.path.glob(f"{prefix}*.json"))
         if not files:
             return None
 
         try:
             latest_file = max(files, key=extract_block_number)
         except (IndexError, ValueError):
-            # TODO: parsable add logging
+            logging.error(f"No [red]{prefix}[/red] files found in [blue]{self.path}[/blue].")
             return None
 
         try:
             with latest_file.open("r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
-            # TODO: parsable add logging
+            logging.error(f"Error loading/decoding [red]{latest_file}[/red] file.")
             return None
