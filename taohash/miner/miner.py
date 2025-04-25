@@ -179,24 +179,25 @@ class Miner:
                 bt.logging.success(
                     f"Recovered schedule from creation block {recovered_schedule.created_at_block}"
                 )
-                changed_slot = self.mining_scheduler.update_mining_schedule(
-                    current_block=self.current_block,
-                    metagraph=self.metagraph,
-                )
-                if self.mining_scheduler.current_schedule != recovered_schedule:
-                    bt.logging.warning(
-                        "Recovered schedule was outdated - created new schedule."
-                    )
-                elif changed_slot:
-                    bt.logging.success(
-                        f"Mining slot updated at block {self.current_block} from recovered schedule."
-                    )
-                else:
-                    bt.logging.info(
-                        "No slot change detected - current slot is still valid."
-                    )
             else:
                 bt.logging.info("No schedule to recover; will create fresh.")
+
+            changed_slot = self.mining_scheduler.update_mining_schedule(
+                current_block=self.current_block,
+                metagraph=self.metagraph,
+            )
+            if self.mining_scheduler.current_schedule != recovered_schedule:
+                bt.logging.warning(
+                    "Recovered schedule was outdated - created new schedule."
+                )
+            elif changed_slot:
+                bt.logging.success(
+                    f"Mining slot updated at block {self.current_block} from recovered schedule."
+                )
+            else:
+                bt.logging.info(
+                    "No slot change detected - current slot is still valid."
+                )
 
     def sync_and_refresh(self) -> int:
         """Sync metagraph and collect pool data."""

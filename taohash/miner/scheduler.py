@@ -77,17 +77,23 @@ class MiningScheduler:
         changed_slot = self.current_schedule.update_current_slot(current_block)
         if changed_slot:
             missed_blocks = current_block - changed_slot.start_block
+
             base_message = (
                 f"Switching mining slot at block {current_block}:\n"
-                f"Validator: {changed_slot.validator_hotkey}\n"
-                f"Username: {changed_slot.pool_info['extra_data']['full_username']}\n"
-                f"Pool URL: {changed_slot.pool_info['pool_url']}\n"
-                f"Blocks: {changed_slot.start_block} → {changed_slot.end_block} ({changed_slot.total_blocks} blocks)"
+                f"Blocks: {changed_slot.start_block} → {changed_slot.end_block} ({changed_slot.total_blocks} blocks)\n"
+                f"Targets:"
             )
-            
+
+            for target in changed_slot.pool_targets:
+                base_message += (
+                    f"\n- {target.validator_hotkey}: "
+                    f"{target.pool_info['extra_data']['full_username']} → {target.pool_info['pool_url']} "
+                    f"({target.proportion:.1%})"
+                )
+
             if missed_blocks > 0:
                 base_message += f"\nMissed blocks: {missed_blocks} during recovery"
-                
+
             bt.logging.warning(base_message)
             self.storage.save_schedule(current_block, self.current_schedule)
             self._on_slot_change(changed_slot)
@@ -108,6 +114,7 @@ class MiningScheduler:
             "Start-End",
             "Username",
             "Pool URL",
+            "Proportion",
         ]
 
         rows = []
@@ -115,17 +122,18 @@ class MiningScheduler:
             block_percentage = (
                 (slot.end_block - slot.start_block + 1) / schedule.total_blocks * 100
             )
-
-            rows.append(
-                [
-                    slot.validator_hotkey[:8],
-                    f"{slot.end_block - slot.start_block + 1}",
-                    f"{block_percentage:.1f}%",
-                    f"{slot.start_block}-{slot.end_block}",
-                    slot.pool_info["extra_data"]["full_username"],
-                    f"{slot.pool_info['pool_url']}",
-                ]
-            )
+            for target in slot.pool_targets:
+                rows.append(
+                    [
+                        target.validator_hotkey[:8],
+                        f"{slot.end_block - slot.start_block + 1}",
+                        f"{block_percentage:.1f}%",
+                        f"{slot.start_block}-{slot.end_block}",
+                        target.pool_info["extra_data"]["full_username"],
+                        target.pool_info["pool_url"],
+                        f"{target.proportion:.1%}",
+                    ]
+                )
 
         # Summary
         rows.append(
@@ -134,6 +142,7 @@ class MiningScheduler:
                 str(schedule.total_blocks),
                 "100%",
                 f"{schedule.created_at_block}-{schedule.end_block}",
+                "",
                 "",
                 "",
             ]
