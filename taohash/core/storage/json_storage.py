@@ -2,20 +2,13 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from taohash.core.storage.base_storage import BaseStorage
+from taohash.core.storage.utils import check_key, extract_block_number
 
 DEFAULT_PATH = Path("~", ".bittensor", "data", "pools").expanduser()
 STATE_FILENAME = "state.json"
-
-
-def _extract_block_number(file: Path) -> int:
-    """Extracts the block number from a file name like 'pool-123.json'."""
-    try:
-        return int(file.stem.split("-")[1])
-    except (IndexError, ValueError):
-        return -1
 
 
 class BaseJsonStorage(BaseStorage):
@@ -40,7 +33,7 @@ class BaseJsonStorage(BaseStorage):
             help="Filename to save state JSON files.",
         )
 
-    def save_data(self, key: str, data: dict, prefix: str = "pools") -> None:
+    def save_data(self, key: Any, data: dict, prefix: str = "pools") -> None:
         """Save pool data for specific block.
 
         Arguments:
@@ -59,11 +52,13 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             save_data(current_block, data, prefix)
         """
+        check_key(key)
+
         data_file = self.path / f"{prefix}-{key}.json"
         with open(data_file, "w") as f:
             json.dump(data, f, indent=4)
 
-    def load_data(self, key: str, prefix: str = "pool") -> Optional[dict]:
+    def load_data(self, key: Any, prefix: str = "pool") -> Optional[dict]:
         """Load pool data for specific block.
 
         Arguments:
@@ -82,6 +77,8 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             get_schedule_data = load_data(current_block, prefix)
         """
+        check_key(key)
+
         data_file = self.path / f"{prefix}-{key}.json"
         if data_file.exists():
             with data_file.open("r") as f:
@@ -109,7 +106,7 @@ class BaseJsonStorage(BaseStorage):
             return None
 
         try:
-            latest_file = max(files, key=_extract_block_number)
+            latest_file = max(files, key=extract_block_number)
         except (IndexError, ValueError):
             # TODO: parsable add logging
             return None

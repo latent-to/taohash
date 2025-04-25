@@ -2,11 +2,12 @@ import argparse
 import os
 import pickle
 import zlib
-from typing import cast, Optional, Union
+from typing import cast, Any, Optional, Union
 
 import redis
 
 from taohash.core.storage.base_storage import BaseStorage
+from taohash.core.storage.utils import check_key
 
 REDIS_DEFAULT_HOST = "localhost"
 REDIS_DEFAULT_PORT = 6379
@@ -28,15 +29,28 @@ def _loads(blob: bytes):
 
 
 class BaseRedisStorage(BaseStorage):
-    def __init__(
-        self,
-        host: str = REDIS_DEFAULT_HOST,
-        port: int = REDIS_DEFAULT_PORT,
-        db: int = REDIS_DEFAULT_DB,
-        ttl: int = REDIS_DEFAULT_TTL,
-    ):
-        self.client = redis.Redis(host=host, port=port, db=db)
-        self.ttl = ttl
+    def __init__(self, config):
+        self._port = config.redis_port or REDIS_DEFAULT_PORT
+        self._host = config.redis_host or REDIS_DEFAULT_HOST
+        self._db = config.redis_db or REDIS_DEFAULT_DB
+
+        self.client = redis.Redis(host=self._host, port=self._port, db=self._db)
+
+        self.ttl = config.redis_ttl or REDIS_DEFAULT_TTL
+        self.update_redis_client()
+        self.check_health()
+
+    def update_redis_client(self):
+        """Update redis client configuration."""
+        self.client.config_set(name="appendonly", value="yes")
+        self.client.config_rewrite()
+
+    def check_health(self):
+        """Check redis connection health."""
+        try:
+            self.client.ping()
+        except redis.exceptions.ConnectionError:
+            raise ConnectionError("Redis connection error")
 
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser"):
@@ -59,6 +73,12 @@ class BaseRedisStorage(BaseStorage):
             default=os.getenv("REDIS_TTL", REDIS_DEFAULT_TTL),
             help="TTL for pool data in seconds",
         )
+        redis_group.add_argument(
+            "--redis_db",
+            type=int,
+            default=os.getenv("REDIS_DB", REDIS_DEFAULT_DB),
+            help="Redis database",
+        )
 
     def save_data(self, key: Union[str, int], data: dict, prefix: str) -> None:
         """
@@ -80,7 +100,8 @@ class BaseRedisStorage(BaseStorage):
             prefix = "schedule"
             save_data(last_block, schedule_data, prefix)
         """
-        key = str(key)
+        check_key(key)
+
         data = _dumps(data)
         self.client.set(key, pickle.dumps(data))
 
@@ -90,7 +111,7 @@ class BaseRedisStorage(BaseStorage):
         pipe.set(f"{prefix}:latest_block", key)
         pipe.execute()
 
-    def load_data(self, key: str, prefix: Optional[str]) -> Optional[dict]:
+    def load_data(self, key: Any, prefix: Optional[str]) -> Optional[dict]:
         """
         Loads and retrieves data from a client storage based on a key and optional prefix.
 
@@ -113,6 +134,8 @@ class BaseRedisStorage(BaseStorage):
             get_schedule_data = load_data(last_block, prefix)
 
         """
+        check_key(key)
+
         dumped_data = cast(bytes, self.client.get(f"{prefix}:{key}" if prefix else key))
         data = _loads(dumped_data) if dumped_data else None
         return data if data else None
