@@ -6,8 +6,12 @@ from typing import cast, Optional, Union
 
 import redis
 
-from taohash.core.constants import REDIS_DEFAULT_HOST, REDIS_DEFAULT_PORT, REDIS_DEFAULT_TTL, REDIS_DEFAULT_DB
 from taohash.core.storage import BaseStorage
+
+REDIS_DEFAULT_HOST = "localhost"
+REDIS_DEFAULT_PORT = 6379
+REDIS_DEFAULT_TTL = 7200
+REDIS_DEFAULT_DB = 0
 
 
 def _dumps(obj) -> bytes:
