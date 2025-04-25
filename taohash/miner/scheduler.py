@@ -11,7 +11,21 @@ if TYPE_CHECKING:
 
 
 class MiningScheduler:
-    """Manages mining schedule creation and updates."""
+    """
+    Manages mining schedule creation and execution throughout the mining process.
+
+    This class handles the creation of mining schedules based on the selected allocation
+    strategy, tracks the current active slot, and ensures miners are directed to the
+    appropriate validator pools as blocks progress. It also manages communication with
+    proxy software when slots change.
+
+    Attributes:
+        config: Bittensor configuration
+        storage: Storage interface for persisting schedules and pool information
+        metagraph: The Bittensor metagraph containing network state and validator info
+        allocation: Strategy for allocating mining slots to validators
+        window_size: Number of blocks in each scheduling window
+    """
 
     def __init__(
         self,
@@ -22,6 +36,17 @@ class MiningScheduler:
         window_size: int,
         proxy_manager=None,
     ):
+        """
+        Initialize the mining scheduler with required components.
+
+        Args:
+            config: Bittensor configuration
+            metagraph: Network state with validator information
+            storage: Interface for persisting schedules and pool info
+            allocation: Strategy for allocating mining slots
+            window_size: Number of blocks in each scheduling window
+            proxy_manager: Optional interface to mining proxy software
+        """
         self.config = config
         self.storage = storage
         self.proxy_manager = proxy_manager
@@ -33,7 +58,18 @@ class MiningScheduler:
         self.current_schedule: Optional[MiningSchedule] = None
 
     def create_schedule(self, current_block: int) -> MiningSchedule:
-        """Create a new mining schedule"""
+        """
+        Create a new mining schedule starting at the current block.
+
+        Fetches validator pool information and uses the allocation strategy
+        to generate a schedule of mining slots for the upcoming window.
+
+        Args:
+            current_block: The current blockchain block number
+
+        Returns:
+            A new MiningSchedule covering the upcoming window
+        """
         # Use window size for scheduling
         available_blocks = self.window_size
         next_window_block = current_block + self.window_size
@@ -62,7 +98,19 @@ class MiningScheduler:
     def update_mining_schedule(
         self, current_block: int, metagraph: "bt.metagraph.Metagraph" = None
     ) -> Optional["MiningSlot"]:
-        """Update the mining schedule if needed. Return the new slot if it changed."""
+        """
+        Update the mining schedule and current slot based on the current block.
+
+        Creates a new schedule if needed and updates the current slot.
+        When the slot changes, triggers proxy configuration updates.
+
+        Args:
+            current_block: The current blockchain block number
+            metagraph: Optional updated metagraph
+
+        Returns:
+            The new MiningSlot if it changed, None otherwise
+        """
         if metagraph:
             self.metagraph = metagraph
 
@@ -102,7 +150,13 @@ class MiningScheduler:
         return None
 
     def log_schedule(self, schedule: MiningSchedule) -> None:
-        """Print a formatted table of the mining schedule."""
+        """
+        Print a formatted table of the mining schedule.
+
+        This method provides a visual representation of the current mining schedule,
+        showing which validators are targeted for mining during specific time periods.
+        It helps miners understand their hashrate distribution across different validators.
+        """
         if not schedule.slots:
             bt.logging.warning("Empty schedule - no slots allocated")
             return
@@ -160,7 +214,15 @@ class MiningScheduler:
         )
 
     def _on_slot_change(self, new_slot: "MiningSlot") -> None:
-        """Handle slot change events."""
+        """
+        Handle mining slot transitions by reconfiguring mining hardware.
+
+        This method is called whenever the miner transitions to a new mining slot.
+        It communicates with the mining proxy to redirect hashrate to new pools.
+
+        Args:
+            new_slot: The new active mining slot containing target pool information
+        """
         if self.proxy_manager:
             success = self.proxy_manager.update_config(new_slot)
             if not success:

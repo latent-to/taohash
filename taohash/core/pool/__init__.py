@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable
+from typing import Optional, Callable
 
 import argparse
 
@@ -7,16 +7,33 @@ from taohash.core.pool.braiins import BraiinsPool
 from taohash.core.pool.config import PoolAPIConfig
 from taohash.core.chain_data.pool_info import PoolInfo
 
-POOL_URLS_FMT: Dict[PoolIndex, Callable[[PoolInfo], str]] = {
+POOL_URLS_FMT: dict[PoolIndex, Callable[[PoolInfo], str]] = {
     PoolIndex.Braiins: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
     PoolIndex.Custom: lambda pool_info: f"stratum+tcp://{pool_info.ip}:{pool_info.port}",
 }
 
 
 class Pool:
-    __CLASS_MAP: Dict[int, PoolBase] = {PoolIndex.Braiins: BraiinsPool}
+    """
+    Factory class for creating mining pool instances.
+
+    Creates the appropriate pool implementation based on the pool_info.pool_index
+    and initializes it with the provided API configuration.
+    """
+
+    __CLASS_MAP: dict[int, PoolBase] = {PoolIndex.Braiins: BraiinsPool}
 
     def __new__(cls, pool_info: PoolInfo, config: PoolAPIConfig) -> "PoolBase":
+        """
+        Create a new pool instance based on the specified pool info.
+
+        Args:
+            pool_info: Pool information including connection details
+            config: API configuration for accessing pool data
+
+        Returns:
+            An instance of the appropriate pool implementation
+        """
         pool_ = cls.__CLASS_MAP[pool_info.pool_index]
         api = pool_.create_api(config)
 

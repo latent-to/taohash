@@ -1,23 +1,29 @@
-from dataclasses import dataclass, field
 import os
-from typing import Optional, Any
-import logging
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
-import bt_decode
 import netaddr
-from bittensor import subtensor as bt_subtensor
-from bittensor_wallet.bittensor_wallet import Wallet
+import bt_decode
 
+from bittensor_wallet.bittensor_wallet import Wallet
+from bittensor import logging
+from bittensor import subtensor as bt_subtensor
 from taohash.core.utils import ip_to_int
 
 
 @dataclass
 class PoolInfo:
     """
-    Contains Stratum pool information published by the validators through commitments. 
-    This is used by the miners to connect to the pool and provide hashrate.
-    'extra_data' is open to use by the miners in their operations.
+    Stratum pool information published by validators through blockchain commitments.
+
+    This data structure contains all necessary details for miners to connect to
+    validators' mining pools and provide hashrate. Validators publish this info
+    to the blockchain, and miners retrieve it to establish connections.
+
+    The extra_data field allows for extension with additional metadata that
+    doesn't need to be encoded in the blockchain commitment.
     """
+
     pool_index: int
     port: int
     ip: str | None = None
@@ -27,9 +33,21 @@ class PoolInfo:
     extra_data: dict[str, Any] = field(default_factory=dict)
 
     def encode(self) -> bytes:
+        """
+        Encode pool information to bytes for bittensor storage.
+
+        Returns:
+            Encoded bytes representation suitable for chain commitment
+        """
         return encode_pool_info(self)
 
     def to_raw(self) -> dict:
+        """
+        Convert to raw dictionary format for encoding.
+
+        Returns:
+            Dictionary with pool information
+        """
         return {
             "pool_index": self.pool_index,
             "ip": ip_to_int(self.ip) if self.ip else None,
@@ -40,6 +58,15 @@ class PoolInfo:
         }
 
     def to_json(self) -> dict:
+        """
+        Convert to complete JSON format with derived fields.
+
+        Includes all fields plus computed pool_url and extra_data,
+        suitable for API responses and storage.
+
+        Returns:
+            Complete dictionary representation with all fields
+        """
         return {
             "pool_index": self.pool_index,
             "ip": self.ip,
@@ -48,16 +75,30 @@ class PoolInfo:
             "username": self.username,
             "password": self.password,
             "pool_url": self.pool_url,
-            "extra_data": self.extra_data
+            "extra_data": self.extra_data,
         }
 
     @classmethod
     def decode(cls, pool_info_bytes: bytes) -> "PoolInfo":
+        """
+        Create a PoolInfo instance from encoded bytes.
+
+        Args:
+            pool_info_bytes: Encoded pool information from blockchain
+
+        Returns:
+            Decoded PoolInfo instance
+        """
         return decode_pool_info(pool_info_bytes)
 
     @property
     def pool_url(self) -> str:
-        """Constructs the pool URL from domain/ip and port."""
+        """
+        Construct the pool URL from domain/IP and port.
+
+        Returns:
+            Formatted pool connection URL
+        """
         if self.domain:
             return f"{self.domain}:{self.port}"
         elif self.ip:
@@ -71,8 +112,23 @@ def publish_pool_info(
     subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_info_bytes: bytes
 ) -> bool:
     """
-    Publishes the pool info to the network through commitments.
-    Each validator can have one commitment active at a time.
+    Publish mining pool information to the blockchain as a validator commitment.
+
+    Validators call this function to publish their pool connection details,
+    making them available to miners in the subnet. Each validator can have
+    only one active commitment at a time.
+
+    Args:
+        subtensor: Subtensor instance
+        netuid: Network UID of the subnet
+        wallet: Validator's wallet with hotkey for signing
+        pool_info_bytes: Encoded pool information (max 128 bytes)
+
+    Returns:
+        Boolean indicating success of the transaction
+
+    Raises:
+        ValueError: If pool_info_bytes exceeds 128 bytes
     """
     if len(pool_info_bytes) > 128:
         raise ValueError("Pool info bytes must be at most 128 bytes")
@@ -102,8 +158,18 @@ def get_all_pool_info(
     subtensor: bt_subtensor, netuid: int
 ) -> Optional[dict[str, PoolInfo]]:
     """
-    Retrieves all the pool info from the network.
-    No filtering is done at this point. 
+    Retrieve all validators' pool information from the blockchain.
+
+    Used by miners to discover all available mining pools in the subnet.
+    Returns a dictionary mapping validator hotkeys to their pool information.
+
+    Args:
+        subtensor: Subtensor instance for blockchain interaction
+        netuid: Network UID of the subnet
+
+    Returns:
+        Dictionary mapping validator hotkeys to their PoolInfo objects,
+        or None if no commitments are found
     """
     commitments = subtensor.get_all_commitments(netuid)
     if not commitments:
@@ -133,7 +199,17 @@ def get_pool_info(
     subtensor: bt_subtensor, netuid: int, hotkey: str
 ) -> Optional[PoolInfo]:
     """
-    Retrieves the pool info for a given validator hotkey.
+    Retrieve pool information for a specific validator.
+
+    Used when a miner needs to connect to a specific validator's pool.
+
+    Args:
+        subtensor: Subtensor instance
+        netuid: Network UID of the subnet
+        hotkey: Validator's hotkey SS58 address
+
+    Returns:
+        PoolInfo object if found, None otherwise
     """
     commitments = subtensor.get_all_commitments(netuid)
     if not commitments or hotkey not in commitments:
@@ -157,6 +233,18 @@ def get_pool_info(
 
 
 def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
+    """
+    Decode binary pool information into a PoolInfo object.
+
+    Uses the PoolInfo schema defined in types.json to decode
+    the binary data from blockchain commitments.
+
+    Args:
+        pool_info_bytes: Encoded pool information from blockchain
+
+    Returns:
+        Decoded PoolInfo instance with human-readable values
+    """
     types_path = os.path.join(os.path.dirname(__file__), "types.json")
     with open(types_path, "r") as f:
         types = f.read()
@@ -172,6 +260,18 @@ def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
 
 
 def encode_pool_info(pool_info: PoolInfo) -> bytes:
+    """
+    Encode a PoolInfo object into binary format for bittensor storage.
+
+    Converts the PoolInfo into a compact binary representation
+    suitable for storage in chain commitments.
+
+    Args:
+        pool_info: PoolInfo instance to encode
+
+    Returns:
+        Binary encoded data ready for bittensor storage
+    """
     types_path = os.path.join(os.path.dirname(__file__), "types.json")
     with open(types_path, "r") as f:
         types = f.read()

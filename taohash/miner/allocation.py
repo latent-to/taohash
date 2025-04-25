@@ -1,7 +1,8 @@
+import os
+import argparse
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
-import argparse
-import os
 
 import bittensor as bt
 from taohash.miner.models import MiningSlot, PoolTarget
@@ -11,7 +12,20 @@ if TYPE_CHECKING:
 
 
 class AllocationConfig:
-    """Configuration holder for allocation parameters"""
+    """
+    Configuration class that defines the parameters for mining slot allocation strategies.
+
+    This class manages the default values and CLI argument parsing for all allocation-related
+    settings in the Taohash subnet. It controls:
+
+    - Allocation strategy type (stake-based, equal, multi-pool)
+    - Minimum blocks per validator to ensure fair distribution
+    - Validator filtering criteria (min stake, max validators)
+    - Multi-pool slot configuration (max pools per slot, min proportion)
+    - Slot sizing parameters
+
+    The configuration can be set via command-line arguments or environment variables
+    """
 
     DEFAULT_TYPE = "stake_based"
     DEFAULT_MIN_BLOCKS = 40
@@ -37,14 +51,12 @@ class AllocationConfig:
             default=os.getenv("ALLOCATION_TYPE", cls.DEFAULT_TYPE),
             help="Allocation type",
         )
-
         allocation_group.add_argument(
             "--allocation.min_blocks",
             type=int,
             default=os.getenv("ALLOCATION_MIN_BLOCKS", cls.DEFAULT_MIN_BLOCKS),
             help="Minimum blocks to allocate per validator",
         )
-
         allocation_group.add_argument(
             "--allocation.max_validators",
             type=int,
@@ -52,7 +64,6 @@ class AllocationConfig:
             or None,
             help="Maximum number of validators to include (None for all)",
         )
-
         allocation_group.add_argument(
             "--allocation.min_stake",
             type=float,
@@ -88,7 +99,22 @@ class AllocationConfig:
 
 
 class BaseAllocation(ABC):
-    """Base class for allocation strategies"""
+    """
+    Abstract base class that defines the interface for mining slot allocation strategies.
+
+    This class provides the core functionality for distributing mining slots to validators
+    in the Taohash subnet. It handles common operations like:
+
+    - Filtering and sorting validators based on blacklist, stake, and validator permits.
+    - Creating mining schedules based on the implemented allocation algorithm
+
+    Each concrete allocation strategy must implement the abstract allocate_slots method
+    to define its specific distribution logic (e.g., stake-based, equal distribution,
+    or multi-pool allocation).
+
+    The allocation strategy determines how miners distribute their hashrate across
+    different validator pools in the network within a mining window.
+    """
 
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser") -> None:
@@ -111,7 +137,23 @@ class BaseAllocation(ABC):
         pool_info: dict[str, "PoolInfo"],
         metagraph: "bt.metagraph.Metagraph",
     ) -> list["MiningSlot"]:
-        """Create mining schedule based on allocation strategy"""
+        """
+        Creates a mining schedule by distributing available blocks among validator pools.
+
+        This method serves as the main entry point for generating mining slots. It delegates
+        the actual allocation logic to the strategy-specific `allocate_slots` method.
+
+        Parameters:
+            current_block: The current Bittensor block number
+            available_blocks_this_window: Number of blocks available to allocate in this schedule
+            next_window_block: The block number where the next allocation window begins
+            pool_info: Dictionary mapping validator hotkeys to their pool information
+            metagraph: The Bittensor metagraph containing network state and validator info
+
+        Returns:
+            A list of MiningSlot objects that define which validators to mine for during
+            specific block ranges.
+        """
         return self.allocate_slots(
             current_block,
             available_blocks_this_window,
@@ -123,7 +165,30 @@ class BaseAllocation(ABC):
     def _filter_validators(
         self, pool_info: dict[str, "PoolInfo"], metagraph: "bt.metagraph.Metagraph"
     ) -> dict[str, "PoolInfo"]:
-        """Filter and sort validators based on criteria"""
+        """
+        Filters and sorts validators based on multiple criteria.
+
+        This method performs several filtering operations to select eligible validators:
+
+        1. Basic eligibility filters:
+        - Excludes validators in the blacklist
+        - Ensures validator exists in the metagraph
+        - Verifies the validator has an active permit
+
+        2. Stake-based filtering:
+        - Applies minimum stake threshold to ensure validators have sufficient backing
+
+        3. Sorting and limiting:
+        - Sorts validators by total stake (descending)
+        - Optionally limits to the top N validators based on configuration
+
+        Parameters:
+            pool_info: Dictionary mapping validator hotkeys to their mining pool information
+            metagraph: Bittensor metagraph containing sub-network state
+
+        Returns:
+            A filtered and sorted dictionary of eligible validators with their pool information.
+        """
         # Filter based on blacklist, metagraph, and validator permit
         filtered = {
             hotkey: info
@@ -174,17 +239,52 @@ class BaseAllocation(ABC):
         pool_info: dict[str, "PoolInfo"],
         metagraph: "bt.metagraph.Metagraph",
     ) -> list[MiningSlot]:
-        """Strategy-specific slot allocation logic"""
+        """
+        Abstract method that defines the core slot allocation logic for a specific strategy.
+
+        This method is the heart of any allocation strategy and must be implemented by all
+        concrete subclasses. It determines how available blocks are distributed among
+        validator pools based on the strategy's allocation principles.
+
+        The implementation should:
+        - Use _filter_validators to get the eligible set of validators
+        - Calculate block allocations according to the strategy's algorithm
+        - Create MiningSlot objects to represent time periods allocated to specific validators
+        - Ensure slots don't extend beyond next_window_block
+        - Handle edge cases like insufficient remaining blocks
+
+        Parameters:
+            current_block: The current blockchain block number
+            available_blocks: Total number of blocks available for allocation
+            next_window_block: The block number where the next allocation window begins
+            pool_info: Dictionary mapping validator hotkeys to their pool information
+            metagraph: Bittensor metagraph containing sub-network state
+
+        Returns:
+            A list of non-overlapping MiningSlot objects that collectively span from
+            current_block to at most next_window_block, with each slot defining which
+            validator(s) to mine for during specific block ranges.
+        """
         pass
 
 
 class StakeBased(BaseAllocation):
     """
-    Allocates blocks proportionally based on stake.
-    This is a greedy strategy:
-        1. Divides available blocks by fair share of each pool based on stake
-        2. Allocates the top validators first
-        3. If at any point, the remaining blocks are less than the min_blocks_per_validator, add remaining to the last validator.
+    Allocation strategy that distributes mining blocks proportionally based on stake weight.
+
+    This is a greedy allocation approach that prioritizes validators with higher stake:
+
+    1. Calculates a fair share of blocks for each validator based on their relative stake
+       in the network (stake_validator / total_stake)
+    2. Processes validators in descending stake order, allocating their fair share
+       or at minimum the configured min_blocks_per_validator
+    3. Ensures no validator receives less than the minimum blocks unless remaining
+       blocks are insufficient
+    4. If any blocks remain unallocated after processing all validators, they are
+       added to the last validator's slot
+
+    This strategy favors validators with higher stake, aligning mining rewards
+    while maintaining a minimum allocation for smaller stakeholders.
     """
 
     def allocate_slots(
@@ -266,17 +366,24 @@ class StakeBased(BaseAllocation):
 
 class MultiPoolStakeAllocation(BaseAllocation):
     """
-    This strategy utilises "proportions" and have more than one pools per slot.
-    This is useful for miners who have the capability in their proxies to split hashrate.
-    As of now, Braiins Proxy only supports this if you have more than one miner connected to the proxy farm.
+    Advanced allocation strategy that enables mining for multiple validators simultaneously within a single slot.
 
-    Steps:
-        1. Min Allocation: Each validator gets min_blocks_per_validator irrepective of stake.
-        2. Water Fill: Remaining blocks are distributed one by one to the validator who is furthest below its stake share.
-        3. Bundle small quotas together
-        4. Pack quotas into min_slot_size slots with max_pools_per_slot
-        5. Set proportions inside each slot
-        6. Finalise list of slots.
+    This strategy leverages proportional hashrate splitting to maximize decentralization and fairness.
+    Unlike other strategies, it allows miners to direct portions of their hashrate to different
+    validator pools concurrently
+
+    Implementation details:
+
+    1. Minimum Guarantee: Each validator initially receives min_blocks_per_validator blocks
+    2. Water-Fill Distribution: Remaining blocks are allocated one-by-one to validators with
+       the largest stake-to-allocation deficit, ensuring fair distribution based on stake weight
+    3. Efficient Packing: Small quotas are bundled together into slots of min_slot_size blocks
+    4. Multi-Pool Assignment: Up to max_pools_per_slot validators can share a single mining slot
+    5. Proportional Allocation: Each validator in a slot receives hashrate proportional to their
+       quota within that slot (must exceed min_proportion threshold)
+
+    Note: Requires compatible mining proxy software capable of hashrate splitting. Currently,
+    Braiins Proxy supports this functionality when multiple physical miners are connected.
     """
 
     def _water_fill(
@@ -401,9 +508,18 @@ class EMAStakeBased(BaseAllocation):
 
 class EqualDistribution(BaseAllocation):
     """
-    Allocates blocks equally among targets.
-    This is a fair strategy which does not take into account stake.
-    It just equally distributes the blocks among the targets.
+    Allocation strategy that distributes mining blocks equally among all eligible validators.
+
+    This strategy implements a strictly egalitarian approach to block allocation.
+
+    1. Divides the available blocks equally among all filtered validators
+    2. Handles remainder by giving one extra block to the first N validators
+       (where N is the remainder)
+    3. Ensures each validator receives at least min_blocks_per_validator
+    4. Creates sequential, non-overlapping slots with a single validator per slot
+
+    Note that while this strategy ignores stake weights, validators still must meet
+    the minimum stake and other eligibility requirements to be included.
     """
 
     def allocate_slots(
