@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from typing import Any, Optional
+import bittensor
 
 
 class BaseStorage(ABC):
@@ -25,3 +26,9 @@ class BaseStorage(ABC):
     def get_latest(self, prefix: Optional[Any]) -> Any:
         """Returns the key of the last saved element based on prefix."""
         pass
+
+    def get_config(self):
+        """Returns the config object for specific storage based on class implementation."""
+        parser = ArgumentParser()
+        self.add_args(parser)
+        return bittensor.config(parser)
