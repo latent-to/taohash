@@ -78,7 +78,7 @@ class BaseRedisStorage(BaseStorage):
         Example:
             last_block = 123
             pool_data = {"ip": "0.0.0.0", "port": 12345, "weight": 1.0}
-            prefix = "pool"
+            prefix = "pools"
             save_data(last_block, pool_data, prefix)
 
             last_block = 456
@@ -111,7 +111,7 @@ class BaseRedisStorage(BaseStorage):
 
         Example:
             last_block = 123
-            prefix = "pool"
+            prefix = "pools"
             get_pool_data = load_data(last_block, prefix)
 
             last_block = 456
@@ -133,7 +133,7 @@ class BaseRedisStorage(BaseStorage):
             latest_block_data: related with key:value as {prefix:latest_block}:latest_block_data
 
         Example:
-            get_latest_pool = self.get_latest("pool")
+            get_latest_pool = self.get_latest("pools")
             get_latest_schedule = self.get_latest("schedule")
         """
         latest_block = cast(str, self.client.get(f"{prefix}:latest_block"))
