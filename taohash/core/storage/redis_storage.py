@@ -1,13 +1,11 @@
 import argparse
 import os
-import pickle
-import zlib
-from typing import cast, Any, Optional, Union
+from typing import cast, Any, Optional
 
 import redis
 
 from taohash.core.storage.base_storage import BaseStorage
-from taohash.core.storage.utils import check_key
+from taohash.core.storage.utils import check_key, dumps, loads
 
 REDIS_DEFAULT_HOST = "localhost"
 REDIS_DEFAULT_PORT = 6379
@@ -15,21 +13,9 @@ REDIS_DEFAULT_TTL = 7200
 REDIS_DEFAULT_DB = 0
 
 
-def _dumps(obj) -> bytes:
-    """pickle + light zlib compression."""
-    # You can choose not to use zlib - will be easier to use data in other services
-    return zlib.compress(
-        pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL), level=3
-    )
-
-
-def _loads(blob: bytes):
-    """pickle + light zlib decompression."""
-    return pickle.loads(zlib.decompress(blob))
-
-
 class BaseRedisStorage(BaseStorage):
-    def __init__(self, config):
+    def __init__(self, config=None):
+        self.config = config or self.get_config()
         self._port = config.redis_port or REDIS_DEFAULT_PORT
         self._host = config.redis_host or REDIS_DEFAULT_HOST
         self._db = config.redis_db or REDIS_DEFAULT_DB
@@ -80,7 +66,7 @@ class BaseRedisStorage(BaseStorage):
             help="Redis database",
         )
 
-    def save_data(self, key: Union[str, int], data: dict, prefix: str) -> None:
+    def save_data(self, key: Optional[Any], data: Any, prefix: str = "pools") -> None:
         """
         Save data to Redis.
 
@@ -102,16 +88,15 @@ class BaseRedisStorage(BaseStorage):
         """
         check_key(key)
 
-        data = _dumps(data)
-        self.client.set(key, pickle.dumps(data))
+        dumped_data = dumps(data)
 
-        dumped_data = _dumps(data)
         pipe = self.client.pipeline()
-        pipe.set(f"{prefix}:{key}", dumped_data, ex=self.ttl)
-        pipe.set(f"{prefix}:latest_block", key)
+        key_name = f"{prefix}:{key}" if key else prefix
+        pipe.set(name=key_name, value=dumped_data, ex=self.ttl)
+        pipe.set(name=f"{prefix}:latest_block", value=key)
         pipe.execute()
 
-    def load_data(self, key: Any, prefix: Optional[str]) -> Optional[dict]:
+    def load_data(self, key: Optional[Any], prefix: str = "pools") -> Optional[dict]:
         """
         Loads and retrieves data from a client storage based on a key and optional prefix.
 
@@ -136,11 +121,12 @@ class BaseRedisStorage(BaseStorage):
         """
         check_key(key)
 
-        dumped_data = cast(bytes, self.client.get(f"{prefix}:{key}" if prefix else key))
-        data = _loads(dumped_data) if dumped_data else None
+        key_name = f"{prefix}:{key}" if key else prefix
+        dumped_data = cast(bytes, self.client.get(name=key_name))
+        data = loads(dumped_data) if dumped_data else None
         return data if data else None
 
-    def get_latest(self, prefix: str) -> Optional[str]:
+    def get_latest(self, prefix: str = "pools") -> Optional[Any]:
         """Return the latest record in Redis based on prefix.
 
         Returns:
@@ -155,4 +141,4 @@ class BaseRedisStorage(BaseStorage):
             return None
 
         data = cast(bytes, self.client.get(f"{prefix}:{int(latest_block)}"))
-        return _loads(data) if data else None
+        return loads(data) if data else None
