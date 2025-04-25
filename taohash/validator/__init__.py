@@ -1,10 +1,10 @@
-import os
 import argparse
+import os
 from typing import Optional
-from tabulate import tabulate
 
-from bittensor_wallet import Wallet
 from bittensor import Subtensor, config, logging
+from bittensor_wallet import Wallet
+from tabulate import tabulate
 
 from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import Pool
@@ -150,7 +150,7 @@ class BaseValidator:
             "hotkeys": self.hotkeys,
             "current_block": self.current_block,
         }
-        self.storage.save_state(state)
+        self.storage.save_state(self.current_block, state)
         logging.info(f"Saved validator state at block {self.current_block}")
 
     def resync_metagraph(self) -> None:
