@@ -36,7 +36,6 @@ class BraiinsMiner(BaseMiner):
         super().__init__()
 
         self.blocks_per_window = self.tempo * 2
-        self.storage = RedisStorage(self.config)
 
         # Braiins-specific setup
         self.proxy_manager = None
