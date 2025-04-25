@@ -1,13 +1,15 @@
-from typing import Optional
+from typing import Optional, Union
+
+from bittensor.core.config import Config
+from bittensor.utils.btlogging import logging
 
 from taohash.core.storage import BaseJsonStorage, BaseRedisStorage
-from bittensor.utils.btlogging import logging
 
 
 class JsonStorage(BaseJsonStorage):
 
-    def __init__(self, config):
-        super().__init__(config.json_path)
+    def __init__(self, config: Optional["Config"] = None):
+        super().__init__(config)
 
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
         """Save pool data for specific block."""
@@ -30,7 +32,7 @@ class JsonStorage(BaseJsonStorage):
 
 class RedisStorage(BaseRedisStorage):
 
-    def __init__(self, config):
+    def __init__(self, config: Optional["Config"] = None):
         super().__init__(config)
 
     # Pool data
@@ -54,18 +56,16 @@ class RedisStorage(BaseRedisStorage):
 STORAGE_CLASSES = {"json": JsonStorage, "redis": RedisStorage}
 
 
-def get_storage(storage_type: str, config) -> JsonStorage | RedisStorage:
+def get_miner_storage(storage_type: str, config: "Config") -> Union[JsonStorage, RedisStorage]:
     """Get storage instance based on type."""
     if storage_type not in STORAGE_CLASSES:
         raise ValueError(f"Unknown storage type: {storage_type}")
 
     storage_class = STORAGE_CLASSES[storage_type]
+
     try:
         return storage_class(config)
     except Exception as e:
-        logging.error(f"Failed to initialize {storage_type} storage: {e}")
-        if storage_type == "redis":
-            logging.error(
-                "Please install redis-py package: pip install redis. After installing, make sure to start redis server."
-            )
-        exit(1)
+        message = f"Failed to initialize {storage_type} storage: {e}"
+        logging.error(message)
+        raise Exception(message)
