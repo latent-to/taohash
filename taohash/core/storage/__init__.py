@@ -12,12 +12,12 @@ class BaseStorage(ABC):
         pass
 
     @abstractmethod
-    def save_data(self, key: int, data: Any) -> None:
+    def save_data(self, key: Any, data: Any) -> None:
         """Saves data by key."""
         pass
 
     @abstractmethod
-    def load_data(self, key: int) -> Any:
+    def load_data(self, key: Any) -> Any:
         """Loads data by key. Returns None if the key is not found."""
         pass
 
