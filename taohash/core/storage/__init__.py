@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from typing import Any
+from typing import Any, Optional
 
 
 class BaseStorage(ABC):
@@ -12,16 +12,16 @@ class BaseStorage(ABC):
         pass
 
     @abstractmethod
-    def save_data(self, key: Any, data: Any) -> None:
+    def save_data(self, key: Any, data: Any, prefix: Optional[Any]) -> None:
         """Saves data by key."""
         pass
 
     @abstractmethod
-    def load_data(self, key: Any) -> Any:
+    def load_data(self, key: Any, prefix: Optional[Any]) -> Any:
         """Loads data by key. Returns None if the key is not found."""
         pass
 
     @abstractmethod
-    def get_latest(self) -> Any:
-        """Returns the key of the last saved element (if needed)."""
+    def get_latest(self, prefix: Optional[Any]) -> Any:
+        """Returns the key of the last saved element based on prefix."""
         pass
