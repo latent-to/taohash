@@ -7,10 +7,11 @@ from typing import Any, Optional
 
 from bittensor.utils.btlogging import logging
 
+from taohash.core.constants import MAIN_PATH
 from taohash.core.storage.base_storage import BaseStorage
 from taohash.core.storage.utils import check_key, extract_block_number
 
-DEFAULT_PATH = Path("~", ".bittensor", "data").expanduser()
+DEFAULT_PATH = MAIN_PATH / "data"
 DEFAULT_JSON_TTL = 4 * 3600  # 4 hours
 DYNAMIC_FILES_PATH = "dynamic"
 
