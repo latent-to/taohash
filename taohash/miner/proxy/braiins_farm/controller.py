@@ -184,40 +184,51 @@ class BraiinsProxyManager(BaseProxyManager):
                 with open(self.config_path, "r") as f:
                     config = toml.load(f)
             
-            pool_url = slot_data.pool_info["pool_url"]
-            username = slot_data.pool_info["extra_data"]["full_username"]
-            validator_id = slot_data.validator_hotkey[:8]
-            
+            # Initialize config structure
             config = {
                 "server": [{
                     "name": "S1",
-                    "port": self.proxy_port
+                    "port": self.proxy_port,
                 }],
+                "target": [],
+                "routing": [{
+                    "from": ["S1"],
+                    "goal": []
+                }]
+            }
+            
+            # Add config for each target
+            for target in slot_data.pool_targets:
+                validator_id = target.validator_hotkey[:8]
+                pool_url = target.pool_info["pool_url"]
+                username = target.pool_info["extra_data"]["full_username"]
                 
-                "target": [{
+                # Add target configuration
+                config["target"].append({
                     "name": f"Pool-{validator_id}",
                     "url": f"stratum+tcp://{pool_url}",
                     "user_identity": username
-                }],
+                })
                 
-                "routing": [{
-                    "from": ["S1"],
-                    "goal": [{
-                        "name": f"Mine-{username}",
-                        "level": [{
-                            "targets": [f"Pool-{validator_id}"]
-                        }]
+                # Add goal with hashrate weight based on proportion
+                config["routing"][0]["goal"].append({
+                    "name": f"Goal-{validator_id}",
+                    "hr_weight": int(target.proportion * 100),  # Convert proportion to integer percentage
+                    "level": [{
+                        "targets": [f"Pool-{validator_id}"]
                     }]
-                }]
-            }
+                })
             
             with open(self.config_path, "w") as f:
                 toml.dump(config, f)
                 
-            bt.logging.success(
-                f"Updated proxy configuration for Validator {validator_id}: "
-                f"{username} → {pool_url}"
-            )
+            bt.logging.success(f"Updated proxy configuration with {len(slot_data.pool_targets)} targets:")
+            for target in slot_data.pool_targets:
+                bt.logging.info(
+                    f"- Validator {target.validator_hotkey[:8]}: "
+                    f"{target.pool_info['extra_data']['full_username']} → {target.pool_info['pool_url']} "
+                    f"(hashrate weight: {int(target.proportion * 100)})"
+                )
             
             # Refresh Docker to apply changes to the proxy
             if not self._refresh_docker_config():
@@ -227,5 +238,5 @@ class BraiinsProxyManager(BaseProxyManager):
             return True
             
         except Exception as e:
-            bt.logging.error(f"Failed to update proxy configuration: {e}")
+            bt.logging.error(f"Failed to update proxy configuration: {str(e)}")
             return False 
