@@ -12,6 +12,16 @@ from taohash.core.storage.utils import check_key, extract_block_number
 DEFAULT_PATH = Path("~", ".bittensor", "data", "pools").expanduser()
 
 
+def _read_json(file_path: Path) -> Optional[dict]:
+    """Read JSON file and return deserialized data."""
+    try:
+        with file_path.open("r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        logging.error(f"Error loading/decoding [red]{file_path.as_posix()}[/red] file.")
+        return None
+
+
 class BaseJsonStorage(BaseStorage):
 
     def __init__(self, config):
@@ -40,7 +50,7 @@ class BaseJsonStorage(BaseStorage):
         Example:
             current_block = 123
             data = {"ip": "0.0.0.0", "port": 12345, "weight": 1.0}
-            prefix = "pool"
+            prefix = "pools"
             save_data(current_block, data, prefix)
 
             current_block = 456
@@ -66,7 +76,7 @@ class BaseJsonStorage(BaseStorage):
 
         Example:
             current_block = 123
-            prefix = "pool"
+            prefix = "pools"
             get_pool_data = load_data(current_block, prefix)
 
             current_block = 456
@@ -77,12 +87,7 @@ class BaseJsonStorage(BaseStorage):
 
         data_file = self.path / f"{prefix}-{key}.json" if key else self.path / f"{prefix}.json"
         if data_file.exists():
-            with data_file.open("r") as f:
-                try:
-                    return json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logging.error(f"Error loading [red]{data_file.as_posix()}[/red] file: {e}")
-                    return None
+            return _read_json(data_file)
         return None
 
     def get_latest(self, prefix: str = "pools") -> Optional[Any]:
@@ -95,7 +100,7 @@ class BaseJsonStorage(BaseStorage):
             The deserialized JSON data from the latest matching file, or None if no files found.
 
         Example:
-            prefix = "pool"
+            prefix = "pools"
             get_latest_pool = self.get_latest(prefix)
 
             prefix = "schedule"
@@ -107,13 +112,7 @@ class BaseJsonStorage(BaseStorage):
 
         try:
             latest_file = max(files, key=extract_block_number)
+            return _read_json(latest_file)
         except (IndexError, ValueError):
             logging.error(f"No [red]{prefix}[/red] files found in [blue]{self.path}[/blue].")
-            return None
-
-        try:
-            with latest_file.open("r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            logging.error(f"Error loading/decoding [red]{latest_file}[/red] file.")
             return None
