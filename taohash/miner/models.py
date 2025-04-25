@@ -43,7 +43,7 @@ class MiningSchedule:
         self.slots = slots
         self.total_blocks = total_blocks
         self.created_at_block = created_at_block
-        self.end_block = self.slots[-1].end_block
+        self.end_block = self.slots[-1].end_block if self.slots else None
         self.current_slot = None
 
     def get_slot_for_block(self, block: int) -> Optional["MiningSlot"]:
