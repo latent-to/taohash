@@ -1,5 +1,19 @@
 # TaoHash Validator Setup (BTC Braiins pool)
 
+* [Prerequisites](#prerequisites)
+* [Setup Steps](#setup-steps)
+    * [1. Braiins Pool Account Setup](#1-braiins-pool-account-setup)
+    * [2. Bittensor Wallet Setup](#2-bittensor-wallet-setup)
+    * [3. Running the Validator](#3-running-the-validator)
+    * [4. Configuration Methods](#4-configuration-methods)
+    * [5. Running the Validator](#5-running-the-validator)
+* [Important Parameters](#important-parameters)
+* [Validator evaluation](#validator-evaluation)
+* [Troubleshooting](#troubleshooting)
+* [Security Notes](#security-notes)
+* [PM2 Management Guide](#pm2-management-guide)
+* [Support](#support)
+
 This guide will walk you through setting up and running a TaoHash validator on the Bittensor network.
 
 ## Prerequisites
@@ -40,6 +54,7 @@ This guide will walk you through setting up and running a TaoHash validator on t
 
 Ensure you have created a Bittensor wallet. If you haven't, you can create one using:
 ```bash
+pip install bittensor-cli
 btcli wallet create
 ```
 
@@ -175,6 +190,27 @@ Now you have two options to run the validator: using PM2 for process management 
 - `pool.password`: Your Braiins Pool password
 - `logging.info`: Enables detailed logging
 
+## Validator evaluation
+
+1. Validators submit their evaluations every `blocks_per_weights_set`. Currently set at `2 * tempo`. 
+2. They fetch, calculate, and store the hash value provided by miners every 5 minutes (25 blocks).
+2. After setting weights, moving average is updated and scores are refreshed for next evaluation window. 
+
+![Validator evaluation window](./images/validator-evaluation.png)
+
+## Troubleshooting
+
+If you encounter any issues:
+1. Verify all credentials are correct
+2. Ensure your wallet is properly set up and registered on the subnet
+3. Check logs for detailed error messages
+4. Make sure your Braiins Pool API access is properly configured
+
+## Security Notes
+
+- Never share your API keys or wallet credentials
+- Store your API token securely
+
 ## PM2 Management Guide
 
 ### Process Management
@@ -200,21 +236,9 @@ pm2 set pm2-logrotate:max_size 10M
 pm2 set pm2-logrotate:retain 7
 ```
 
-## Troubleshooting
-
-If you encounter any issues:
-1. Verify all credentials are correct
-2. Ensure your wallet is properly set up and registered on the subnet
-3. Check logs for detailed error messages
-4. Make sure your Braiins Pool API access is properly configured
-
-## Security Notes
-
-- Never share your API keys or wallet credentials
-- Store your API token securely
-
 ## Support
 
 If you need help, you can:
 - Join the [Bittensor Discord](https://discord.com/invite/bittensor) and navigate to Subnet 14
 - Check the TaoHash documentation
+- To run on different environments, check out [Subnet tutorials](https://docs.bittensor.com/tutorials/basic-subnet-tutorials)
