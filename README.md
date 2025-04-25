@@ -43,7 +43,7 @@ To run a TaoHash miner, you will need:
 To run a TaoHash validator, you will need:
 - A Bittensor wallet
 - A Braiins Pool account with API access enabled
-- Python 3.8 or higher environment
+- Python 3.9 or higher environment
 
 # Installation
 
