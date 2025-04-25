@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -10,6 +11,7 @@ from taohash.core.storage.base_storage import BaseStorage
 from taohash.core.storage.utils import check_key, extract_block_number
 
 DEFAULT_PATH = Path("~", ".bittensor", "data", "pools").expanduser()
+DEFAULT_JSON_TTL = 7 * 24 * 3600
 
 
 def _read_json(file_path: Path) -> Optional[dict]:
@@ -26,8 +28,13 @@ class BaseJsonStorage(BaseStorage):
 
     def __init__(self, config):
         self.config = config or self.get_config()
+
         self.path = Path(self.config.json_path) or DEFAULT_PATH
         self.path.mkdir(parents=True, exist_ok=True)
+        self.json_ttl = self.config.json_ttl or DEFAULT_JSON_TTL
+
+        # BaseJsonStorage
+        self._cleanup()
 
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser"):
@@ -38,6 +45,27 @@ class BaseJsonStorage(BaseStorage):
             default=os.getenv("JSON_PATH", DEFAULT_PATH),
             help="Path to save pool configuration JSON files",
         )
+        parser.add_argument(
+            "--json_ttl",
+            type=int,
+            default=int(os.getenv("JSON_TTL", DEFAULT_JSON_TTL)),
+            help="TTL for JSON data files in seconds",
+        )
+
+    def _cleanup(self):
+        """Remove JSON files older than the TTL."""
+        now = time.time()
+        files = self.path.glob("*.json")
+
+        for file in files:
+            try:
+                stat = file.stat()
+                age = now - stat.st_mtime
+                if age > self.json_ttl:
+                    file.unlink()
+                    logging.info(f"Deleted old file: {file.as_posix()}")
+            except Exception as e:
+                logging.error(f"Error while trying to delete {file.as_posix()}: {str(e)}")
 
     def save_data(self, key: Optional[Any], data: Any, prefix: str = "pools") -> None:
         """Save pool data for specific block.
