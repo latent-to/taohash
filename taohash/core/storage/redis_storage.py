@@ -6,7 +6,7 @@ from typing import cast, Optional, Union
 
 import redis
 
-from taohash.core.storage import BaseStorage
+from taohash.core.storage.base_storage import BaseStorage
 
 REDIS_DEFAULT_HOST = "localhost"
 REDIS_DEFAULT_PORT = 6379
@@ -27,7 +27,7 @@ def _loads(blob: bytes):
     return pickle.loads(zlib.decompress(blob))
 
 
-class RedisStorage(BaseStorage):
+class BaseRedisStorage(BaseStorage):
     def __init__(
         self,
         host: str = REDIS_DEFAULT_HOST,
