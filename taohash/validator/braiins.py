@@ -141,7 +141,7 @@ class BraiinsValidator(BaseValidator):
             3. Down >= 1 hour: evaluate last hour's scores.
             4. Down < 1 hour: restore the state.
         """
-        state = self.storage.get_latest_state()
+        state = self.storage.load_latest_state()
         if state is None:
             logging.info("No previous state found, starting fresh")
             return
