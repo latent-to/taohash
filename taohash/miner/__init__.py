@@ -5,7 +5,7 @@ from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.miner.allocation import BaseAllocation
-from taohash.miner.storage import get_miner_storage
+from taohash.miner.storage import get_miner_storage, BaseJsonStorage, BaseRedisStorage
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -66,7 +66,8 @@ class BaseMiner:
 
         # Add other base arguments
         BaseAllocation.add_args(parser)
-        RedisStorage.add_args(parser)
+        BaseRedisStorage.add_args(parser)
+        BaseJsonStorage.add_args(parser)
         Subtensor.add_args(parser)
         logging.add_args(parser)
         Wallet.add_args(parser)

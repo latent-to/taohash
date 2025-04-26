@@ -36,7 +36,7 @@ def _get_dynamic_files_path(path: Path, prefix: str):
 
 class BaseJsonStorage(BaseStorage):
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         self.config = config or self.get_config()
 
         self.path = Path(self.config.json_path).expanduser() if getattr(self.config, "json_path", None) else DEFAULT_PATH
