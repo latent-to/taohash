@@ -1,5 +1,4 @@
 import pickle
-import zlib
 from pathlib import Path
 
 
@@ -23,7 +22,7 @@ def dumps(obj) -> bytes:
     """pickle + light zlib compression."""
     # You can choose not to use zlib - will be easier to use data in other services
     try:
-        return zlib.compress(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL), level=3)
+        return pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
     except Exception as e:
         raise Exception(f"Failed to pickle and compress object: {e}")
 
@@ -31,6 +30,6 @@ def dumps(obj) -> bytes:
 def loads(blob: bytes):
     """pickle + light zlib decompression."""
     try:
-        return pickle.loads(zlib.decompress(blob))
+        return pickle.loads(blob)
     except Exception as e:
         raise Exception(f"Failed to decompress and unpickle object: {e}")
