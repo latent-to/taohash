@@ -5,9 +5,9 @@
 
 </div>
 
-TAOHash is a Bittensor Subnet for decentralizing PoW mining hashrate rental and exchange. Validators receive hashrate from miners in exchange for issuing weights, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
+TAO Hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) mining hashrate, rental and exchange. Validators receive hashrate from miners in exchange for issuing weights, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
 
-Although the initial implementation primarily supports Bitcoin mining via Braiins Pool, the architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance efficiently.
+Although the initial implementation primarily supports Bitcoin mining via Braiins Pool, the architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance presicely and efficiently.
 
 ---
 - [Incentive Design](#incentive-design)
