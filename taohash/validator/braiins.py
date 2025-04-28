@@ -5,20 +5,20 @@
 
 import argparse
 import traceback
-from dotenv import load_dotenv
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
+from dotenv import load_dotenv
 
-from taohash.core.pool import Pool, PoolBase
-from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.core.chain_data.pool_info import (
     publish_pool_info,
     get_pool_info,
     encode_pool_info,
 )
+from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
+from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -141,7 +141,7 @@ class BraiinsValidator(BaseValidator):
             3. Down >= 1 hour: evaluate last hour's scores.
             4. Down < 1 hour: restore the state.
         """
-        state = self.storage.get_latest_state()
+        state = self.storage.load_latest_state()
         if state is None:
             logging.info("No previous state found, starting fresh")
             return
