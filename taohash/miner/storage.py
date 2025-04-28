@@ -13,28 +13,36 @@ from taohash.core.storage.utils import dumps, loads
 class JsonStorage(BaseJsonStorage):
     def __init__(self, config: Optional["Config"] = None):
         super().__init__(config)
+        self.miner_id = self.generate_user_id(config)
 
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
         """Save pool data for specific block."""
-        self.save_data(key=block_number, data=pool_mapping)
+        prefix = f"{self.miner_id}_pools"
+        self.save_data(key=block_number, data=pool_mapping, prefix=prefix)
 
     def get_pool_info(self, block_number: int) -> Optional[dict]:
         """Get pool info for specific block."""
-        return self.load_data(key=block_number)
+        prefix = f"{self.miner_id}_pools"
+        return self.load_data(key=block_number, prefix=prefix)
 
     def get_latest_pool_info(self) -> Optional[dict]:
         """Get most recent pool info."""
-        return self.get_latest()
+        prefix = f"{self.miner_id}_pools"
+        return self.get_latest(prefix=prefix)
 
     def save_schedule(self, block_number: int, schedule_obj) -> None:
         readable_data = json.dumps(schedule_obj, default=lambda x: x.__dict__)
         dumped_data = dumps(schedule_obj)
         string_data = base64.b64encode(dumped_data).decode("utf-8")
         dict_data = {"data": readable_data, "data_encoded": string_data}
-        self.save_data(key=block_number, data=dict_data, prefix="schedule")
+        prefix = f"{self.miner_id}_schedule"
+        self.save_data(key=block_number, data=dict_data, prefix=prefix)
 
     def load_latest_schedule(self):
-        data = self.get_latest("schedule")
+        prefix = f"{self.miner_id}_schedule"
+        data = self.get_latest(prefix=prefix)
+        if data is None:
+            return None
         string_data = data.get("data_encoded")
         decoded_data = base64.b64decode(string_data.encode("utf-8"))
         return loads(decoded_data)
@@ -43,23 +51,29 @@ class JsonStorage(BaseJsonStorage):
 class RedisStorage(BaseRedisStorage):
     def __init__(self, config: Optional["Config"] = None):
         super().__init__(config)
+        self.miner_id = self.generate_user_id(config)
 
     # Pool data
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
-        self.save_data(key=block_number, data=pool_mapping)
+        prefix = f"{self.miner_id}_pools"
+        self.save_data(key=block_number, data=pool_mapping, prefix=prefix)
 
     def get_pool_info(self, block_number: int) -> Optional[dict]:
-        return self.load_data(key=block_number)
+        prefix = f"{self.miner_id}_pools"
+        return self.load_data(key=block_number, prefix=prefix)
 
     def get_latest_pool_info(self) -> Optional[dict]:
-        return self.get_latest()
+        prefix = f"{self.miner_id}_pools"
+        return self.get_latest(prefix=prefix)
 
     # Schedule data
     def save_schedule(self, block_number: int, schedule_obj) -> None:
-        self.save_data(key=block_number, data=schedule_obj, prefix="schedule")
+        prefix = f"{self.miner_id}_schedule"
+        self.save_data(key=block_number, data=schedule_obj, prefix=prefix)
 
     def load_latest_schedule(self):
-        return self.get_latest("schedule")
+        prefix = f"{self.miner_id}_schedule"
+        return self.get_latest(prefix=prefix)
 
 
 STORAGE_CLASSES = {"json": JsonStorage, "redis": RedisStorage}
