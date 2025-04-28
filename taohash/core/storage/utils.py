@@ -19,17 +19,16 @@ def check_key(key):
 
 
 def dumps(obj) -> bytes:
-    """pickle + light zlib compression."""
-    # You can choose not to use zlib - will be easier to use data in other services
+    """pickle compression."""
     try:
         return pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
     except Exception as e:
-        raise Exception(f"Failed to pickle and compress object: {e}")
+        raise Exception(f"Failed to pickle object: {e}")
 
 
 def loads(blob: bytes):
-    """pickle + light zlib decompression."""
+    """pickle decompression."""
     try:
         return pickle.loads(blob)
     except Exception as e:
-        raise Exception(f"Failed to decompress and unpickle object: {e}")
+        raise Exception(f"Failed to unpickle object: {e}")
