@@ -20,7 +20,7 @@ class BaseValidator:
         self.config = self.get_config()
         self.setup_logging_path()
         self.setup_logging()
-        self.storage = get_validator_storage(storage_type="json", config=self.config)
+        self.storage = get_validator_storage(storage_type=self.config.storage, config=self.config)
 
         self.subtensor = None
         self.wallet = None
@@ -56,7 +56,6 @@ class BaseValidator:
             default=os.getenv("NETUID", TESTNET_NETUID),
             help="The chain subnet uid.",
         )
-
         parser.add_argument(
             "--eval_interval",
             type=int,
@@ -69,6 +68,13 @@ class BaseValidator:
             choices=["restore", "fresh"],
             default="restore",
             help="Whether to restore previous validator state ('restore') or start fresh ('fresh').",
+        )
+        parser.add_argument(
+            "--storage",
+            type=str,
+            choices=["json", "redis"],
+            default=os.getenv("STORAGE_TYPE", "json"),
+            help="Storage type to use (json or redis)",
         )
 
         # Other argument providers
