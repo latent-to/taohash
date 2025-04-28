@@ -29,7 +29,6 @@ class BaseRedisStorage(BaseStorage):
     def update_redis_client(self):
         """Update redis client configuration."""
         self.client.config_set(name="appendonly", value="yes")
-        self.client.config_rewrite()
 
     def check_health(self):
         """Check redis connection health."""
