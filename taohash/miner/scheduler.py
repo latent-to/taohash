@@ -57,7 +57,7 @@ class MiningScheduler:
         # State management
         self.current_schedule: Optional[MiningSchedule] = None
 
-    def create_schedule(self, current_block: int) -> MiningSchedule:
+    def create_schedule(self, current_block: int) -> Optional[MiningSchedule]:
         """
         Create a new mining schedule starting at the current block.
 
@@ -76,10 +76,7 @@ class MiningScheduler:
 
         pool_info = self.storage.get_latest_pool_info()
         if not pool_info:
-            bt.logging.warning("No validators available for scheduling.")
-            return MiningSchedule(
-                slots=[], total_blocks=0, created_at_block=current_block
-            )
+            return None
 
         slots = self.allocation.create_schedule(
             current_block=current_block,
@@ -115,11 +112,17 @@ class MiningScheduler:
             self.metagraph = metagraph
 
         # Ensure valid schedule
-        if (
-            self.current_schedule is None
-            or current_block > self.current_schedule.end_block
+        if self.current_schedule is None or (
+            self.current_schedule.end_block is not None
+            and current_block > self.current_schedule.end_block
         ):
-            self.current_schedule = self.create_schedule(current_block)
+            new_schedule = self.create_schedule(current_block)
+            if not new_schedule:
+                bt.logging.warning(
+                    f"No validators available for scheduling at block {current_block}. Will retry later."
+                )
+                return None
+            self.current_schedule = new_schedule
 
         # Check and update current slot
         changed_slot = self.current_schedule.update_current_slot(current_block)
