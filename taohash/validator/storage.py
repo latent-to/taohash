@@ -11,21 +11,16 @@ class JsonValidatorStorage(BaseJsonStorage):
         super().__init__(config)
         self.validator_id = self.generate_user_id(config)
 
-    def save_state(self, block_number: int, state: dict) -> None:
+    def save_state(self, state: dict) -> None:
         """Save validator state to a single JSON file."""
         prefix = f"{self.validator_id}_state"
-        self.save_data(key=block_number, data=state, prefix=prefix)
+        self.save_data(key="current", data=state, prefix=prefix)
         logging.debug(f"Saved validator state at block {state['current_block']}")
-
-    def get_state(self, block_number: int) -> dict:
-        """Get validator state for specific block."""
-        prefix = f"{self.validator_id}_state"
-        return self.load_data(key=block_number, prefix=prefix)
 
     def load_latest_state(self) -> dict:
         """Load the latest saved validator state."""
         prefix = f"{self.validator_id}_state"
-        return self.get_latest(prefix=prefix)
+        return self.load_data(key="current", prefix=prefix)
 
 
 class RedisValidatorStorage(BaseRedisStorage):
@@ -35,19 +30,13 @@ class RedisValidatorStorage(BaseRedisStorage):
 
     def save_state(self, state: dict) -> None:
         """Save validator state to a single JSON file."""
-        key = state.get("current_block")
         prefix = f"{self.validator_id}_state"
-        self.save_data(key=key, data=state, prefix=prefix)
-
-    def get_state(self, block_number: int) -> dict:
-        """Get validator state for specific block."""
-        prefix = f"{self.validator_id}_state"
-        return self.load_data(key=block_number, prefix=prefix)
+        self.save_data(key="current", data=state, prefix=prefix)
 
     def load_latest_state(self) -> dict:
-        """Load the latest saved validator state."""
+        """Get validator state for specific block."""
         prefix = f"{self.validator_id}_state"
-        return self.get_latest(prefix=prefix)
+        return self.load_data(key="current", prefix=prefix)
 
 
 STORAGE_CLASSES = {"json": JsonValidatorStorage, "redis": RedisValidatorStorage}

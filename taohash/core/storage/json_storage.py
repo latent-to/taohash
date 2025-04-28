@@ -97,8 +97,6 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             save_data(current_block, data, prefix)
         """
-        # do cleanup check each time before saving new json data
-        self._cleanup()
 
         dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
 
