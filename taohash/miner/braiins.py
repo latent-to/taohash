@@ -8,6 +8,7 @@ from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
 from taohash.miner.allocation import get_allocation
+from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
 
@@ -151,7 +152,7 @@ class BraiinsMiner(BaseMiner):
             self.storage.save_pool_data(self.current_block, target_pools)
             logging.info(f"Saved pool data on block: {self.current_block}")
 
-        if self.mining_scheduler:
+        if self.mining_scheduler and target_pools:
             if self._first_sync:
                 self._first_sync = False
                 if self._recover_schedule:
@@ -177,6 +178,13 @@ class BraiinsMiner(BaseMiner):
             3. Check for slot changes or window boundaries
             4. Return the earliest event with its explanation
         """
+        if not self.mining_scheduler.current_schedule:
+            next_sync = self.current_block + (
+                10 * 60 // BLOCK_TIME
+            )  # Check again after 10 minutes
+            sync_reason = "No schedule"
+            return next_sync, sync_reason
+
         next_sync = self.current_block + (
             self.blocks_per_sync - (self.current_block % self.blocks_per_sync)
         )
