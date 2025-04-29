@@ -130,7 +130,10 @@ class BraiinsMiner(BaseMiner):
                     f"Mining slot updated at block {self.current_block} from recovered schedule."
                 )
             else:
-                logging.info("No slot change detected - current slot is still valid.")
+                current_slot = self.mining_scheduler.current_schedule.current_slot
+                logging.info(
+                    f"No slot change detected - current slot is still valid: \n{current_slot}"
+                )
 
     def sync_and_refresh(self) -> None:
         """
