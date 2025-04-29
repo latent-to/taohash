@@ -8,20 +8,32 @@ version = "0.1.0"
 description = "TAO Hash Mining Rental Subnet"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Latent Holdings", email = "taohash@latent.to"}
 ]
 dependencies = [
-    "bittensor~=9.1.0",
+    "bittensor~=9.4.0",
     "ratelimit==2.2.1",
     "cachetools==5.3.1",
+    "tabulate~=0.9.0",
+    "python-dotenv>=0.21.0",
+    "backoff==2.2.1",
+    "redis==5.2.1"
 ]
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "pytest-cov==6.1.1",
+    "responses==0.25.7",
+    "ruff==0.11.7"
+]
+
+[tool.flit.metadata]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -36,3 +48,10 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/latent-to/taohash"
 Repository = "https://github.com/latent-to/taohash.git"
+
+[tool.setuptools]
+packages = ["taohash"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
