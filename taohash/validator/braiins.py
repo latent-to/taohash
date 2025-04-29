@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 # Copyright © 2025 Latent Holdings
-# Licensed under GPLv3
+# Licensed under MIT
 
 import argparse
 import traceback
