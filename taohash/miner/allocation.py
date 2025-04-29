@@ -196,7 +196,7 @@ class BaseAllocation(ABC):
             if (
                 hotkey not in self.validator_blacklist
                 and hotkey in metagraph.hotkeys
-                and metagraph.neurons[metagraph.hotkeys.index(hotkey)].validator_permit
+                and metagraph.validator_permit[metagraph.hotkeys.index(hotkey)]
             )
         }
 
@@ -210,16 +210,13 @@ class BaseAllocation(ABC):
             filtered = {
                 hotkey: info
                 for hotkey, info in filtered.items()
-                if metagraph.neurons[metagraph.hotkeys.index(hotkey)].total_stake.tao
-                >= min_stake
+                if metagraph.total_stake[metagraph.hotkeys.index(hotkey)] >= min_stake
             }
 
         # Sort by stake
         sorted_validators = sorted(
             filtered.items(),
-            key=lambda x: metagraph.neurons[
-                metagraph.hotkeys.index(x[0])
-            ].total_stake.tao,
+            key=lambda x: metagraph.total_stake[metagraph.hotkeys.index(x[0])],
             reverse=True,
         )
 
@@ -305,7 +302,7 @@ class StakeBased(BaseAllocation):
 
         # Calculate total stake for selected validators
         total_stake = sum(
-            metagraph.neurons[metagraph.hotkeys.index(hotkey)].total_stake.tao
+            metagraph.total_stake[metagraph.hotkeys.index(hotkey)]
             for hotkey in filtered
         )
 
@@ -313,7 +310,7 @@ class StakeBased(BaseAllocation):
             if remaining_blocks < self.min_blocks_per_validator:
                 break
 
-            stake = metagraph.neurons[metagraph.hotkeys.index(hotkey)].total_stake.tao
+            stake = metagraph.total_stake[metagraph.hotkeys.index(hotkey)]
             fair_share = int((stake / total_stake) * available_blocks)
             bt.logging.info(
                 f"\nHotkey: {hotkey} - Stake_weight: {(stake / total_stake)} ({stake:.2f} / {total_stake:.2f}). Allocated: {fair_share} / {available_blocks}"
@@ -397,7 +394,7 @@ class MultiPoolStakeAllocation(BaseAllocation):
         remaining = window - len(validator_list) * self.min_blocks_per_validator
 
         stake = {
-            hk: metagraph.neurons[metagraph.hotkeys.index(hk)].total_stake.tao
+            hk: metagraph.total_stake[metagraph.hotkeys.index(hk)]
             for hk in validator_list
         }
         total_stake = sum(stake.values())
