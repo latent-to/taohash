@@ -6,7 +6,6 @@ import bittensor
 
 
 class BaseStorage(ABC):
-
     @classmethod
     @abstractmethod
     def add_args(cls, parser: "ArgumentParser"):
@@ -33,3 +32,20 @@ class BaseStorage(ABC):
         parser = ArgumentParser()
         self.add_args(parser)
         return bittensor.config(parser)
+
+    def generate_user_id(self, config: "bittensor.config") -> str:
+        """
+        Generate a unique prefix for storage based on neuron's identity.
+
+        Args:
+            config: Bittensor config containing wallet and network info
+
+        Returns:
+            str: A unique prefix string for this neuron
+        """
+        network = getattr(config.subtensor, "network", "unknown")
+        wallet_name = getattr(config.wallet, "name", "unknown")
+        wallet_hotkey = getattr(config.wallet, "hotkey", "unknown")
+        netuid = getattr(config, "netuid", "unknown")
+
+        return f"{network}_{netuid}_{wallet_name}_{wallet_hotkey}"

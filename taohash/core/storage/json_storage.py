@@ -35,11 +35,14 @@ def _get_dynamic_files_path(path: Path, prefix: str):
 
 
 class BaseJsonStorage(BaseStorage):
-
     def __init__(self, config=None):
         self.config = config or self.get_config()
 
-        self.path = Path(self.config.json_path).expanduser() if getattr(self.config, "json_path", None) else DEFAULT_PATH
+        self.path = (
+            Path(self.config.json_path).expanduser()
+            if getattr(self.config, "json_path", None)
+            else DEFAULT_PATH
+        )
         self.path.mkdir(parents=True, exist_ok=True)
         self.json_ttl = self.config.json_ttl or DEFAULT_JSON_TTL
 
@@ -76,7 +79,9 @@ class BaseJsonStorage(BaseStorage):
                     file.unlink()
                     logging.info(f"Deleted old file: {file.as_posix()}")
             except Exception as e:
-                logging.error(f"Error while trying to delete {file.as_posix()}: {str(e)}")
+                logging.error(
+                    f"Error while trying to delete {file.as_posix()}: {str(e)}"
+                )
 
     def save_data(self, key: Optional[Any], data: Any, prefix: str = "pools") -> None:
         """Save pool data for specific block.
@@ -97,7 +102,6 @@ class BaseJsonStorage(BaseStorage):
             prefix = "schedule"
             save_data(current_block, data, prefix)
         """
-        # do cleanup check each time before saving new json data
         self._cleanup()
 
         dynamic_files_path = _get_dynamic_files_path(self.path, prefix)
@@ -174,5 +178,7 @@ class BaseJsonStorage(BaseStorage):
             latest_file = max(files, key=extract_block_number)
             return _read_json(latest_file)
         except (IndexError, ValueError):
-            logging.error(f"No [red]{prefix}[/red] files found in [blue]{dynamic_files_path.as_posix()}[/blue].")
+            logging.error(
+                f"No [red]{prefix}[/red] files found in [blue]{dynamic_files_path.as_posix()}[/blue]."
+            )
             return None
