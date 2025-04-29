@@ -1,15 +1,19 @@
-import os
 import argparse
+import os
 from typing import Optional
-from tabulate import tabulate
 
-from bittensor_wallet import Wallet
 from bittensor import Subtensor, config, logging
+from bittensor_wallet import Wallet
+from tabulate import tabulate
 
 from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import Pool
 from taohash.core.pricing import CoinPriceAPI
-from taohash.validator.storage import JsonValidatorStorage, get_validator_storage
+from taohash.validator.storage import (
+    JsonValidatorStorage,
+    RedisValidatorStorage,
+    get_validator_storage,
+)
 
 TESTNET_NETUID = 332
 
@@ -20,7 +24,9 @@ class BaseValidator:
         self.config = self.get_config()
         self.setup_logging_path()
         self.setup_logging()
-        self.storage = get_validator_storage(self.config)
+        self.storage = get_validator_storage(
+            storage_type=self.config.storage, config=self.config
+        )
 
         self.subtensor = None
         self.wallet = None
@@ -56,7 +62,6 @@ class BaseValidator:
             default=os.getenv("NETUID", TESTNET_NETUID),
             help="The chain subnet uid.",
         )
-
         parser.add_argument(
             "--eval_interval",
             type=int,
@@ -70,6 +75,13 @@ class BaseValidator:
             default="restore",
             help="Whether to restore previous validator state ('restore') or start fresh ('fresh').",
         )
+        parser.add_argument(
+            "--storage",
+            type=str,
+            choices=["json", "redis"],
+            default=os.getenv("STORAGE_TYPE", "json"),
+            help="Storage type to use (json or redis)",
+        )
 
         # Other argument providers
         Subtensor.add_args(parser)
@@ -78,6 +90,7 @@ class BaseValidator:
         Pool.add_args(parser)
         CoinPriceAPI.add_args(parser)
         JsonValidatorStorage.add_args(parser)
+        RedisValidatorStorage.add_args(parser)
 
     def setup_logging_path(self) -> None:
         """Set up logging directory."""

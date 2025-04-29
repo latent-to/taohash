@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 from bittensor import logging
 
 from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
-from taohash.miner.storage import RedisStorage
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
 from taohash.miner.allocation import get_allocation
+from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
 
@@ -36,7 +36,6 @@ class BraiinsMiner(BaseMiner):
         super().__init__()
 
         self.blocks_per_window = self.tempo * 2
-        self.storage = RedisStorage(self.config)
 
         # Braiins-specific setup
         self.proxy_manager = None
@@ -131,7 +130,10 @@ class BraiinsMiner(BaseMiner):
                     f"Mining slot updated at block {self.current_block} from recovered schedule."
                 )
             else:
-                logging.info("No slot change detected - current slot is still valid.")
+                current_slot = self.mining_scheduler.current_schedule.current_slot
+                logging.info(
+                    f"No slot change detected - current slot is still valid: \n{current_slot}"
+                )
 
     def sync_and_refresh(self) -> None:
         """
@@ -153,7 +155,7 @@ class BraiinsMiner(BaseMiner):
             self.storage.save_pool_data(self.current_block, target_pools)
             logging.info(f"Saved pool data on block: {self.current_block}")
 
-        if self.mining_scheduler:
+        if self.mining_scheduler and target_pools:
             if self._first_sync:
                 self._first_sync = False
                 if self._recover_schedule:
@@ -179,6 +181,13 @@ class BraiinsMiner(BaseMiner):
             3. Check for slot changes or window boundaries
             4. Return the earliest event with its explanation
         """
+        if not self.mining_scheduler.current_schedule:
+            next_sync = self.current_block + (
+                10 * 60 // BLOCK_TIME
+            )  # Check again after 10 minutes
+            sync_reason = "No schedule"
+            return next_sync, sync_reason
+
         next_sync = self.current_block + (
             self.blocks_per_sync - (self.current_block % self.blocks_per_sync)
         )

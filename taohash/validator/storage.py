@@ -1,82 +1,60 @@
-import json
-import os
-from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
+from bittensor.core.config import Config
 from bittensor.utils.btlogging import logging
 
-
-class BaseValidatorStorage:
-    @classmethod
-    def add_args(cls, parser):
-        """Add storage-specific arguments to parser."""
-        pass
-
-    def save_state(self, state: dict) -> None:
-        """Save validator state."""
-        pass
-
-    def get_latest_state(self) -> Optional[dict]:
-        """Get most recent validator state."""
-        pass
+from taohash.core.storage import BaseJsonStorage, BaseRedisStorage
 
 
-class JsonValidatorStorage(BaseValidatorStorage):
-    DEFAULT_PATH = "~/.bittensor/data/taohash/validator"
-    STATE_FILENAME = "validator_state.json"
-
-    @classmethod
-    def add_args(cls, parser):
-        parser.add_argument(
-            "--recovery_file_path",
-            type=str,
-            default=os.getenv("RECOVERY_FILE_PATH", cls.DEFAULT_PATH),
-            help="Path to save validator state JSON files",
-        )
-        parser.add_argument(
-            "--recovery_file_name",
-            type=str,
-            default=os.getenv("RECOVERY_FILE_NAME", cls.STATE_FILENAME),
-            help="Filename to save validator state JSON files",
-        )
-
-    def __init__(self, config):
-        self.base_path = Path(config.recovery_file_path).expanduser()
-        self.base_path.mkdir(parents=True, exist_ok=True)
-        self.state_file = self.base_path / config.recovery_file_name
+class JsonValidatorStorage(BaseJsonStorage):
+    def __init__(self, config: Optional["Config"] = None):
+        super().__init__(config)
+        self.validator_id = self.generate_user_id(config)
 
     def save_state(self, state: dict) -> None:
-        """
-        Save validator state to a single JSON file.
-        """
-        with open(self.state_file, "w") as f:
-            json.dump(state, f, indent=4)
-
+        """Save validator state to a single JSON file."""
+        prefix = f"{self.validator_id}_state"
+        self.save_data(key="current", data=state, prefix=prefix)
         logging.debug(f"Saved validator state at block {state['current_block']}")
 
-    def get_latest_state(self) -> Optional[dict]:
-        """
-        Get the latest validator state.
-        Returns:
-            Optional[dict]: The latest validator state or None if no state exists
-        """
-        if not self.state_file.exists():
-            return None
+    def load_latest_state(self) -> dict:
+        """Load the latest saved validator state."""
+        prefix = f"{self.validator_id}_state"
+        return self.load_data(key="current", prefix=prefix)
 
-        try:
-            with open(self.state_file, "r") as f:
-                state = json.load(f)
-                return state
-        except (json.JSONDecodeError, OSError) as e:
-            logging.error(f"Error loading state file: {e}")
-            return None
+
+class RedisValidatorStorage(BaseRedisStorage):
+    def __init__(self, config: Optional["Config"] = None):
+        super().__init__(config)
+        self.validator_id = self.generate_user_id(config)
+
+    def save_state(self, state: dict) -> None:
+        """Save validator state to a single JSON file."""
+        prefix = f"{self.validator_id}_state"
+        self.save_data(key="current", data=state, prefix=prefix)
+
+    def load_latest_state(self) -> dict:
+        """Get validator state for specific block."""
+        prefix = f"{self.validator_id}_state"
+        return self.load_data(key="current", prefix=prefix)
+
+
+STORAGE_CLASSES = {"json": JsonValidatorStorage, "redis": RedisValidatorStorage}
 
 
 # Factory function to get storage
-def get_validator_storage(config) -> JsonValidatorStorage:
+def get_validator_storage(
+    storage_type: str, config: "Config"
+) -> Union["JsonValidatorStorage", "RedisValidatorStorage"]:
     """Get validator storage instance."""
+    if storage_type not in STORAGE_CLASSES:
+        raise ValueError(f"Unknown storage type: {storage_type}")
+
+    storage_class = STORAGE_CLASSES[storage_type]
+
     try:
-        return JsonValidatorStorage(config)
+        return storage_class(config)
     except Exception as e:
-        logging.error(f"Failed to initialize validator storage: {e}")
-        exit(1)
+        message = f"Failed to initialize {storage_type} storage: {e}"
+        logging.error(message)
+        raise Exception(message)

@@ -1,24 +1,25 @@
 #! /usr/bin/env python3
 
 # Copyright © 2025 Latent Holdings
-# Licensed under GPLv3
+# Licensed under MIT
 
 import argparse
 import traceback
-from dotenv import load_dotenv
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
+from dotenv import load_dotenv
 
-from taohash.core.pool import Pool, PoolBase
-from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
-from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.core.chain_data.pool_info import (
     publish_pool_info,
     get_pool_info,
     encode_pool_info,
 )
+from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
+from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
+from taohash.core.constants import VERSION_KEY
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -124,9 +125,10 @@ class BraiinsValidator(BaseValidator):
                 else:  # "60m"
                     mining_value: float = metric.get_value_past_hour(hash_price)
 
-                logging.info(
-                    f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
-                )
+                if mining_value > 0:
+                    logging.info(
+                        f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                    )
                 self.scores[uid] += mining_value
             self._log_scores(coin, hash_price)
 
@@ -141,7 +143,7 @@ class BraiinsValidator(BaseValidator):
             3. Down >= 1 hour: evaluate last hour's scores.
             4. Down < 1 hour: restore the state.
         """
-        state = self.storage.get_latest_state()
+        state = self.storage.load_latest_state()
         if state is None:
             logging.info("No previous state found, starting fresh")
             return
@@ -210,7 +212,7 @@ class BraiinsValidator(BaseValidator):
             uids=self.metagraph.uids,
             weights=weights,
             wait_for_inclusion=True,
-            period=15,
+            version_key=VERSION_KEY,
         )
         if success:
             self._log_weights_and_scores(weights)
