@@ -1,18 +1,24 @@
 # TaoHash Validator Setup (BTC Braiins pool)
 
-* [Prerequisites](#prerequisites)
-* [Setup Steps](#setup-steps)
-    * [1. Braiins Pool Account Setup](#1-braiins-pool-account-setup)
-    * [2. Bittensor Wallet Setup](#2-bittensor-wallet-setup)
-    * [3. Running the Validator](#3-running-the-validator)
-    * [4. Configuration Methods](#4-configuration-methods)
-    * [5. Running the Validator](#5-running-the-validator)
-* [Important Parameters](#important-parameters)
-* [Validator evaluation](#validator-evaluation)
-* [Troubleshooting](#troubleshooting)
-* [Security Notes](#security-notes)
-* [PM2 Management Guide](#pm2-management-guide)
-* [Support](#support)
+- [TaoHash Validator Setup (BTC Braiins pool)](#taohash-validator-setup-btc-braiins-pool)
+  - [Prerequisites](#prerequisites)
+  - [Setup Steps](#setup-steps)
+    - [1. Braiins Pool Account Setup](#1-braiins-pool-account-setup)
+    - [2. Bittensor Wallet Setup](#2-bittensor-wallet-setup)
+    - [3. Running the Validator](#3-running-the-validator)
+    - [4. Configuration Methods](#4-configuration-methods)
+      - [Option A: Using a `.env` File (Recommended)](#option-a-using-a-env-file-recommended)
+      - [Option B: Using Command-Line Arguments](#option-b-using-command-line-arguments)
+    - [5. Running the Validator](#5-running-the-validator)
+      - [Option A: Using PM2 (Recommended)](#option-a-using-pm2-recommended)
+      - [Option B: Direct Python Execution](#option-b-direct-python-execution)
+  - [Important Parameters](#important-parameters)
+  - [Validator evaluation](#validator-evaluation)
+  - [Troubleshooting](#troubleshooting)
+  - [Security Notes](#security-notes)
+  - [PM2 Management Guide](#pm2-management-guide)
+    - [Process Management](#process-management)
+  - [Support](#support)
 
 This guide will walk you through setting up and running a TaoHash validator on the Bittensor network.
 
@@ -93,12 +99,14 @@ You have two ways to configure the validator:
 
 1. Create a `.env` file in the project root based on the provided example:
 ```bash
+cd taohash/validator
 cp .env.validator.example .env
 ```
 
 2. Edit the `.env` file with your credentials:
 ```bash
 nano .env
+cd ../.. # Return to the root dir
 ```
 
 This approach keeps your credentials secure and simplifies your command-line commands.
@@ -139,14 +147,14 @@ Now you have two options to run the validator: using PM2 for process management 
 
    Using `.env` configuration:
    ```bash
-   pm2 start python3 --name "taohash-validator" -- validator/braiins.py run \
+   pm2 start python3 --name "taohash-validator" -- taohash/validator/braiins.py run \
        --subtensor.network finney \
        --logging.info
    ```
 
    Or with command-line arguments:
    ```bash
-   pm2 start python3 --name "taohash-validator" -- validator/braiins.py run \
+   pm2 start python3 --name "taohash-validator" -- taohash/validator/braiins.py run \
        --netuid 14 \
        --subtensor.network finney \
        --wallet.name YOUR_WALLET_NAME \
@@ -161,14 +169,14 @@ Now you have two options to run the validator: using PM2 for process management 
 
    Using `.env` configuration:
    ```bash
-   python3 validator/braiins.py run \
+   python3 taohash/validator/braiins.py run \
        --subtensor.network finney \
        --logging.info
    ```
 
    Or with command-line arguments:
    ```bash
-   python3 validator/braiins.py run \
+   python3 taohash/validator/braiins.py run \
        --netuid 14 \
        --subtensor.network finney \
        --wallet.name YOUR_WALLET_NAME \

@@ -121,12 +121,14 @@ You can configure the miner using either a .env file (recommended) or command-li
 ### Option 1: Using .env File (Recommended)
 1. Create a `.env` file in the project root based on the provided example:
 ```bash
+cd taohash/miner
 cp .env.miner.example .env
 ```
 
 2. Edit the `.env` file with your credentials:
 ```bash
 nano .env
+cd ../.. # Return to the root dir
 ```
 ### Option 2: Using Command-Line Arguments
 
@@ -146,12 +148,12 @@ pm2 startup
 2. Start the miner
 ```bash
 # Using .env file
-pm2 start python3 --name "taohash-miner" -- miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
     --subtensor.network finney \
     --logging.info
 
 # Using command-line arguments
-pm2 start python3 --name "taohash-miner" -- miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \
@@ -162,7 +164,7 @@ pm2 start python3 --name "taohash-miner" -- miner/braiins.py run \
     --logging.info
 
 # Or without PM2
-python3 miner/braiins.py run \
+python3 taohash/miner/braiins.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \
