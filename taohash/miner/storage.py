@@ -18,8 +18,6 @@ class JsonStorage(BaseJsonStorage):
     def save_pool_data(self, block_number: int, pool_mapping: dict) -> None:
         """Save pool data for specific block."""
         prefix = f"{self.miner_id}_pools"
-        # Do cleanup check each time before saving new json data
-        self._cleanup()
         self.save_data(key=block_number, data=pool_mapping, prefix=prefix)
 
     def get_pool_info(self, block_number: int) -> Optional[dict]:
