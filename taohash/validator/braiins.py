@@ -19,6 +19,7 @@ from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
+from taohash.core.constants import VERSION_KEY
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -210,7 +211,7 @@ class BraiinsValidator(BaseValidator):
             uids=self.metagraph.uids,
             weights=weights,
             wait_for_inclusion=True,
-            period=15,
+            version_key=VERSION_KEY,
         )
         if success:
             self._log_weights_and_scores(weights)
