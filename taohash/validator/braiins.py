@@ -124,9 +124,10 @@ class BraiinsValidator(BaseValidator):
                 else:  # "60m"
                     mining_value: float = metric.get_value_past_hour(hash_price)
 
-                logging.info(
-                    f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
-                )
+                if mining_value > 0:
+                    logging.info(
+                        f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                    )
                 self.scores[uid] += mining_value
             self._log_scores(coin, hash_price)
 
