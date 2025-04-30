@@ -45,6 +45,15 @@ class BaseStorage(ABC):
         Returns:
             str: A unique prefix string for this neuron based on wallet name, netuid, and a random UUID.
         """
-        wallet_hotkey = getattr(config.wallet, "hotkey", "hk_unknown")
-        netuid = getattr(config, "netuid", "netuid_unknown")
-        return f"{wallet_hotkey}_{netuid}_{uuid.uuid4().hex}".upper()
+        network = getattr(config.subtensor, "network", "unknown")
+        netuid = getattr(config, "netuid", "unknown")
+        wallet_name = getattr(config.wallet, "name", "unknown")
+        wallet_hotkey = getattr(config.wallet, "hotkey", "unknown")
+        user_id = (f"{network}_{netuid}_{wallet_name}_{wallet_hotkey}"
+                   .replace(":", "_")
+                   .replace("/", "_")
+                   .replace(".", "_")
+                   .replace(" ", "_")
+                   .upper()
+                   )
+        return user_id
