@@ -42,15 +42,12 @@ class BaseStorage(ABC):
             config: Bittensor config containing wallet and network info
 
         Returns:
-            str: A unique prefix string for this neuron based on wallet name, netuid, and a random UUID.
+            str: A unique prefix string for this neuron based on netuid, wallet name, and hotkey name.
         """
-        network = getattr(config.subtensor, "network", "unknown")
         netuid = getattr(config, "netuid", "unknown")
         wallet_name = getattr(config.wallet, "name", "unknown")
         wallet_hotkey = getattr(config.wallet, "hotkey", "unknown")
-        user_id = (f"{network}_{netuid}_{wallet_name}_{wallet_hotkey}"
-                   .replace(":", "_")
-                   .replace("/", "_")
+        user_id = (f"{netuid}_{wallet_name}_{wallet_hotkey}"
                    .replace(".", "_")
                    .replace(" ", "_")
                    .upper()
