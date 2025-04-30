@@ -68,7 +68,7 @@ def test_generate_user_id_with_custom_network():
     generate_user_id = JsonStorage.generate_user_id(config)
 
     # assert
-    assert generate_user_id == "WSS___SUBTENSORNODEURL_TAO_9944_332_TEST_WALLET_TEST_HOTKEY"
+    assert generate_user_id == "332_TEST_WALLET_TEST_HOTKEY"
 
 
 def test_generate_user_id_with_empy_parts():
@@ -80,4 +80,4 @@ def test_generate_user_id_with_empy_parts():
     generate_user_id = JsonStorage.generate_user_id(config)
 
     # assert
-    assert generate_user_id == "UNKNOWN_NONE_UNKNOWN_UNKNOWN"
+    assert generate_user_id == "NONE_UNKNOWN_UNKNOWN"
