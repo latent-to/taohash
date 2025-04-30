@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import patch
 import responses
 
-from taohash.pricing.coingecko import CoinGeckoAPI
-from taohash.pricing.coinmarketcap import CoinMarketCapAPI
-from taohash.pricing.price import UnitCoinPriceAPI
+from taohash.core.pricing.coingecko import CoinGeckoAPI
+from taohash.core.pricing.coinmarketcap import CoinMarketCapAPI
+from taohash.core.pricing.price import UnitCoinPriceAPI
 
 # Test data
 MOCK_COINGECKO_RESPONSE = {
