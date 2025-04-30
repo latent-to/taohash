@@ -12,7 +12,7 @@ class JsonValidatorStorage(BaseJsonStorage):
         self.validator_id = self.generate_user_id(config)
 
     def save_state(self, state: dict) -> None:
-        """Save validator state to a single JSON file."""
+        """Save the validator state to a single JSON file."""
         prefix = f"{self.validator_id}_state"
         self.save_data(key="current", data=state, prefix=prefix)
         logging.debug(f"Saved validator state at block {state['current_block']}")
@@ -29,7 +29,7 @@ class RedisValidatorStorage(BaseRedisStorage):
         self.validator_id = self.generate_user_id(config)
 
     def save_state(self, state: dict) -> None:
-        """Save validator state to a single JSON file."""
+        """Save the validator state to a single JSON file."""
         prefix = f"{self.validator_id}_state"
         self.save_data(key="current", data=state, prefix=prefix)
 
@@ -46,7 +46,15 @@ STORAGE_CLASSES = {"json": JsonValidatorStorage, "redis": RedisValidatorStorage}
 def get_validator_storage(
     storage_type: str, config: "Config"
 ) -> Union["JsonValidatorStorage", "RedisValidatorStorage"]:
-    """Get validator storage instance."""
+    """Get a Validator storage instance based on a passed storage type.
+
+    Arguments:
+        storage_type: The type of storage to initialize.
+        config: The configuration object.
+
+    Returns:
+        Storage instance created based on the specified storage type.
+    """
     if storage_type not in STORAGE_CLASSES:
         raise ValueError(f"Unknown storage type: {storage_type}")
 
