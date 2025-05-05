@@ -44,9 +44,10 @@ This guide will walk you through setting up and running a TaoHash validator on t
    - You will see your credentials in this format:
      ```
      userID: yourusername.workerName
-     password: your_password
+     password: worker_password
      ```
    > Note: When using the credentials, only use your username without `.workerName`
+   > ‼️ Note ‼️: This password IS NOT the same as the password to your account. It will be broadcast to the chain.
 
 3. Generate API Access Token
    - Go to [Access Settings](https://pool.braiins.com/settings/access)
@@ -161,7 +162,7 @@ Now you have two options to run the validator: using PM2 for process management 
        --wallet.hotkey YOUR_HOTKEY \
        --pool.api_key YOUR_BRAIINS_API_KEY \
        --pool.username YOUR_BRAIINS_USERNAME \
-       --pool.password YOUR_BRAIINS_PASSWORD \
+       --pool.password YOUR_BRAIINS_WORKER_PASSWORD \
        --logging.info
    ```
 
@@ -183,7 +184,7 @@ Now you have two options to run the validator: using PM2 for process management 
        --wallet.hotkey YOUR_HOTKEY \
        --pool.api_key YOUR_BRAIINS_API_KEY \
        --pool.username YOUR_BRAIINS_USERNAME \
-       --pool.password YOUR_BRAIINS_PASSWORD \
+       --pool.password YOUR_BRAIINS_WORKER_PASSWORD \
        --logging.info
    ```
 
@@ -195,7 +196,7 @@ Now you have two options to run the validator: using PM2 for process management 
 - `wallet.hotkey`: Your wallet's hotkey
 - `pool.api_key`: Your Braiins Pool API token
 - `pool.username`: Your Braiins Pool username (without .workerName)
-- `pool.password`: Your Braiins Pool password
+- `pool.password`: Your Braiins Worker password
 - `logging.info`: Enables detailed logging
 
 ## Validator evaluation
