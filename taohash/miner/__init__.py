@@ -129,7 +129,7 @@ class BaseMiner:
 
     def get_primary_pool_hk(self) -> Optional[str]:
         """
-        Get the hotkey of the primary pool.
+        Get the hotkey ss58 address of the primary pool.
         """
         primary_pool_hk = self.subtensor.query_subtensor(
             "SubnetOwnerHotkey",

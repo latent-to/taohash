@@ -28,7 +28,7 @@ class BraiinsPoolAPIConfig(PoolAPIConfig):
         self.api_key = api_key
         self.use_primary_api = use_primary_api
         self.primary_api_url = primary_api_url
-        self.wallet = wallet  # Optional; only needed for PrimaryPoolAPI
+        self.wallet = wallet
 
     @classmethod
     def add_args(cls, parser: "argparse.ArgumentParser") -> None:
