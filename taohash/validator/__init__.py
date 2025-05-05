@@ -236,6 +236,16 @@ class BaseValidator:
         )
         owner_uid = self.metagraph.hotkeys.index(sn_owner_hotkey)
         return owner_uid
+    
+    def get_primary_pool_hotkey(self) -> Optional[str]:
+        """
+        Get the hotkey of the primary pool.
+        """
+        primary_pool_hk = self.subtensor.query_subtensor(
+            "SubnetOwnerHotkey",
+            params=[self.config.netuid],
+        )
+        return primary_pool_hk
 
     def get_next_sync_block(self) -> tuple[int, str]:
         """

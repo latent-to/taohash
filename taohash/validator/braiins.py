@@ -34,14 +34,15 @@ class BraiinsValidator(BaseValidator):
         # Base validator initialization
         super().__init__()
 
-        self.pool_config = BraiinsPoolConfig.from_args(self.config)
-        self.api_config = BraiinsPoolAPIConfig.from_args(self.config)
-        self.pool = Pool(
-            pool_info=self.pool_config.to_pool_info(), config=self.api_config
-        )
-        self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.setup_bittensor_objects()
+        self.primary_pool_hotkey = self.get_primary_pool_hotkey()
 
+        if self.wallet.hotkey.ss58_address == self.primary_pool_hotkey:
+            self.config.pool.use_primary_api = False
+
+        self.setup_pool_objects()
+
+        self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.alpha = 0.8
         self.weights_interval = self.tempo * 2  # 720 blocks
         self.config.coins = [COIN]
@@ -52,14 +53,29 @@ class BraiinsValidator(BaseValidator):
         BraiinsPoolConfig.add_args(parser)
         BraiinsPoolAPIConfig.add_args(parser)
 
-    def setup_bittensor_objects(self):
+    def setup_pool_objects(self):
         """
-        Extend base setup with Braiins-specific setup.
+        Setup the pool objects for Braiins BTC Pool.
         """
-        super().setup_bittensor_objects()
-        self.publish_pool_info(
-            self.subtensor, self.config.netuid, self.wallet, self.pool
-        )
+        self.api_config = BraiinsPoolAPIConfig.from_args(self.config, wallet=self.wallet)
+        if not self.config.pool.use_primary_api:
+            self.pool_config = BraiinsPoolConfig.from_args(self.config)
+            self.pool = Pool(
+                pool_info=self.pool_config.to_pool_info(), config=self.api_config
+            )
+            self.publish_pool_info(
+                self.subtensor, self.config.netuid, self.wallet, self.pool
+            )
+        else:
+            pool_info = get_pool_info(
+                self.subtensor, self.config.netuid, self.primary_pool_hotkey
+            )
+            if not pool_info:
+                logging.error(
+                    f"No pool info found for primary pool: {self.primary_pool_hotkey}"
+                )
+                exit(1)
+            self.pool = Pool(pool_info=pool_info, config=self.api_config)
 
     def publish_pool_info(
         self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
