@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Optional
 
 from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
@@ -16,7 +17,9 @@ class BaseMiner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
-        self.storage = get_miner_storage(storage_type=self.config.storage, config=self.config)
+        self.storage = get_miner_storage(
+            storage_type=self.config.storage, config=self.config
+        )
 
         self.worker_id = self.create_worker_id()
         self.tempo = self.subtensor.tempo(self.config.netuid)
@@ -123,3 +126,13 @@ class BaseMiner:
         """Get number of blocks until new tempo starts"""
         blocks = self.subtensor.subnet(self.config.netuid).blocks_since_last_step
         return self.tempo - blocks
+
+    def get_primary_pool_hk(self) -> Optional[str]:
+        """
+        Get the hotkey of the primary pool.
+        """
+        primary_pool_hk = self.subtensor.query_subtensor(
+            "SubnetOwnerHotkey",
+            params=[self.config.netuid],
+        )
+        return primary_pool_hk

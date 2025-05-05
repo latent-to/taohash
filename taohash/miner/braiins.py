@@ -4,12 +4,14 @@ import traceback
 from dotenv import load_dotenv
 from bittensor import logging
 
-from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
+from taohash.core.chain_data.pool_info import (
+    get_pool_info,
+    PoolInfo,
+)
 from taohash.miner.scheduler import MiningScheduler
 from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
 from taohash.miner.allocation import get_allocation
 from taohash.core.constants import BLOCK_TIME
-from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
 
 DEFAULT_SYNC_FREQUENCY = 6
@@ -64,7 +66,7 @@ class BraiinsMiner(BaseMiner):
         super().add_args(parser)
         BraiinsProxyManager.add_args(parser)
 
-    def get_target_pools(self) -> dict[str, PoolInfo]:
+    def get_target_pool(self) -> dict[str, PoolInfo]:
         """
         Fetch Braiins pools from the chain.
 
@@ -76,26 +78,20 @@ class BraiinsMiner(BaseMiner):
             2. Filter to include only Braiins pools (PoolIndex.Braiins)
             3. Enhance pool data with worker-specific username
         """
-        all_pools: dict[str, PoolInfo] = get_all_pool_info(
+
+        primary_pool_hk = self.get_primary_pool_hk()
+        pool_info: "PoolInfo" = get_pool_info(
             self.subtensor,
             self.config.netuid,
+            primary_pool_hk,
         )
-        if not all_pools:
-            logging.warning("No validators found with pool information")
-            return {}
-
-        # Filter from metagraph and only include btc braiins pools
-        target_pools = {}
-        for hotkey, pool_info in all_pools.items():
-            if (
-                hotkey in self.metagraph.hotkeys
-                and pool_info.pool_index == PoolIndex.Braiins
-            ):
-                pool_info.extra_data["full_username"] = (
-                    f"{pool_info.username}.{self.worker_id}"
-                )
-                target_pools[hotkey] = pool_info.to_json()
-        return target_pools
+        target_pool = {}
+        if pool_info:
+            pool_info.extra_data["full_username"] = (
+                f"{pool_info.username}.{self.worker_id}"
+            )
+            target_pool[primary_pool_hk] = pool_info.to_json()
+        return target_pool
 
     def restore_schedule(self) -> None:
         """
@@ -150,7 +146,7 @@ class BraiinsMiner(BaseMiner):
         self.current_block = self.metagraph.block.item()
         logging.info(f"Syncing at block {self.current_block}")
 
-        target_pools = self.get_target_pools()
+        target_pools = self.get_target_pool()
         if target_pools:
             self.storage.save_pool_data(self.current_block, target_pools)
             logging.info(f"Saved pool data on block: {self.current_block}")
