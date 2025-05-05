@@ -44,7 +44,7 @@ class BraiinsValidator(BaseValidator):
 
         self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.alpha = 0.8
-        self.weights_interval = self.tempo * 2  # 720 blocks
+        self.weights_interval = self.tempo # 360 blocks
         self.config.coins = [COIN]
 
     def add_args(self, parser: argparse.ArgumentParser):

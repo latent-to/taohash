@@ -37,7 +37,7 @@ class BraiinsMiner(BaseMiner):
         # Base miner initialization
         super().__init__()
 
-        self.blocks_per_window = self.tempo * 2
+        self.blocks_per_window = self.tempo
 
         # Braiins-specific setup
         self.proxy_manager = None
