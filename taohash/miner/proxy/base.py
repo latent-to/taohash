@@ -1,8 +1,9 @@
+import argparse
+import os
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Any
-import argparse
+
 import bittensor as bt
-import os
 
 
 class BaseProxyManager(ABC):
@@ -63,4 +64,4 @@ class BaseProxyManager(ABC):
         Returns:
             bool: True if update was successful
         """
-        pass 
+        pass

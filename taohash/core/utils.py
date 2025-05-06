@@ -1,7 +1,7 @@
 from typing import Optional, TypedDict
 
-import netaddr
 import bittensor
+import netaddr
 
 
 def ip_to_int(ip: str) -> int:

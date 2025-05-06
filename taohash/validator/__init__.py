@@ -31,6 +31,7 @@ class BaseValidator:
         self.subtensor = None
         self.wallet = None
         self.metagraph = None
+        self.tempo = None
         self.uid = None
         self.weights_interval = None
 
@@ -294,7 +295,7 @@ class BaseValidator:
 
         # Sort by weight (highest first)
         sorted_indices = sorted(
-            range(len(weights)), key=lambda i: weights[i], reverse=True
+            range(len(weights)), key=lambda w: weights[w], reverse=True
         )
 
         for i in sorted_indices:
@@ -327,7 +328,7 @@ class BaseValidator:
 
         # Sort by score (highest first)
         sorted_indices = sorted(
-            range(len(self.scores)), key=lambda i: self.scores[i], reverse=True
+            range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
         )
 
         for i in sorted_indices:

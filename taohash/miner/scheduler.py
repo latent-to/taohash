@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 
 import bittensor as bt
 from tabulate import tabulate
@@ -6,7 +6,7 @@ from tabulate import tabulate
 from taohash.miner.models import MiningSlot, MiningSchedule
 
 if TYPE_CHECKING:
-    from taohash.miner.storage import BaseStorage
+    from taohash.miner.storage import JsonStorage, RedisStorage
     from taohash.miner.allocation import BaseAllocation
 
 
@@ -30,8 +30,8 @@ class MiningScheduler:
     def __init__(
         self,
         config: "bt.Config",
-        metagraph: "bt.metagraph.Metagraph",
-        storage: "BaseStorage",
+        metagraph: "bt.Metagraph",
+        storage: Union["JsonStorage", "RedisStorage"],
         allocation: "BaseAllocation",
         window_size: int,
         proxy_manager=None,
@@ -93,7 +93,7 @@ class MiningScheduler:
         return schedule
 
     def update_mining_schedule(
-        self, current_block: int, metagraph: "bt.metagraph.Metagraph" = None
+        self, current_block: int, metagraph: "bt.Metagraph" = None
     ) -> Optional["MiningSlot"]:
         """
         Update the mining schedule and current slot based on the current block.

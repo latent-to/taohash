@@ -15,11 +15,11 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
+from taohash.core.constants import VERSION_KEY
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
-from taohash.core.constants import VERSION_KEY
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
