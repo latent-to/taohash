@@ -15,7 +15,7 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import VERSION_KEY
+from taohash.core.constants import VERSION_KEY, U16_MAX
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
@@ -277,13 +277,14 @@ class BraiinsValidator(BaseValidator):
                         "ValidatorTrust",
                         params=[self.config.netuid],
                     )
+                    normalized_validator_trust = validator_trust[self.uid] / U16_MAX if validator_trust[self.uid] > 0 else 0
 
                     next_sync_block, sync_reason = self.get_next_sync_block()
                     logging.info(
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Sync reason: {sync_reason} | "
-                        f"VTrust: {validator_trust[self.uid]}"
+                        f"VTrust: {normalized_validator_trust:.2f}"
                     )
                 else:
                     logging.warning("Timeout waiting for block, retrying...")
