@@ -9,7 +9,7 @@ class BaseStorage(ABC):
     @classmethod
     @abstractmethod
     def add_args(cls, parser: "ArgumentParser"):
-        """Add storage-specific arguments to parser."""
+        """Add storage-specific arguments to the parser."""
         pass
 
     @abstractmethod
@@ -24,7 +24,7 @@ class BaseStorage(ABC):
 
     @abstractmethod
     def get_latest(self, prefix: Optional[Any]) -> Any:
-        """Returns the key of the last saved element based on prefix."""
+        """Returns the key of the last saved element based on the prefix."""
         pass
 
     def get_config(self):
@@ -33,19 +33,23 @@ class BaseStorage(ABC):
         self.add_args(parser)
         return bittensor.config(parser)
 
-    def generate_user_id(self, config: "bittensor.config") -> str:
+    @staticmethod
+    def generate_user_id(config: "bittensor.config") -> str:
         """
-        Generate a unique prefix for storage based on neuron's identity.
+        Generate a unique prefix for storage based on the neuron's identity.
 
         Args:
             config: Bittensor config containing wallet and network info
 
         Returns:
-            str: A unique prefix string for this neuron
+            str: A unique prefix string for this neuron based on netuid, wallet name, and hotkey name.
         """
-        network = getattr(config.subtensor, "network", "unknown")
+        netuid = getattr(config, "netuid", "unknown")
         wallet_name = getattr(config.wallet, "name", "unknown")
         wallet_hotkey = getattr(config.wallet, "hotkey", "unknown")
-        netuid = getattr(config, "netuid", "unknown")
-
-        return f"{network}_{netuid}_{wallet_name}_{wallet_hotkey}"
+        user_id = (f"{netuid}_{wallet_name}_{wallet_hotkey}"
+                   .replace(".", "_")
+                   .replace(" ", "_")
+                   .upper()
+                   )
+        return user_id

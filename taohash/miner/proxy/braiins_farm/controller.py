@@ -10,6 +10,7 @@ from taohash.miner.proxy.base import BaseProxyManager
 
 DEFAULT_PROXY_BASE_PATH = os.path.abspath(os.path.dirname(__file__))
 
+
 class BraiinsProxyManager(BaseProxyManager):
     """
     Manager for Braiins Farm Proxy configuration.
@@ -119,7 +120,8 @@ class BraiinsProxyManager(BaseProxyManager):
                 capture_output=True,
                 text=True
             )
-            
+
+            bt.logging.debug(f"Docker compose up result: {result.stdout}")
             bt.logging.success("Successfully refreshed proxy configuration")
             return True
                 
@@ -178,11 +180,11 @@ class BraiinsProxyManager(BaseProxyManager):
         try:
             if os.path.exists(self.config_path):
                 with open(self.config_path, "r") as f:
-                    config = toml.load(f)
+                    old_config = toml.load(f)
             else:
                 self._create_initial_config()
                 with open(self.config_path, "r") as f:
-                    config = toml.load(f)
+                    old_config = toml.load(f)
             
             # Initialize config structure
             config = {
@@ -196,6 +198,12 @@ class BraiinsProxyManager(BaseProxyManager):
                     "goal": []
                 }]
             }
+
+            # Copy over old server config, if it exists
+            if idx := next((i for i, s in enumerate(old_config["server"]) if s["name"] == "S1"), None):
+                for k, v in old_config["server"][idx].items():
+                    if k not in ["name", "port"]:  # skip things added above
+                        config["server"][idx][k] = v
             
             # Add config for each target
             for target in slot_data.pool_targets:

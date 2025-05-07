@@ -1,7 +1,7 @@
+from typing import Dict, Optional
+
 import cachetools
 import requests
-
-from typing import Dict, Optional
 from backoff import expo, on_exception
 from cachetools import TTLCache
 from ratelimit import RateLimitException, limits

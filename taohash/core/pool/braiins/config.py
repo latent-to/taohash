@@ -1,9 +1,9 @@
 import argparse
 import os
 
+from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.pool.config import PoolAPIConfig
 from taohash.core.pool.pool import PoolIndex
-from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class BraiinsPoolAPIConfig(PoolAPIConfig):
@@ -85,8 +85,8 @@ class BraiinsPoolConfig:
             "--pool.password",
             type=str,
             required=False,
-            default=os.getenv("BRAIINS_POOL_PASSWORD", cls.DEFAULT_PASSWORD),
-            help=f"Pool password (env: BRAIINS_POOL_PASSWORD, default: '{cls.DEFAULT_PASSWORD}')",
+            default=os.getenv("BRAIINS_WORKER_PASSWORD", cls.DEFAULT_PASSWORD),
+            help=f"Pool worker password (env: BRAIINS_WORKER_PASSWORD, default: '{cls.DEFAULT_PASSWORD}')",
         )
 
     @classmethod

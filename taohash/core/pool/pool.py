@@ -1,9 +1,9 @@
 import abc
 from enum import IntEnum
 
+from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.pool.api import PoolAPI
 from taohash.core.pool.config import PoolAPIConfig
-from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class PoolIndex(IntEnum):
@@ -63,7 +63,7 @@ class PoolBase(metaclass=abc.ABCMeta):
         Returns:
             Dictionary containing the miner's contribution metrics
         """
-        return
+        pass
 
     @abc.abstractmethod
     def get_all_miner_contributions(self, coin: str) -> dict[str, dict]:

@@ -1,5 +1,6 @@
-import requests
 from typing import Dict
+
+import requests
 
 from taohash.core.pricing.price import NetworkedCoinPriceAPI
 

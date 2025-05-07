@@ -31,6 +31,7 @@ class BaseValidator:
         self.subtensor = None
         self.wallet = None
         self.metagraph = None
+        self.tempo = None
         self.uid = None
         self.weights_interval = None
 
@@ -41,6 +42,7 @@ class BaseValidator:
         self.scores = []
         self.moving_avg_scores = []
         self.hotkeys = []
+        self.block_at_registration = []
 
     def get_config(self):
         """Create and parse configuration."""
@@ -133,8 +135,12 @@ class BaseValidator:
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        logging.info(f"Metagraph: {self.metagraph}")
+        self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
+        logging.info(f"Metagraph: "
+                     f"<netuid:{self.metagraph.netuid}, "
+                     f"n:{len(self.metagraph.axons)}, "
+                     f"block:{self.metagraph.block}, "
+                     f"network: {self.subtensor.network}>")
 
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
@@ -149,10 +155,11 @@ class BaseValidator:
             self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
             logging.info(f"Running validator on uid: {self.uid}")
 
-        self.current_block = self.metagraph.block.item()
+        self.current_block = self.metagraph.block
         self.hotkeys = self.metagraph.hotkeys
-        self.scores = [0.0] * len(self.metagraph.S)
-        self.moving_avg_scores = [0.0] * len(self.metagraph.S)
+        self.block_at_registration = self.metagraph.block_at_registration
+        self.scores = [0.0] * len(self.metagraph.total_stake)
+        self.moving_avg_scores = [0.0] * len(self.metagraph.total_stake)
         self.tempo = self.subtensor.tempo(self.config.netuid)
 
     def save_state(self) -> None:
@@ -161,6 +168,7 @@ class BaseValidator:
             "scores": self.scores,
             "moving_avg_scores": self.moving_avg_scores,
             "hotkeys": self.hotkeys,
+            "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
         }
         self.storage.save_state(state)
@@ -177,8 +185,8 @@ class BaseValidator:
         previous_hotkeys = self.hotkeys
 
         # Sync metagraph
-        self.metagraph.sync(subtensor=self.subtensor)
-        self.current_block = self.metagraph.block.item()
+        self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
+        self.current_block = self.metagraph.block
 
         # Check for changes
         if previous_hotkeys == self.metagraph.hotkeys:
@@ -224,6 +232,7 @@ class BaseValidator:
                 )
 
         self.hotkeys = self.metagraph.hotkeys
+        self.block_at_registration = self.metagraph.block_at_registration
         logging.info(f"Metagraph sync complete at block {self.current_block}")
 
     def get_burn_uid(self) -> Optional[int]:
@@ -294,7 +303,7 @@ class BaseValidator:
 
         # Sort by weight (highest first)
         sorted_indices = sorted(
-            range(len(weights)), key=lambda i: weights[i], reverse=True
+            range(len(weights)), key=lambda w: weights[w], reverse=True
         )
 
         for i in sorted_indices:
@@ -327,7 +336,7 @@ class BaseValidator:
 
         # Sort by score (highest first)
         sorted_indices = sorted(
-            range(len(self.scores)), key=lambda i: self.scores[i], reverse=True
+            range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
         )
 
         for i in sorted_indices:
