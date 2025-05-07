@@ -273,12 +273,17 @@ class BraiinsValidator(BaseValidator):
                             continue
 
                     self.save_state()
+                    validator_trust = self.subtensor.query_subtensor(
+                        "ValidatorTrust",
+                        params=[self.config.netuid],
+                    )
+
                     next_sync_block, sync_reason = self.get_next_sync_block()
                     logging.info(
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Sync reason: {sync_reason} | "
-                        f"VTrust: {self.metagraph.validator_trust[self.uid]}"
+                        f"VTrust: {validator_trust[self.uid]}"
                     )
                 else:
                     logging.warning("Timeout waiting for block, retrying...")
