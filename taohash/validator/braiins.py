@@ -112,9 +112,10 @@ class BraiinsValidator(BaseValidator):
             4. Update scores for each miner.
         """
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
+        uids_ = list(range(len(self.hotkeys)))
         for coin in self.config.coins:
             miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, self.block_at_registration, coin
+                self.pool, self.hotkeys, uids_, coin
             )
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
