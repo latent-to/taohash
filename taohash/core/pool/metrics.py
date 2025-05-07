@@ -104,9 +104,10 @@ def get_metrics_for_miners(
             # Duplicate, choose older miner
             if block_at_registration[worker_ids_to_hotkey_idx[worker_id]] > block_at_registration[i]:
                 # Our miner is older, replace the other one
+                del hotkeys_to_workers[hotkeys[worker_ids_to_hotkey_idx[worker_id]]]
+
                 worker_ids_to_hotkey_idx[worker_id] = i
                 hotkeys_to_workers[hotkey] = worker_id
-                del hotkeys_to_workers[hotkeys[worker_ids_to_hotkey_idx[worker_id]]]
             else:
                 # Other miner is older, ignore
                 continue
