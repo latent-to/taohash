@@ -311,9 +311,9 @@ class StakeBased(BaseAllocation):
                 break
 
             stake = metagraph.total_stake[metagraph.hotkeys.index(hotkey)]
-            fair_share = int((stake / total_stake) * available_blocks)
+            fair_share = int((stake.rao / total_stake.rao) * available_blocks)
             bt.logging.info(
-                f"\nHotkey: {hotkey} - Stake_weight: {(stake / total_stake)} ({stake:.2f} / {total_stake:.2f}). "
+                f"\nHotkey: {hotkey} - Stake_weight: {(stake.rao / total_stake.rao)} ({stake.tao:.2f} / {total_stake.tao:.2f}). "
                 f"Allocated: {fair_share} / {available_blocks}"
             )
 
