@@ -121,9 +121,9 @@ class BraiinsValidator(BaseValidator):
             for metric in miner_metrics:
                 uid = hotkey_to_uid[metric.hotkey]
                 if timeframe == "5m":
-                    mining_value: float = metric.get_value_last_5m(hash_price)
+                    mining_value = metric.get_value_last_5m(hash_price)
                 else:  # "60m"
-                    mining_value: float = metric.get_value_past_hour(hash_price)
+                    mining_value = metric.get_value_past_hour(hash_price)
 
                 if mining_value > 0:
                     logging.info(

@@ -134,8 +134,12 @@ class BaseValidator:
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        logging.info(f"Metagraph: {self.metagraph}")
+        self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
+        logging.info(f"Metagraph: "
+                     f"<netuid:{self.metagraph.netuid}, "
+                     f"n:{len(self.metagraph.axons)}, "
+                     f"block:{self.metagraph.block}, "
+                     f"network: {self.subtensor.network}>")
 
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
@@ -150,10 +154,10 @@ class BaseValidator:
             self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
             logging.info(f"Running validator on uid: {self.uid}")
 
-        self.current_block = self.metagraph.block.item()
+        self.current_block = self.metagraph.block
         self.hotkeys = self.metagraph.hotkeys
-        self.scores = [0.0] * len(self.metagraph.S)
-        self.moving_avg_scores = [0.0] * len(self.metagraph.S)
+        self.scores = [0.0] * len(self.metagraph.total_stake)
+        self.moving_avg_scores = [0.0] * len(self.metagraph.total_stake)
         self.tempo = self.subtensor.tempo(self.config.netuid)
 
     def save_state(self) -> None:
@@ -178,8 +182,8 @@ class BaseValidator:
         previous_hotkeys = self.hotkeys
 
         # Sync metagraph
-        self.metagraph.sync(subtensor=self.subtensor)
-        self.current_block = self.metagraph.block.item()
+        self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
+        self.current_block = self.metagraph.block
 
         # Check for changes
         if previous_hotkeys == self.metagraph.hotkeys:

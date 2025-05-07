@@ -30,7 +30,7 @@ class MiningScheduler:
     def __init__(
         self,
         config: "bt.Config",
-        metagraph: "bt.Metagraph",
+        metagraph: "bt.MetagraphInfo",
         storage: Union["JsonStorage", "RedisStorage"],
         allocation: "BaseAllocation",
         window_size: int,
@@ -93,7 +93,7 @@ class MiningScheduler:
         return schedule
 
     def update_mining_schedule(
-        self, current_block: int, metagraph: "bt.Metagraph" = None
+        self, current_block: int, metagraph: "bt.MetagraphInfo" = None
     ) -> Optional["MiningSlot"]:
         """
         Update the mining schedule and current slot based on the current block.

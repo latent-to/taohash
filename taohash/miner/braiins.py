@@ -146,8 +146,8 @@ class BraiinsMiner(BaseMiner):
             4. Handle first sync and schedule recovery
             5. Update mining schedule based on current network state
         """
-        self.metagraph.sync()
-        self.current_block = self.metagraph.block.item()
+        self.metagraph = self.subtensor.get_metagraph_info(netuid=self.config.netuid)
+        self.current_block = self.metagraph.block
         logging.info(f"Syncing at block {self.current_block}")
 
         target_pools = self.get_target_pools()
@@ -250,7 +250,7 @@ class BraiinsMiner(BaseMiner):
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Reason: {sync_reason} | "
-                        f"Incentive: {self.metagraph.I[self.uid]} | "
+                        f"Incentive: {self.metagraph.incentives[self.uid]} | "
                         f"Blocks since epoch: {self.metagraph.blocks_since_last_step}"
                     )
                 else:

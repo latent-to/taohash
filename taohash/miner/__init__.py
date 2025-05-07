@@ -15,9 +15,13 @@ class BaseMiner:
         """Initialize the base miner with configuration and setup."""
         self.config = self.get_config()
         self.setup_logging()
-        self.setup_bittensor_objects()
-        self.storage = get_miner_storage(storage_type=self.config.storage, config=self.config)
 
+        self.wallet = None
+        self.metagraph = None
+        self.uid = None
+
+        self.subtensor = self.setup_bittensor_objects()
+        self.storage = get_miner_storage(storage_type=self.config.storage, config=self.config)
         self.worker_id = self.create_worker_id()
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.current_block = 0
@@ -87,7 +91,7 @@ class BaseMiner:
         )
         logging.info(f"Sync frequency: {self.config.sync_frequency} times per epoch")
 
-    def setup_bittensor_objects(self) -> None:
+    def setup_bittensor_objects(self) -> "Subtensor":
         """Setup Bittensor objects."""
         logging.info("Setting up Bittensor objects")
 
@@ -100,8 +104,12 @@ class BaseMiner:
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
-        logging.info(f"Metagraph: {self.metagraph}")
+        self.metagraph = self.subtensor.get_metagraph_info(netuid=self.config.netuid)
+        logging.info(f"Metagraph: "
+                     f"<netuid:{self.metagraph.netuid}, "
+                     f"n:{len(self.metagraph.axons)}, "
+                     f"block:{self.metagraph.block}, "
+                     f"network: {self.subtensor.network}>")
 
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
             logging.error(
@@ -111,8 +119,9 @@ class BaseMiner:
             exit()
 
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-        self.current_block = self.metagraph.block.item()
+        self.current_block = self.metagraph.block
         logging.info(f"Running miner on uid: {self.uid}")
+        return self.subtensor
 
     def create_worker_id(self) -> str:
         """Create a worker ID based on the miner's hotkey address."""
