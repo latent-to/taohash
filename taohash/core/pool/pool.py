@@ -74,7 +74,7 @@ class PoolBase(metaclass=abc.ABCMeta):
             coin: cryptocurrency being mined
 
         Returns:
-            Dictionary mapping hotkeys to their contribution metrics
+            Dictionary mapping worker IDs to their contribution metrics
         """
         pass
 

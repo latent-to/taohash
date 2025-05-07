@@ -103,24 +103,52 @@ def get_metrics_for_miner_by_hotkey(
         shares["shares_60m"],
     )
 
+def _get_legacy_worker_id(hotkey: str) -> str:
+    return hotkey[:4] + hotkey[-4:]
 
 def get_metrics_for_miners(
-    pool: PoolBase, hotkeys: list[str], uids: list[int], coin: str
+    pool: PoolBase, hotkeys: list[str], uids: list[int], block_at_registration: list[int], coin: str
 ) -> list[MiningMetrics]:
     """
     Retrieves the mining metrics for all miners active in the validator's pool.
     """
     metrics = []
     all_workers = pool.get_all_miner_contributions(coin)
+
+    ## Handle legacy worker ids; only use the oldest hotkey for each worker id
+    hk_idx_to_legacy_metrics = {} # map hotkeys idx -> worker_metrics
+    legacy_worker_ids = {} # map legacy_worker_id -> hotkey_idx
+    for i, hotkey in enumerate(hotkeys):
+        legacy_worker_id = _get_legacy_worker_id(hotkey)
+
+        if legacy_worker_id in legacy_worker_ids:
+            # Duplicate worker id, check how old the hotkey is
+            other_hotkey_idx = legacy_worker_ids[legacy_worker_id]
+            if block_at_registration[i] < block_at_registration[other_hotkey_idx]:
+                # This hotkey is older, use this one
+                # remove old entry
+                del hk_idx_to_legacy_metrics[other_hotkey_idx]
+            else:
+                continue # This hotkey is newer, skip it
+        
+        # Add the hotkey to map
+        legacy_worker_ids[legacy_worker_id] = str(i)
     
+        worker_metrics_legacy = all_workers.get(legacy_worker_id, None)
+        if worker_metrics_legacy is not None:
+            hk_idx_to_legacy_metrics[str(i)] = worker_metrics_legacy
+
+    ## Handle the new worker ids and incorporate the metrics from the legacy worker ids
     for i, hotkey in enumerate(hotkeys):
         worker_id = pool._get_worker_id_for_hotkey(hotkey, uids[i])
-        if worker_id is None:
+        legacy_worker_metrics = hk_idx_to_legacy_metrics.get(str(i), None)
+
+        if worker_id is None and legacy_worker_metrics is None:
             metrics.append(MiningMetrics(hotkey))
             continue
 
         worker_metrics = all_workers.get(worker_id, None)
-        if worker_metrics is None:
+        if worker_metrics is None and legacy_worker_metrics is None:
             metrics.append(MiningMetrics(hotkey))
         else:
             metrics.append(
@@ -131,6 +159,13 @@ def get_metrics_for_miners(
                     worker_metrics["hash_rate_unit"],
                     worker_metrics["shares_5m"],
                     worker_metrics["shares_60m"],
+                ) + MiningMetrics(
+                    hotkey,
+                    legacy_worker_metrics["hash_rate_5m"],
+                    legacy_worker_metrics["hash_rate_60m"],
+                    legacy_worker_metrics["hash_rate_unit"],
+                    legacy_worker_metrics["shares_5m"],
+                    legacy_worker_metrics["shares_60m"],
                 )
             )
     return metrics
