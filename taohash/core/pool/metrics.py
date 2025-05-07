@@ -88,16 +88,40 @@ def get_metrics_for_miner_by_hotkey(
 
 
 def get_metrics_for_miners(
-    pool: PoolBase, hotkeys: list[str], coin: str
+    pool: PoolBase, hotkeys: list[str], block_at_registration: list[int], coin: str
 ) -> list[MiningMetrics]:
     """
     Retrieves the mining metrics for all miners active in the validator's pool.
     """
     metrics = []
     all_workers = pool.get_all_miner_contributions(coin)
+    
+    hotkeys_to_workers = {}
+    worker_ids_to_hotkey_idx = {}
+    for i, hotkey in enumerate(hotkeys):
+        worker_id = pool._get_worker_id_for_hotkey(hotkey)
+        if worker_id in worker_ids_to_hotkey_idx:
+            # Duplicate, choose older miner
+            if block_at_registration[worker_ids_to_hotkey_idx[worker_id]] > block_at_registration[i]:
+                # Our miner is older, replace the other one
+                worker_ids_to_hotkey_idx[worker_id] = i
+                hotkeys_to_workers[hotkey] = worker_id
+                del hotkeys_to_workers[hotkeys[worker_ids_to_hotkey_idx[worker_id]]]
+            else:
+                # Other miner is older, ignore
+                continue
+        else:
+            # First time we see this worker ID
+            worker_ids_to_hotkey_idx[worker_id] = i
+            hotkeys_to_workers[hotkey] = worker_id
+        
 
     for hotkey in hotkeys:
-        worker_id = pool._get_worker_id_for_hotkey(hotkey)
+        worker_id = hotkeys_to_workers[hotkey]
+        if worker_id is None:
+            metrics.append(MiningMetrics(hotkey))
+            continue
+
         worker_metrics = all_workers.get(worker_id, None)
         if worker_metrics is None:
             metrics.append(MiningMetrics(hotkey))

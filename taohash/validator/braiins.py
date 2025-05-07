@@ -110,7 +110,7 @@ class BraiinsValidator(BaseValidator):
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
         for coin in self.config.coins:
             miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, coin
+                self.pool, self.hotkeys, self.block_at_registration, coin
             )
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
@@ -160,6 +160,7 @@ class BraiinsValidator(BaseValidator):
         self.scores = state.get("scores", [0.0] * total_hotkeys)
         self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
+        self.block_at_registration = state.get("block_at_registration", [])
         self.resync_metagraph()
 
         if blocks_down > 230:  # 1 hour

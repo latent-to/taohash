@@ -42,6 +42,7 @@ class BaseValidator:
         self.scores = []
         self.moving_avg_scores = []
         self.hotkeys = []
+        self.block_at_registration = []
 
     def get_config(self):
         """Create and parse configuration."""
@@ -156,6 +157,7 @@ class BaseValidator:
 
         self.current_block = self.metagraph.block
         self.hotkeys = self.metagraph.hotkeys
+        self.block_at_registration = self.metagraph.block_at_registration
         self.scores = [0.0] * len(self.metagraph.total_stake)
         self.moving_avg_scores = [0.0] * len(self.metagraph.total_stake)
         self.tempo = self.subtensor.tempo(self.config.netuid)
@@ -166,6 +168,7 @@ class BaseValidator:
             "scores": self.scores,
             "moving_avg_scores": self.moving_avg_scores,
             "hotkeys": self.hotkeys,
+            "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
         }
         self.storage.save_state(state)
@@ -229,6 +232,7 @@ class BaseValidator:
                 )
 
         self.hotkeys = self.metagraph.hotkeys
+        self.block_at_registration = self.metagraph.block_at_registration
         logging.info(f"Metagraph sync complete at block {self.current_block}")
 
     def get_burn_uid(self) -> Optional[int]:
