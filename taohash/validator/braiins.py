@@ -220,7 +220,7 @@ class BraiinsValidator(BaseValidator):
         success, err_msg = self.subtensor.set_weights(
             netuid=self.config.netuid,
             wallet=self.wallet,
-            uids=self.metagraph.uids,
+            uids=list(range(len(self.hotkeys))),
             weights=weights,
             wait_for_inclusion=True,
             version_key=VERSION_KEY,
