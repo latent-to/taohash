@@ -5,7 +5,6 @@
 
 import argparse
 import traceback
-
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 from dotenv import load_dotenv
@@ -15,11 +14,12 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
+from taohash.core.pricing import CoinPriceAPI
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
 from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
-from taohash.core.constants import VERSION_KEY
+from taohash.core.constants import VERSION_KEY, PREMIUM
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -40,6 +40,9 @@ class BraiinsValidator(BaseValidator):
             pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
         self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
+        self.coin_price_api = CoinPriceAPI(
+            method=self.config.price.method, api_key=self.config.price.api_key
+        )
         self.setup_bittensor_objects()
 
         self.alpha = 0.8
@@ -93,6 +96,41 @@ class BraiinsValidator(BaseValidator):
             exit(1)
         else:
             logging.success("Pool info published successfully")
+
+    def calculate_alpha_to_emit_usd(self) -> float:
+        """
+        Calculate the USD value of Alpha tokens to be emitted by this validator.
+
+        This function determines how much Alpha value this validator will distribute
+        to miners based on its stake weight in the network.
+
+        Process:
+            1. Calculate validator's stake weight (validator stake / total network stake)
+            2. Calculate raw alpha to emit using the formula:
+               weights_interval * (1 - subnet_owner_cut) * miners_share * stake_weight
+               where:
+               - weights_interval: duration for setting weights
+               - subnet_owner_cut: 18% of emissions go to subnet owner
+               - miners_share: 50% of remaining emissions go to miners
+            3. Convert Alpha amount to USD using current market prices
+
+        Returns:
+            float: The USD value of Alpha tokens to be emitted by this validator
+        """
+        # Calculate stake weight
+        validator_stake = self.metagraph.total_stake[self.uid]
+        total_stake = sum(self.metagraph.total_stake)
+        stake_weight = validator_stake / total_stake
+
+        # Calculate Alpha to emit
+        alpha_to_emit = self.weights_interval * (1 - 0.18) * 0.5 * stake_weight
+
+        # Convert Alpha amount to USD
+        tao_price_usd = self.coin_price_api.get_price("bittensor")
+        alpha_price_tao = self.subtensor.subnet(netuid=self.config.netuid).price
+        alpha_to_emit_usd = alpha_to_emit * alpha_price_tao * tao_price_usd
+
+        return alpha_to_emit_usd.tao
 
     def evaluate_miner_hashrate(self, timeframe: str = "5m") -> None:
         """
@@ -170,18 +208,24 @@ class BraiinsValidator(BaseValidator):
         logging.success("Successfully restored validator state")
 
     def set_weights(self) -> tuple[bool, str]:
-        """Set weights for all miners.
+        """Set weights for all miners based on their hashrate contributions.
 
         Returns:
             tuple[bool, str]: A tuple containing:
                 - bool: True if weights were set successfully, False otherwise
                 - str: Error message if weights were not set successfully, empty string otherwise
 
-        Evaluation:
-            1. Update moving_avg_scores from base scores.
-            2. Ensure miners are still active - otherwise burn the alpha.
-            3. Set weights using moving_avg_scores.
-            4. Reset scores for next evaluation.
+        Process:
+            1. Update moving average scores using exponential moving average (EMA)
+               with alpha as the smoothing factor.
+            2. Apply premium adjustment to scores (premium is subtracted from miner rewards).
+            3. Handle cases:
+               - If no miners are active (total score = 0), burn all emissions to subnet owner.
+               - If miners' total value is less than alpha to emit, scale weights and
+                 burn the excess alpha.
+               - Otherwise, distribute weights proportionally to scores.
+            4. Set weights on the Bittensor blockchain.
+            5. Reset base scores for the next evaluation period.
         """
         # Update moving_avg_scores from base scores.
         for i, current_score in enumerate(self.scores):
@@ -189,20 +233,42 @@ class BraiinsValidator(BaseValidator):
                 i
             ] + self.alpha * current_score
 
-        # Calculate weights
-        total = sum(self.moving_avg_scores)
-        if total == 0:
+        premium_btc = PREMIUM[COIN]
+        weights = [0.0] * len(self.hotkeys)
+        owner_uid = self.get_burn_uid()
+        alpha_to_emit_usd = self.calculate_alpha_to_emit_usd()
+
+        # Apply premium to scores
+        scores_w_premium = [
+            score * (1 - premium_btc) for score in self.moving_avg_scores
+        ]
+        total_scores_w_premium = sum(scores_w_premium)
+
+        if total_scores_w_premium == 0:
             logging.info("No miners are mining, we should burn the alpha")
             # No miners are mining, we should burn the alpha
-            owner_uid = self.get_burn_uid()
             if owner_uid is not None:
-                weights = [0.0] * len(self.hotkeys)
                 weights[owner_uid] = 1.0
             else:
                 logging.error("No owner found for subnet. Skipping weight update.")
                 return False, "No owner found for the subnet"
         else:
-            weights = [score / total for score in self.moving_avg_scores]
+            # Value generated by miners is less than the alpha to emit
+            # Scale the weights to alpha to emit
+            if total_scores_w_premium < alpha_to_emit_usd:
+                for i, score in enumerate(scores_w_premium):
+                    weights[i] = score / total_scores_w_premium
+
+                scaling_factor = total_scores_w_premium / alpha_to_emit_usd
+                for i in range(len(weights)):
+                    weights[i] *= scaling_factor
+
+                # Calculate excess weights
+                excess_weight = 1.0 - sum(weights)
+                if excess_weight > 0:
+                    weights[owner_uid] += excess_weight
+            else:
+                weights = [score / total_scores_w_premium for score in scores_w_premium]
 
         logging.info("Setting weights")
         # Update the incentive mechanism on the Bittensor blockchain.
