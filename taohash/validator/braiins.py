@@ -15,7 +15,7 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import VERSION_KEY
+from taohash.core.constants import VERSION_KEY, U16_MAX
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
@@ -23,6 +23,10 @@ from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
+
+BAD_COLDKEYS = [
+    "5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"
+]
 
 
 class BraiinsValidator(BaseValidator):
@@ -110,7 +114,7 @@ class BraiinsValidator(BaseValidator):
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
         for coin in self.config.coins:
             miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, coin
+                self.pool, self.hotkeys, self.block_at_registration, coin
             )
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
@@ -160,7 +164,14 @@ class BraiinsValidator(BaseValidator):
         self.scores = state.get("scores", [0.0] * total_hotkeys)
         self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
+        self.block_at_registration = state.get("block_at_registration", [])
+
         self.resync_metagraph()
+
+        for idx in range(len(self.hotkeys)):
+            # If the coldkey is a bad one, set the moving avg score to 0
+            if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
+                self.moving_avg_scores[idx] = 0.0
 
         if blocks_down > 230:  # 1 hour
             logging.warning(
@@ -262,12 +273,18 @@ class BraiinsValidator(BaseValidator):
                             continue
 
                     self.save_state()
+                    validator_trust = self.subtensor.query_subtensor(
+                        "ValidatorTrust",
+                        params=[self.config.netuid],
+                    )
+                    normalized_validator_trust = validator_trust[self.uid] / U16_MAX if validator_trust[self.uid] > 0 else 0
+
                     next_sync_block, sync_reason = self.get_next_sync_block()
                     logging.info(
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Sync reason: {sync_reason} | "
-                        f"VTrust: {self.metagraph.validator_trust[self.uid]}"
+                        f"VTrust: {normalized_validator_trust:.2f}"
                     )
                 else:
                     logging.warning("Timeout waiting for block, retrying...")
