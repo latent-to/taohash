@@ -39,7 +39,7 @@ class PoolBase(metaclass=abc.ABCMeta):
         self.api = api
 
     @staticmethod
-    def _get_worker_id_for_hotkey(hotkey: str) -> str:
+    def _get_worker_id_for_hotkey(hotkey: str, uid: int) -> str:
         """
         Convert a bittensor hotkey to a mining worker ID.
 
@@ -49,10 +49,10 @@ class PoolBase(metaclass=abc.ABCMeta):
         Returns:
             A worker ID string derived from the hotkey
         """
-        return hotkey
+        return hotkey + "-" + str(uid)
 
     @abc.abstractmethod
-    def get_hotkey_contribution(self, hotkey: str, coin: str) -> dict:
+    def get_hotkey_contribution(self, hotkey: str, uid: int, coin: str) -> dict:
         """
         Get mining contribution data for a specific hotkey.
 
@@ -74,7 +74,7 @@ class PoolBase(metaclass=abc.ABCMeta):
             coin: cryptocurrency being mined
 
         Returns:
-            Dictionary mapping hotkeys to their contribution metrics
+            Dictionary mapping worker IDs to their contribution metrics
         """
         pass
 

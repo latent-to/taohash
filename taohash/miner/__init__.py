@@ -126,7 +126,7 @@ class BaseMiner:
     def create_worker_id(self) -> str:
         """Create a worker ID based on the miner's hotkey address."""
         hotkey = self.wallet.hotkey.ss58_address
-        return hotkey[:4] + hotkey[-4:]
+        return hotkey[:6] + hotkey[-6:] + "-" + str(self.uid)
 
     def blocks_until_next_epoch(self) -> int:
         """Get number of blocks until new tempo starts"""

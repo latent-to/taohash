@@ -15,7 +15,7 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import VERSION_KEY, U16_MAX
+from taohash.core.constants import VERSION_KEY, U16_MAX, BLACKLISTED_COLDKEYS
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
 from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
@@ -23,10 +23,6 @@ from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
-
-BAD_COLDKEYS = [
-    "5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"
-]
 
 
 class BraiinsValidator(BaseValidator):
@@ -112,9 +108,10 @@ class BraiinsValidator(BaseValidator):
             4. Update scores for each miner.
         """
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
+        uids_ = list(range(len(self.hotkeys)))
         for coin in self.config.coins:
             miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, self.block_at_registration, coin
+                self.pool, self.hotkeys, uids_, self.block_at_registration, coin
             )
             hash_price = self.hash_price_api.get_hash_price(coin)
             if hash_price is None:
@@ -170,7 +167,7 @@ class BraiinsValidator(BaseValidator):
 
         for idx in range(len(self.hotkeys)):
             # If the coldkey is a bad one, set the moving avg score to 0
-            if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
+            if self.metagraph.coldkeys[idx] in BLACKLISTED_COLDKEYS:
                 self.moving_avg_scores[idx] = 0.0
 
         if blocks_down > 230:  # 1 hour
