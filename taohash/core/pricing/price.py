@@ -1,6 +1,6 @@
+import abc
 from typing import Optional
 
-import abc
 import cachetools
 from cachetools import TTLCache
 

@@ -2,12 +2,12 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-import netaddr
 import bt_decode
-
-from bittensor_wallet.bittensor_wallet import Wallet
+import netaddr
 from bittensor import logging
 from bittensor import subtensor as bt_subtensor
+from bittensor_wallet.bittensor_wallet import Wallet
+
 from taohash.core.utils import ip_to_int
 
 

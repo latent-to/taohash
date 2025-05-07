@@ -135,7 +135,7 @@ class BaseAllocation(ABC):
         available_blocks_this_window: int,
         next_window_block: int,
         pool_info: dict[str, "PoolInfo"],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> list["MiningSlot"]:
         """
         Creates a mining schedule by distributing available blocks among validator pools.
@@ -163,7 +163,7 @@ class BaseAllocation(ABC):
         )
 
     def _filter_validators(
-        self, pool_info: dict[str, "PoolInfo"], metagraph: "bt.metagraph.Metagraph"
+        self, pool_info: dict[str, "PoolInfo"], metagraph: "bt.MetagraphInfo"
     ) -> dict[str, "PoolInfo"]:
         """
         Filters and sorts validators based on multiple criteria.
@@ -234,7 +234,7 @@ class BaseAllocation(ABC):
         available_blocks: int,
         next_window_block: int,
         pool_info: dict[str, "PoolInfo"],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> list[MiningSlot]:
         """
         Abstract method that defines the core slot allocation logic for a specific strategy.
@@ -290,7 +290,7 @@ class StakeBased(BaseAllocation):
         available_blocks: int,
         next_window_block: int,
         pool_info: dict[str, "PoolInfo"],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> list[MiningSlot]:
         filtered = self._filter_validators(pool_info, metagraph)
         if not filtered:
@@ -313,7 +313,8 @@ class StakeBased(BaseAllocation):
             stake = metagraph.total_stake[metagraph.hotkeys.index(hotkey)]
             fair_share = int((stake / total_stake) * available_blocks)
             bt.logging.info(
-                f"\nHotkey: {hotkey} - Stake_weight: {(stake / total_stake)} ({stake:.2f} / {total_stake:.2f}). Allocated: {fair_share} / {available_blocks}"
+                f"\nHotkey: {hotkey} - Stake_weight: {(stake / total_stake)} ({stake:.2f} / {total_stake:.2f}). "
+                f"Allocated: {fair_share} / {available_blocks}"
             )
 
             blocks_allocated = max(
@@ -387,7 +388,7 @@ class MultiPoolStakeAllocation(BaseAllocation):
         self,
         window: int,
         validator_list: list[str],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> dict[str, int]:
         # Allocate min blocks to each validator
         quotas = {hk: self.min_blocks_per_validator for hk in validator_list}
@@ -415,7 +416,7 @@ class MultiPoolStakeAllocation(BaseAllocation):
         available_blocks: int,
         next_window_block: int,
         pool_info: dict[str, "PoolInfo"],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> list[MiningSlot]:
         validators = self._filter_validators(pool_info, metagraph)
         if not validators:
@@ -499,7 +500,6 @@ class MultiPoolStakeAllocation(BaseAllocation):
 # TODO: EMA Stake Based
 class EMAStakeBased(BaseAllocation):
     """Allocates blocks proportionally based on EMA of stake"""
-
     pass
 
 
@@ -525,7 +525,7 @@ class EqualDistribution(BaseAllocation):
         available_blocks: int,
         next_window_block: int,
         pool_info: dict[str, "PoolInfo"],
-        metagraph: "bt.metagraph.Metagraph",
+        metagraph: "bt.MetagraphInfo",
     ) -> list[MiningSlot]:
         filtered = self._filter_validators(pool_info, metagraph)
         if not filtered:

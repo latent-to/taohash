@@ -1,11 +1,10 @@
 from typing import Dict
 
-import requests
-from requests.exceptions import RequestException, JSONDecodeError
-from ratelimit import limits, RateLimitException
-from backoff import on_exception, expo
-
 import bittensor as bt
+import requests
+from backoff import on_exception, expo
+from ratelimit import limits, RateLimitException
+from requests.exceptions import RequestException, JSONDecodeError
 
 from taohash.core.pool.api import PoolAPI
 

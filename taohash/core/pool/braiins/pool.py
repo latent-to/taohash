@@ -1,9 +1,9 @@
 from typing import Dict
 
+from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.pool.braiins.api import BraiinsPoolAPI
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig
 from taohash.core.pool.pool import PoolBase, PoolIndex
-from taohash.core.chain_data.pool_info import PoolInfo
 
 
 class BraiinsPool(PoolBase):

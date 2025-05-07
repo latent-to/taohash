@@ -1,16 +1,16 @@
 import argparse
 import traceback
 
-from dotenv import load_dotenv
 from bittensor import logging
+from dotenv import load_dotenv
 
 from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
-from taohash.miner.scheduler import MiningScheduler
-from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
-from taohash.miner.allocation import get_allocation
 from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
+from taohash.miner.allocation import get_allocation
+from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
+from taohash.miner.scheduler import MiningScheduler
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -146,8 +146,8 @@ class BraiinsMiner(BaseMiner):
             4. Handle first sync and schedule recovery
             5. Update mining schedule based on current network state
         """
-        self.metagraph.sync()
-        self.current_block = self.metagraph.block.item()
+        self.metagraph = self.subtensor.get_metagraph_info(netuid=self.config.netuid)
+        self.current_block = self.metagraph.block
         logging.info(f"Syncing at block {self.current_block}")
 
         target_pools = self.get_target_pools()
@@ -209,7 +209,7 @@ class BraiinsMiner(BaseMiner):
             # If we have a mining slot, check when it ends
             current_schedule = self.mining_scheduler.current_schedule
             slot_end = current_schedule.current_slot.end_block + 1
-            if slot_end >= self.current_block and slot_end < next_sync:
+            if self.current_block <= slot_end < next_sync:
                 next_sync = slot_end
                 if slot_end == current_schedule.end_block + 1:
                     sync_reason = "New window"
@@ -250,7 +250,7 @@ class BraiinsMiner(BaseMiner):
                         f"Block: {self.current_block} | "
                         f"Next sync: {next_sync_block} | "
                         f"Reason: {sync_reason} | "
-                        f"Incentive: {self.metagraph.I[self.uid]} | "
+                        f"Incentive: {self.metagraph.incentives[self.uid]} | "
                         f"Blocks since epoch: {self.metagraph.blocks_since_last_step}"
                     )
                 else:
@@ -260,7 +260,7 @@ class BraiinsMiner(BaseMiner):
             except KeyboardInterrupt:
                 logging.success("Miner killed by keyboard interrupt.")
                 break
-            except Exception as e:
+            except Exception:
                 logging.error(traceback.format_exc())
                 continue
 
