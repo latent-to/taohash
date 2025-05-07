@@ -24,6 +24,10 @@ from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
 
+BAD_COLDKEYS = [
+    "5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"
+]
+
 
 class BraiinsValidator(BaseValidator):
     """
@@ -161,7 +165,13 @@ class BraiinsValidator(BaseValidator):
         self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
+
         self.resync_metagraph()
+
+        for idx in range(len(self.hotkeys)):
+            # If the coldkey is a bad one, set the moving avg score to 0
+            if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
+                self.moving_avg_scores[idx] = 0.0
 
         if blocks_down > 230:  # 1 hour
             logging.warning(
