@@ -21,6 +21,8 @@ class MiningMetrics:
     def __add__(self, other: "MiningMetrics") -> "MiningMetrics":
         """
         Adds two MiningMetrics objects together.
+
+        Note: Takes the first hotkey and sets hash_rate_unit to Th/s.
         """
         new = MiningMetrics(self.hotkey, hash_rate_unit="Th/s")
 
