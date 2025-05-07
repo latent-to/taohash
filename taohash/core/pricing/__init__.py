@@ -49,10 +49,10 @@ class CoinPriceAPI:
     def add_args(cls, parser: "argparse.ArgumentParser", _: Optional[str] = None):
         parser.add_argument(
             "--price.method",
-            default="unit",
+            default="coingecko",
             type=str,
             choices=list(cls.__CLASS_MAP.keys()),
-            help="Price API to use (default: unit)",
+            help="Price API to use (default: coingecko)",
         )
         parser.add_argument(
             "--price.api_key",
