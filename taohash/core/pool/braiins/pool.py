@@ -14,11 +14,11 @@ class BraiinsPool(PoolBase):
         super().__init__(pool_info, api)
 
     @staticmethod
-    def _get_worker_id_for_hotkey(hotkey: str, uid: int) -> str:
+    def get_worker_id_for_hotkey(hotkey: str, uid: int) -> str:
         return hotkey[:6] + hotkey[-6:] + "-" + str(uid)
 
     def get_hotkey_contribution(self, hotkey: str, uid: int, coin: str) -> Dict[str, dict]:
-        worker_id = self._get_worker_id_for_hotkey(hotkey, uid)
+        worker_id = self.get_worker_id_for_hotkey(hotkey, uid)
         worker_data = self.api.get_worker_data(worker_id, coin)
         return worker_data
 
