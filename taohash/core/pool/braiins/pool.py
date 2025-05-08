@@ -13,7 +13,8 @@ class BraiinsPool(PoolBase):
     def __init__(self, pool_info: PoolInfo, api: BraiinsPoolAPI) -> None:
         super().__init__(pool_info, api)
 
-    def _get_worker_id_for_hotkey(self, hotkey: str, uid: int) -> str:
+    @staticmethod
+    def _get_worker_id_for_hotkey(hotkey: str, uid: int) -> str:
         return hotkey[:6] + hotkey[-6:] + "-" + str(uid)
 
     def get_hotkey_contribution(self, hotkey: str, uid: int, coin: str) -> Dict[str, dict]:
