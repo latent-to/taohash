@@ -23,7 +23,6 @@ class MiningMetrics:
 
     Note: Any operations in this class are in units of Th/s.
     """
-
     hotkey: str
     hash_rate_5m: float = 0.0  # In 5 minutes, hash rate in Gh/s
     hash_rate_60m: float = 0.0
@@ -31,20 +30,14 @@ class MiningMetrics:
     shares_5m: float = 0.0
     shares_60m: float = 0.0
 
-    @staticmethod
-    def _convert_hashrate(value: float, from_unit: str, to_unit: str) -> float:
-        """Hashrate conversion function."""
-
-        if from_unit not in HASH_RATE_UNITS or to_unit not in HASH_RATE_UNITS:
-            raise ValueError(f"Invalid units: {from_unit} or {to_unit}")
-
-        base_value = value * HASH_RATE_UNITS[from_unit]
-        converted_value = base_value / HASH_RATE_UNITS[to_unit]
-        return converted_value
-
     def _get_hashrate_th(self, hash_rate: float) -> float:
         """Returns hashrate in Th/s."""
-        return self._convert_hashrate(hash_rate, self.hash_rate_unit, DEFAULT_HASH_RATE_UNIT)
+        if self.hash_rate_unit not in HASH_RATE_UNITS:
+            raise ValueError(f"Invalid units: {self.hash_rate_unit} or {DEFAULT_HASH_RATE_UNIT}")
+
+        base_value = hash_rate * HASH_RATE_UNITS[self.hash_rate_unit]
+        converted_value = base_value / HASH_RATE_UNITS[DEFAULT_HASH_RATE_UNIT]
+        return converted_value
 
     def __add__(self, other: "MiningMetrics") -> "MiningMetrics":
         """
