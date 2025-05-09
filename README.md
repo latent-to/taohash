@@ -2,6 +2,7 @@
 
 # **TAO Hash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/latent-to/taohash)
 
 </div>
 
