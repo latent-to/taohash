@@ -52,7 +52,11 @@ class BraiinsPoolAPI(PoolAPI):
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
-        return worker_name
+        splits = worker_name.split(".", maxsplit=1)
+        if len(splits) == 1: # no period
+            return splits[0]
+        else:
+            return splits[1]
 
     @on_exception(
         expo, (RateLimitException, RequestException, JSONDecodeError), max_tries=8
