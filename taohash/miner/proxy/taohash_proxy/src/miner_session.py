@@ -158,9 +158,6 @@ class MinerSession:
 
         await drain_initial_messages()
 
-        # TODO: Remove after debug
-        # self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
-
         # 2) Start bidirectional proxy loops
         miner_to_pool = asyncio.create_task(
             self._handle_from_miner(
@@ -581,13 +578,6 @@ class MinerSession:
                             logger.info(
                                 f"[{self.miner_id}] _handle_from_pool: Pool attempted difficulty={pool_diff} but enforced={effective_diff}, not forwarded"
                             )
-                            await self._send_to_pool(
-                                {
-                                    "id": None,
-                                    "method": "mining.suggest_difficulty",
-                                    "params": [effective_diff],
-                                }
-                            )
                             continue
 
                 if pool_response.get("method") == "mining.notify":
@@ -633,28 +623,6 @@ class MinerSession:
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.pool_session.writer.write(encoded_message)
         await self.pool_session.writer.drain()
-
-    async def _periodic_suggest(self, interval: float):
-        """
-        Every `interval` seconds, send mining.suggest_difficulty to pool if min_difficulty set.
-        """
-        try:
-            while True:
-                await asyncio.sleep(interval)
-                if self.min_difficulty is not None:
-                    suggest_id = self.pool_session.next_id()
-                    await self._send_to_pool(
-                        {
-                            "id": suggest_id,
-                            "method": "mining.suggest_difficulty",
-                            "params": [self.min_difficulty],
-                        }
-                    )
-                    logger.warning(
-                        f"[{self.miner_id}] _periodic_suggest: Sent mining.suggest_difficulty to pool: {self.min_difficulty}"
-                    )
-        except asyncio.CancelledError:
-            pass
 
     def close(self):
         if hasattr(self, "_suggest_task"):
