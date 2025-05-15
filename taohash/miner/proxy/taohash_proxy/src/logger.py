@@ -7,6 +7,7 @@ if not logging.getLogger().handlers:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
 def get_logger(name: str) -> logging.Logger:
     """

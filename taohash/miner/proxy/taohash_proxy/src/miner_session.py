@@ -575,8 +575,8 @@ class MinerSession:
                             self.stats.update_difficulty(effective_diff)
                             pool_response["params"][0] = effective_diff
                         else:
-                            logger.debug(
-                                f"[{self.miner_id}] _handle_from_pool: Pool requested difficulty={pool_diff}, ignoring (already using {effective_diff})"
+                            logger.info(
+                                f"[{self.miner_id}] _handle_from_pool: Pool attempted difficulty={pool_diff} but enforced={effective_diff}, not forwarded"
                             )
                             continue
 
