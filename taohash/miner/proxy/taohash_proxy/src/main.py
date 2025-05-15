@@ -112,7 +112,7 @@ async def handle_new_miner(
     def _on_done(_: Any) -> None:
         active_sessions.discard(session)
         stats_manager.unregister_miner(miner_address)
-        logger.info(f"➖ Miner disconnected: {miner_address}")
+        logger.info(f"Miner disconnected: {miner_address}")
 
     task.add_done_callback(_on_done)
 
@@ -129,7 +129,7 @@ async def start_reload_api() -> web.TCPSite:
     await site.start()
 
     logger.info(
-        f"🔒 Internal reload API running on http://{RELOAD_API_HOST}:{RELOAD_API_PORT}/api/reload"
+        f"Internal reload API running on http://{RELOAD_API_HOST}:{RELOAD_API_PORT}/api/reload"
     )
     return site
 
@@ -187,4 +187,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("🛑 Shutting down")
+        logger.info("Shutting down")

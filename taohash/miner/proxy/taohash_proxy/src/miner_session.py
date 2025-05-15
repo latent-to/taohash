@@ -207,7 +207,6 @@ class MinerSession:
                 try:
                     stratum_request = json.loads(message_str)
                 except json.JSONDecodeError:
-                    # Ignore malformed messages
                     continue
 
                 method = stratum_request.get("method")
@@ -217,7 +216,6 @@ class MinerSession:
                     f"[{self.miner_id}] _handle_from_miner: Received message method={method}, id={req_id}"
                 )
 
-                # Routing to handlers
                 if method == "mining.subscribe":
                     await self._handle_subscribe(
                         stratum_request, req_id, extranonce1, extranonce2_size
@@ -256,7 +254,6 @@ class MinerSession:
         except Exception as e:
             logger.error(f"[{self.miner_id}] _handle_from_miner: Unexpected error: {e}")
         finally:
-            # run() will handle cleanup
             return
 
     async def _handle_subscribe(
@@ -404,7 +401,7 @@ class MinerSession:
             )
             await self._send_to_pool(stratum_request)
 
-        # Ack the request locally
+        # Ack the request
         await self._send_to_miner({"id": req_id, "result": True, "error": None})
 
     async def _handle_authorize(
@@ -435,7 +432,6 @@ class MinerSession:
             f"[{self.miner_id}] _handle_authorize: Processing authorize for worker '{username}'"
         )
 
-        # Extract min difficulty from password if present
         _, min_diff = parse_min_difficulty(password)
         if min_diff is not None:
             self.min_difficulty = min_diff
@@ -450,7 +446,7 @@ class MinerSession:
         )
 
         effective_diff = initial_difficulty if initial_difficulty is not None else 1024
-        # Apply minimum difficulty constraint if set
+
         if self.min_difficulty is not None:
             pool_diff = effective_diff
             # TODO: Alternative route: take the maximum value
@@ -469,7 +465,6 @@ class MinerSession:
             f"[{self.miner_id}] _handle_authorize: Sent post-auth difficulty={effective_diff}"
         )
 
-        # Send initial job if we have one
         if initial_job is not None:
             await self._send_to_miner(initial_job)
             logger.info(
@@ -490,7 +485,6 @@ class MinerSession:
         self.pending_calls[req_id] = "submit"
         submit_params = stratum_request.get("params", [])
 
-        # Log key share info for debugging
         job_id = submit_params[1] if len(submit_params) > 1 else "unknown"
         nonce = submit_params[2] if len(submit_params) > 2 else "unknown"
         logger.debug(
@@ -568,7 +562,6 @@ class MinerSession:
                         # Pool's requested difficulty
                         effective_diff = pool_diff
 
-                        # Apply minimum difficulty constraint if set
                         if self.min_difficulty is not None:
                             # TODO: Alternative route: take the maximum value
                             # effective_diff = max(effective_diff, self.min_difficulty)
