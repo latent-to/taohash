@@ -159,7 +159,7 @@ class MinerSession:
         await drain_initial_messages()
 
         # TODO: Remove after debug
-        self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
+        # self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
 
         # 2) Start bidirectional proxy loops
         miner_to_pool = asyncio.create_task(
