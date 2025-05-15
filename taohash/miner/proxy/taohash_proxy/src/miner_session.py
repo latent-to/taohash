@@ -649,6 +649,9 @@ class MinerSession:
                             "params": [self.min_difficulty],
                         }
                     )
+                    logger.warning(
+                        f"[{self.miner_id}] _periodic_suggest: Sent mining.suggest_difficulty to pool: {self.min_difficulty}"
+                    )
         except asyncio.CancelledError:
             pass
 
