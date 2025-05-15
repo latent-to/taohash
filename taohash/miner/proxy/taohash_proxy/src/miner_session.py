@@ -625,8 +625,6 @@ class MinerSession:
         await self.pool_session.writer.drain()
 
     def close(self):
-        if hasattr(self, "_suggest_task"):
-            self._suggest_task.cancel()
         """Close all connections and clean up resources."""
         try:
             self.miner_writer.close()
