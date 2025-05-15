@@ -578,6 +578,13 @@ class MinerSession:
                             logger.info(
                                 f"[{self.miner_id}] _handle_from_pool: Pool attempted difficulty={pool_diff} but enforced={effective_diff}, not forwarded"
                             )
+                            await self._send_to_pool(
+                                {
+                                    "id": None,
+                                    "method": "mining.suggest_difficulty",
+                                    "params": [effective_diff],
+                                }
+                            )
                             continue
 
                 if pool_response.get("method") == "mining.notify":
