@@ -159,7 +159,7 @@ class MinerSession:
         await drain_initial_messages()
 
         # TODO: Remove after debug
-        # self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
+        self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
 
         # 2) Start bidirectional proxy loops
         miner_to_pool = asyncio.create_task(
@@ -642,9 +642,10 @@ class MinerSession:
             while True:
                 await asyncio.sleep(interval)
                 if self.min_difficulty is not None:
+                    suggest_id = self.pool_session.next_id()
                     await self._send_to_pool(
                         {
-                            "id": None,
+                            "id": suggest_id,
                             "method": "mining.suggest_difficulty",
                             "params": [self.min_difficulty],
                         }
