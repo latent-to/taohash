@@ -1,0 +1,5 @@
+[pool]
+host = "stratum.braiins.com"
+port = 3333
+user = "latent-to.worker"
+pass = "x"
