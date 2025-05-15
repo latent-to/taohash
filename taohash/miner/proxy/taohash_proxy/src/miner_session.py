@@ -158,6 +158,9 @@ class MinerSession:
 
         await drain_initial_messages()
 
+        # TODO: Remove after debug
+        self._suggest_task = asyncio.create_task(self._periodic_suggest(30))
+
         # 2) Start bidirectional proxy loops
         miner_to_pool = asyncio.create_task(
             self._handle_from_miner(
@@ -626,15 +629,32 @@ class MinerSession:
     async def _send_to_pool(self, stratum_message: dict[str, Any]):
         """
         Send a JSON message to the upstream pool.
-
-        Args:
-            stratum_message: The message dictionary to encode and send
         """
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.pool_session.writer.write(encoded_message)
         await self.pool_session.writer.drain()
 
+    async def _periodic_suggest(self, interval: float):
+        """
+        Every `interval` seconds, send mining.suggest_difficulty to pool if min_difficulty set.
+        """
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                if self.min_difficulty is not None:
+                    await self._send_to_pool(
+                        {
+                            "id": None,
+                            "method": "mining.suggest_difficulty",
+                            "params": [self.min_difficulty],
+                        }
+                    )
+        except asyncio.CancelledError:
+            pass
+
     def close(self):
+        if hasattr(self, "_suggest_task"):
+            self._suggest_task.cancel()
         """Close all connections and clean up resources."""
         try:
             self.miner_writer.close()
