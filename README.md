@@ -1,12 +1,13 @@
 <div align="center">
 
-# **TAO Hash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
+# **tao hash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
+<img width="1087" alt="Screen Shot 2025-05-16 at 7 12 32 PM" src="https://github.com/user-attachments/assets/3edc2e2b-c8ac-4464-8f08-9b5722c291a0" />
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/latent-to/taohash)
 
 </div>
 
-TAO Hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) mining hashrate, rental and exchange. Validators receive hashrate from miners in exchange for issuing weights, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
+tao hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) mining hashrate, rental and exchange. Validators receive hashrate from miners in exchange for issuing weights, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
 
 Although the initial implementation primarily supports Bitcoin mining via Braiins Pool, the architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance presicely and efficiently.
 
@@ -25,12 +26,12 @@ Although the initial implementation primarily supports Bitcoin mining via Braiin
 # Incentive Design
 The core incentive mechanism aligns miners and validators through a market where hashrate is exchanged for on-chain rewards (Alpha). Validators evaluate the hashrate contributed by miners, and miners are incentivized to distribute their hashrate across validator pools proportionally to stake weight to maximize their expected return.
 
-![TAO Hash Diagram](docs/images/incentive-design.png)
+![tao hash Diagram](docs/images/incentive-design.png)
 
 # Requirements
 
 ## Miner Requirements
-To run a TaoHash miner, you will need:
+To run a tao hash miner, you will need:
 - A Bittensor wallet
 - Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate
 - A running Redis server for data persistence
@@ -41,7 +42,7 @@ To run a TaoHash miner, you will need:
 - Any BTC Miner software capable of pointing hashrate to a local pool address
 
 ## Validator Requirements
-To run a TaoHash validator, you will need:
+To run a tao hash validator, you will need:
 - A Bittensor wallet
 - A Braiins Pool account with API access enabled
 - Python 3.9 or higher environment
@@ -68,7 +69,7 @@ These steps apply to both miners and validators:
     pip install --upgrade pip
     ```
 
-4.  **Install the TaoHash package:**
+4.  **Install the tao hash package:**
     ```bash
     pip install -e .
     ```
@@ -81,7 +82,7 @@ After completing the common setup, follow the detailed steps in the Miner Guide:
 * [Configure your miner (`.env` file or command-line arguments)](docs/running_braiins_miner.md#5-configuration)
 * [Run the miner (using PM2 recommended)](docs/running_braiins_miner.md#6-running-the-miner)
 
-For the complete, step-by-step instructions for setting up and running your miner, please refer to the [TaoHash Miner Setup Guide (BTC Braiins Pool)](docs/running_braiins_miner.md).
+For the complete, step-by-step instructions for setting up and running your miner, please refer to the [tao hash Miner Setup Guide (BTC Braiins Pool)](docs/running_braiins_miner.md).
 
 ## Validator Specific Setup
 After completing the common setup, follow the detailed steps in the Validator Guide:
@@ -90,7 +91,7 @@ After completing the common setup, follow the detailed steps in the Validator Gu
 * [Configure your validator (`.env` file or command-line arguments)](docs/running_braiins_validator.md#4-configuration-methods)
 * [Run the validator (using PM2 recommended)](docs/running_braiins_validator.md#5-running-the-validator)
 
-For the complete, step-by-step instructions for setting up and running your validator, please refer to the [TaoHash Validator Setup (BTC Braiins pool)](docs/running_braiins_validator.md).
+For the complete, step-by-step instructions for setting up and running your validator, please refer to the [tao hash Validator Setup (BTC Braiins pool)](docs/running_braiins_validator.md).
 
 # Get Involved
 
@@ -100,5 +101,5 @@ For the complete, step-by-step instructions for setting up and running your vali
 
 ---
 **Full Guides:**
-- [TaoHash Miner Setup Guide (BTC Braiins Pool)](docs/running_braiins_miner.md)
-- [TaoHash Validator Setup (BTC Braiins pool)](docs/running_braiins_validator.md) 
+- [tao hash Miner Setup Guide (BTC Braiins Pool)](docs/running_braiins_miner.md)
+- [tao hash Validator Setup (BTC Braiins pool)](docs/running_braiins_validator.md) 
