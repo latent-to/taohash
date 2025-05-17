@@ -1,6 +1,9 @@
 <div align="center">
 
 # **TAO Hash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
+
+<img width="1087" alt="Screen Shot 2025-05-16 at 7 12 32 PM" src="https://github.com/user-attachments/assets/4bd65888-976f-47f0-b693-002a99b96cfb" />
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/latent-to/taohash)
 
