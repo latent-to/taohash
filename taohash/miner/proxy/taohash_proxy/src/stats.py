@@ -6,6 +6,7 @@ connected to the proxy. It maintains data on shares submitted, difficulty levels
 and calculates estimated hashrates based on recent share history.
 """
 import time
+import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Tuple, Optional
@@ -39,13 +40,15 @@ class MinerStats:
     difficulty: float = 1.0
     recent_shares: deque = field(default_factory=lambda: deque(maxlen=100))
 
-    def record_share(self, accepted: bool, difficulty: float) -> None:
+    def record_share(self, accepted: bool, difficulty: float, pool: str, error: Optional[str] = None) -> None:
         """
         Record a submitted share and its result.
         
         Args:
             accepted (bool): Whether the share was accepted by the pool
             difficulty (float): Difficulty level of the share
+            pool (str): Name of the pool
+            error (Optional[str]): Error message if the share was rejected
         """
         if accepted:
             self.accepted += 1
@@ -53,7 +56,23 @@ class MinerStats:
             logger.debug(f"Accepted share from {self.ip} at difficulty {difficulty}")
         else:
             self.rejected += 1
-            logger.debug(f"Rejected share from {self.ip}")
+            logger.debug(
+                f"Rejected share from {self.ip} at difficulty {difficulty} with error {error}"
+            )
+
+        if hasattr(self, "db") and self.worker_name:
+            try:
+                asyncio.create_task(
+                    self.db.log_share(
+                        self.worker_name,
+                        difficulty,
+                        1 if accepted else 0,
+                        pool,
+                        error
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to log share to DB: {e}")
 
     def update_difficulty(self, difficulty: float) -> None:
         """
@@ -94,8 +113,9 @@ class StatsManager:
     Maintains a registry of all active miners and provides methods to
     register/unregister miners and retrieve aggregated statistics.
     """
-    def __init__(self):
-        """Initialize an empty miners registry."""
+    def __init__(self, db=None):
+        """Initialize an empty miners registry with optional DB persistence."""
+        self.db = db
         self.miners: dict[str, MinerStats] = {}
         logger.info("StatsManager initialized")
 
@@ -111,6 +131,7 @@ class StatsManager:
         """
         key = f"{peer[0]}:{peer[1]}"
         stats = MinerStats(ip=peer[0])
+        stats.db = self.db
         self.miners[key] = stats
         logger.debug(f"Registered miner: {key}")
         return stats
