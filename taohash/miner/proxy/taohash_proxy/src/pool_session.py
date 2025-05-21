@@ -10,7 +10,7 @@ import asyncio
 import json
 from typing import Optional, Any
 
-from .logger import get_logger
+from .logger import get_logger, log_stratum_message
 
 logger = get_logger(__name__)
 
@@ -94,11 +94,19 @@ class PoolSession:
             }
             pool_writer.write((json.dumps(subscription_request) + "\n").encode())
             await pool_writer.drain()
-            logger.debug(f"Sent subscription request with id {subscription_id}")
+            log_stratum_message(
+                logger,
+                subscription_request,
+                f"Sent subscription request with id {subscription_id}",
+            )
 
             subscription_response_raw = await pool_reader.readline()
             subscription_response = json.loads(subscription_response_raw.decode())
-            logger.debug(f"Received subscription response: {subscription_response}")
+            log_stratum_message(
+                logger,
+                subscription_response,
+                f"Received subscription response: {subscription_response}",
+            )
 
             # Parse and store extranonce1/2
             subscription_result = subscription_response.get("result", [])
@@ -119,7 +127,11 @@ class PoolSession:
             }
             pool_writer.write((json.dumps(authorization_request) + "\n").encode())
             await pool_writer.drain()
-            logger.debug(f"Sent authorization request with id {authorization_id}")
+            log_stratum_message(
+                logger,
+                authorization_request,
+                f"Sent authorization request with id {authorization_id}",
+            )
 
             authorization_response = None
             while True:
@@ -128,7 +140,9 @@ class PoolSession:
                     break
 
                 message = json.loads(authorization_response_raw.decode().strip())
-                logger.debug(f"Received post-auth message: {message}")
+                log_stratum_message(
+                    logger, message, f"Received post-auth message: {message}"
+                )
 
                 pool_session.pre_auth_messages.append(message)
 

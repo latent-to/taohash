@@ -10,7 +10,7 @@ import json
 import re
 from typing import Optional, Any
 
-from .logger import get_logger
+from .logger import get_logger, log_stratum_message
 from .pool_session import PoolSession
 from .stats import StatsManager
 
@@ -503,7 +503,7 @@ class MinerSession:
 
         job_id = submit_params[1] if len(submit_params) > 1 else "unknown"
         nonce = submit_params[2] if len(submit_params) > 2 else "unknown"
-        logger.debug(
+        logger.info(
             f"[{self.miner_id}] _handle_submit: Processing share submission id={req_id}, job={job_id}, nonce={nonce}"
         )
 
@@ -639,6 +639,7 @@ class MinerSession:
         Args:
             stratum_message: The message dictionary to encode and send
         """
+        log_stratum_message(logger, stratum_message, prefix=f"[{self.miner_id}] Sent to miner")
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.miner_writer.write(encoded_message)
         await self.miner_writer.drain()
@@ -647,6 +648,7 @@ class MinerSession:
         """
         Send a JSON message to the upstream pool.
         """
+        log_stratum_message(logger, stratum_message, prefix=f"[{self.miner_id}] Sent to pool")
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.pool_session.writer.write(encoded_message)
         await self.pool_session.writer.drain()
