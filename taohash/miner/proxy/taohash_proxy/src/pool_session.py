@@ -8,7 +8,7 @@ authorization, and provides the connection interface used by the miner sessions.
 
 import asyncio
 import json
-from typing import Optional
+from typing import Optional, Any
 
 from .logger import get_logger
 
@@ -29,6 +29,7 @@ class PoolSession:
         _msg_id (int): Counter for generating unique message IDs
         extranonce1 (str): Extranonce1 value assigned by the pool
         extranonce2_size (int): Size of extranonce2 required by the pool
+        pre_auth_messages (list[dict]): Messages received during the authorization phase
     """
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -44,6 +45,7 @@ class PoolSession:
         self._msg_id = 1
         self.extranonce1: Optional[str] = None
         self.extranonce2_size: Optional[int] = None
+        self.pre_auth_messages: list[dict[str, Any]] = []
 
     def next_id(self) -> int:
         """
@@ -119,14 +121,30 @@ class PoolSession:
             await pool_writer.drain()
             logger.debug(f"Sent authorization request with id {authorization_id}")
 
-            authorization_response_raw = await pool_reader.readline()
-            authorization_response = json.loads(authorization_response_raw.decode())
-            logger.debug(f"Received authorization response: {authorization_response}")
+            authorization_response = None
+            while True:
+                authorization_response_raw = await pool_reader.readline()
+                if not authorization_response_raw:
+                    break
 
-            if not authorization_response.get("result"):
-                error_message = (
-                    f"Pool auth failed: {authorization_response.get('error')}"
-                )
+                message = json.loads(authorization_response_raw.decode().strip())
+                logger.debug(f"Received post-auth message: {message}")
+
+                pool_session.pre_auth_messages.append(message)
+
+                if message.get("id") == authorization_id:
+                    authorization_response = message
+
+                # Initial job notification
+                if authorization_response and message.get("method") == "mining.notify":
+                    break
+
+            if authorization_response is None:
+                raise RuntimeError("Did not receive authorization response from pool")
+
+            error = authorization_response.get("error")
+            if error:
+                error_message = f"Pool auth failed: {error}"
                 logger.error(error_message)
                 raise RuntimeError(error_message)
 
