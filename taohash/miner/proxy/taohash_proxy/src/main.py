@@ -9,6 +9,7 @@ from aiohttp import web
 from .dashboard import create_dashboard_app
 from .miner_session import MinerSession
 from .stats import StatsManager
+from .db import StatsDB
 from .logger import get_logger
 from .constants import (
     RELOAD_API_PORT,
@@ -146,6 +147,12 @@ async def main() -> None:
             sys.exit(1)
 
     update_config(config_path)
+
+    config_dir = os.path.dirname(config_path)
+    db_path = os.path.join(config_dir, "stats.db")
+    stats_db = StatsDB(db_path)
+    await stats_db.init()
+    stats_manager.db = stats_db
 
     logger.info("🚀 Starting with configuration:")
     logger.info(f"  Pool: {config['pool_host']}:{config['pool_port']}")
