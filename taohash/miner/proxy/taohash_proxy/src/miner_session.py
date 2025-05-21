@@ -132,29 +132,45 @@ class MinerSession:
         async def drain_initial_messages():
             """
             Capture initial messages from pool to use during miner setup.
+            1) Replay any pre-auth messages buffered by PoolSession.
+            2) If we haven't yet seen a job (mining.notify), read from the pool until we do.
             """
-            while True:
-                line = await self.pool_session.reader.readline()
-                if not line:
-                    break
-                try:
-                    pool_message = json.loads(line.decode().strip())
-                except json.JSONDecodeError:
-                    continue
+            nonlocal initial_difficulty, initial_job
 
-                method = pool_message.get("method")
-                if method == "mining.set_difficulty":
-                    nonlocal initial_difficulty
+            # 1) Replay buffered pre-auth messages
+            if self.pool_session.pre_auth_messages:
+                for msg in self.pool_session.pre_auth_messages:
+                    method = msg.get("method")
+                    if method == "mining.set_difficulty":
+                        try:
+                            initial_difficulty = float(msg["params"][0])
+                        except (ValueError, TypeError, IndexError):
+                            initial_difficulty = 1.0
+                    elif method == "mining.notify":
+                        initial_job = msg
+                        break
+                self.pool_session.pre_auth_messages.clear()
+
+            # 2) If no job yet, read until we get one
+            if initial_job is None:
+                while True:
+                    line = await self.pool_session.reader.readline()
+                    if not line:
+                        break
                     try:
-                        initial_difficulty = float(pool_message["params"][0])
-                    except (ValueError, TypeError, IndexError):
-                        initial_difficulty = 1.0
+                        pool_msg = json.loads(line.decode().strip())
+                    except json.JSONDecodeError:
+                        continue
 
-                elif method == "mining.notify":
-                    nonlocal initial_job
-                    initial_job = pool_message
-                    # Found a job, we can stop now
-                    break
+                    m = pool_msg.get("method")
+                    if m == "mining.set_difficulty":
+                        try:
+                            initial_difficulty = float(pool_msg["params"][0])
+                        except (ValueError, TypeError, IndexError):
+                            initial_difficulty = 1.0
+                    elif m == "mining.notify":
+                        initial_job = pool_msg
+                        break
 
         await drain_initial_messages()
 
@@ -543,7 +559,18 @@ class MinerSession:
                         submit_result = pool_response.get("result")
                         submit_error = pool_response.get("error")
                         share_accepted = submit_result is True and submit_error is None
-                        self.stats.record_share(share_accepted, self.stats.difficulty)
+                        error_str = None
+                        if submit_error is not None:
+                            try:
+                                error_str = json.dumps(submit_error)
+                            except Exception:
+                                error_str = str(submit_error)
+                        self.stats.record_share(
+                            accepted=share_accepted,
+                            difficulty=self.stats.difficulty,
+                            pool=f"{self.pool_host}:{self.pool_port}",
+                            error=error_str,
+                        )
                         logger.debug(
                             f"[{self.miner_id}] _handle_from_pool: Share response id={response_id}, accepted={share_accepted}, error={submit_error}"
                         )
