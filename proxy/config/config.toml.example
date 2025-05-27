@@ -1,0 +1,18 @@
+# Configuration for multiple pool support
+[pools]
+
+# Normal difficulty pool
+[pools.normal]
+host = "stratum.braiins.com"
+port = 3333
+user = "your_username.worker"
+pass = "x"
+proxy_port = 3331
+
+# High difficulty pool
+[pools.high_diff]
+host = "stratum.braiins.com"
+port = 4334
+user = "your_username.worker"
+pass = "x"
+proxy_port = 3332

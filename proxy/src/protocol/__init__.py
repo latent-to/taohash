@@ -1,0 +1,1 @@
+"""Stratum protocol utilities and difficulty calculations."""
