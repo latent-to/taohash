@@ -65,6 +65,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8888/api/workers/sta
 - [Setup Guide](docs/SETUP.md) - Detailed installation instructions
 - [API Reference](docs/API.md) - REST API endpoints
 - [Monitoring Guide](docs/MONITORING.md) - Dashboard and metrics
+- [Share difficulty tutorial](src/protocol/README.md) - Docs on how share difficulty is calculated
 
 ## Requirements
 
