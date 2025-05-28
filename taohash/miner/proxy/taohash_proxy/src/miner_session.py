@@ -8,11 +8,13 @@ upstream pools, and provides share tracking and difficulty management.
 import asyncio
 import json
 import re
+import time
 from typing import Optional, Any
 
 from .logger import get_logger, log_stratum_message
 from .pool_session import PoolSession
 from .stats import StatsManager
+from .miner_state import MinerStateMachine, MinerState
 
 logger = get_logger(__name__)
 
@@ -96,12 +98,77 @@ class MinerSession:
         self.pool_user = pool_user
         self.pool_pass = pool_pass
         self.min_difficulty: Optional[int] = None
-        # Register and track miner
+
         self.peer = miner_writer.get_extra_info("peername")
         self.miner_id = f"{self.peer[0]}:{self.peer[1]}" if self.peer else "unknown"
         self.stats = stats_manager.register_miner(self.peer)
         self.pool_session: Optional[PoolSession] = None
-        self.pending_calls: dict[int, str] = {}  # Stratum ID -> method name
+        self.pending_calls: dict[int, Any] = {}
+
+        self.state_machine = MinerStateMachine(self.miner_id)
+        self.state_machine.on_state_change = self._on_state_change
+
+        self.pool_init_data = {
+            "extranonce1": None,
+            "extranonce2_size": None,
+            "subscription_ids": None,
+            "initial_difficulty": None,
+            "initial_job": None,
+        }
+
+        self._initial_pending_requests = []
+
+        logger.info(f"[{self.miner_id}] Miner session initialized")
+
+    async def _handle_initial_miner_requests(self):
+        """
+        Collect early miner requests before pool connection.
+
+        Some miners send configure/subscribe immediately on connect.
+        Stores these for processing after pool handshake.
+        """
+        logger.debug(f"[{self.miner_id}] Handling initial miner requests")
+
+        pending_requests = []
+
+        start_time = time.time()
+        while time.time() - start_time < 1:
+            try:
+                line = await asyncio.wait_for(self.miner_reader.readline(), 0.1)
+                if not line:
+                    break
+
+                message_str = line.decode().strip()
+                if not message_str:
+                    continue
+
+                try:
+                    request = json.loads(message_str)
+                    method = request.get("method")
+                    req_id = request.get("id")
+
+                    logger.debug(
+                        f"[{self.miner_id}] Initial request: method={method}, id={req_id}"
+                    )
+
+                    if method == "mining.configure":
+                        await self._handle_configure(request, req_id)
+                    elif method == "mining.suggest_difficulty":
+                        await self._handle_suggest_difficulty(request, req_id)
+                    else:
+                        pending_requests.append(request)
+
+                except json.JSONDecodeError:
+                    logger.warning(f"[{self.miner_id}] Invalid JSON in initial request")
+
+            except asyncio.TimeoutError:
+                break
+
+        self._initial_pending_requests = pending_requests
+
+        logger.info(
+            f"[{self.miner_id}] Collected {len(pending_requests)} pending requests"
+        )
 
     async def run(self):
         """
@@ -110,110 +177,127 @@ class MinerSession:
         Connects to the pool, captures initial setup data, and starts
         the bidirectional proxying tasks. Handles disconnection cleanup.
         """
-        # 1) Establish pool connection and complete handshake (subscribe + authorize)
+        try:
+            await self._handle_initial_miner_requests()
+            await self._connect_to_pool()
+
+            miner_task = asyncio.create_task(self._handle_miner_messages())
+            pool_task = asyncio.create_task(self._handle_pool_messages())
+
+            _, pending = await asyncio.wait(
+                [miner_task, pool_task], return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in pending:
+                task.cancel()
+
+        except Exception as e:
+            logger.error(f"[{self.miner_id}] Session error: {e}")
+            await self.state_machine.handle_error(e, "session_error")
+        finally:
+            await self._cleanup()
+
+    async def _connect_to_pool(self):
+        """
+        Connect to upstream pool and retrieve mining parameters.
+
+        Stores extranonce1, extranonce2_size from pool, processes any
+        pre-auth messages (difficulty/job), then handles queued miner requests.
+        """
         try:
             self.pool_session = await PoolSession.connect(
                 self.pool_host, self.pool_port, self.pool_user, self.pool_pass
             )
+
+            # Store pool session data
+            self.pool_init_data["extranonce1"] = self.pool_session.extranonce1
+            self.pool_init_data["extranonce2_size"] = self.pool_session.extranonce2_size
+            self.pool_init_data["subscription_ids"] = self.pool_session.subscription_ids
+
+            await self._process_pool_init_messages()
+            logger.info(f"[{self.miner_id}] Pool connection established")
+            await self._process_pending_miner_requests()
+
         except Exception as e:
-            logger.error(f"[{self.miner_id}] run: Pool connect/auth failed: {e}")
-            self.close()
+            logger.error(f"[{self.miner_id}] Pool connection failed: {e}")
+            await self.state_machine.handle_error(e, "pool_connection")
+            raise
+
+    async def _process_pool_init_messages(self):
+        """
+        Extract initial mining params from pre-auth pool messages.
+
+        Stores initial difficulty and first job notification for sending
+        to miner after authorization completes.
+        """
+        if not self.pool_session or not self.pool_session.pre_auth_messages:
             return
 
-        # Set initial difficulty
-        self.stats.update_difficulty(1024)
+        for msg in self.pool_session.pre_auth_messages:
+            method = msg.get("method")
 
-        # Capture initial information from pool; without forwarding to miner yet
-        extranonce1 = self.pool_session.extranonce1
-        extranonce2_size = self.pool_session.extranonce2_size
-        initial_difficulty = None
-        initial_job = None
+            if method == "mining.set_difficulty":
+                try:
+                    self.pool_init_data["initial_difficulty"] = float(msg["params"][0])
+                    logger.debug(f"[{self.miner_id}] Got initial difficulty from pool")
+                except (ValueError, TypeError, IndexError):
+                    pass
 
-        async def drain_initial_messages():
-            """
-            Capture initial messages from pool to use during miner setup.
-            1) Replay any pre-auth messages buffered by PoolSession.
-            2) If we haven't yet seen a job (mining.notify), read from the pool until we do.
-            """
-            nonlocal initial_difficulty, initial_job
+            elif method == "mining.notify":
+                self.pool_init_data["initial_job"] = msg
+                # Store job data
+                await self._store_job_from_notify(msg)
+                logger.debug(f"[{self.miner_id}] Got initial job from pool")
 
-            # 1) Replay buffered pre-auth messages
-            if self.pool_session.pre_auth_messages:
-                for msg in self.pool_session.pre_auth_messages:
-                    method = msg.get("method")
-                    if method == "mining.set_difficulty":
-                        try:
-                            initial_difficulty = float(msg["params"][0])
-                        except (ValueError, TypeError, IndexError):
-                            initial_difficulty = 1.0
-                    elif method == "mining.notify":
-                        initial_job = msg
-                        break
-                self.pool_session.pre_auth_messages.clear()
+        self.pool_session.pre_auth_messages.clear()
 
-            # 2) If no job yet, read until we get one
-            if initial_job is None:
-                while True:
-                    line = await self.pool_session.reader.readline()
-                    if not line:
-                        break
-                    try:
-                        pool_msg = json.loads(line.decode().strip())
-                    except json.JSONDecodeError:
-                        continue
-
-                    m = pool_msg.get("method")
-                    if m == "mining.set_difficulty":
-                        try:
-                            initial_difficulty = float(pool_msg["params"][0])
-                        except (ValueError, TypeError, IndexError):
-                            initial_difficulty = 1.0
-                    elif m == "mining.notify":
-                        initial_job = pool_msg
-                        break
-
-        await drain_initial_messages()
-
-        # 2) Start bidirectional proxy loops
-        miner_to_pool = asyncio.create_task(
-            self._handle_from_miner(
-                extranonce1, extranonce2_size, initial_difficulty, initial_job
-            )
-        )
-        pool_to_miner = asyncio.create_task(self._handle_from_pool())
-
-        _, pending = await asyncio.wait(
-            [miner_to_pool, pool_to_miner], return_when=asyncio.FIRST_COMPLETED
-        )
-        for task in pending:
-            task.cancel()
-        self.close()
-
-    async def _handle_from_miner(
-        self,
-        extranonce1: Optional[str] = None,
-        extranonce2_size: Optional[int] = None,
-        initial_difficulty: Optional[float] = None,
-        initial_job: Optional[dict[str, Any]] = None,
-    ):
+    async def _process_pending_miner_requests(self):
         """
-        Process messages from the miner and route them appropriately.
+        Process miner requests collected during pool handshake.
 
-        Handles Stratum protocol messages from miners, either processing
-        them locally (like subscribe/authorize) or forwarding to the pool.
-        Manages miner setup and enforces difficulty constraints.
+        Handles subscribe/authorize that arrived before pool connection
+        was ready with extranonce data.
+        """
+        logger.info(f"[{self.miner_id}] _process_pending_miner_requests called")
+        logger.info(
+            f"[{self.miner_id}] pool_init_data: extranonce1={self.pool_init_data['extranonce1']}, extranonce2_size={self.pool_init_data['extranonce2_size']}"
+        )
 
-        Args:
-            extranonce1: Pool-provided extranonce1 value
-            extranonce2_size: Pool-provided extranonce2 size
-            initial_difficulty: Initial difficulty from pool
-            initial_job: First job notification from pool
+        queued_messages = self._initial_pending_requests
+        if queued_messages:
+            logger.debug(
+                f"[{self.miner_id}] Processing {len(queued_messages)} queued miner requests"
+            )
+            for msg in queued_messages:
+                logger.debug(f"[{self.miner_id}] Queued message: {msg}")
+        else:
+            logger.warning(f"[{self.miner_id}] No queued messages found!")
+
+        for message in queued_messages:
+            try:
+                logger.debug(
+                    f"[{self.miner_id}] Processing queued message: {message.get('method')}"
+                )
+                await self._process_miner_message(message)
+            except Exception as e:
+                logger.error(
+                    f"[{self.miner_id}] Error processing queued message: {e}",
+                    exc_info=True,
+                )
+
+        self._initial_pending_requests = []
+
+    async def _handle_miner_messages(self):
+        """
+        Main loop reading miner messages.
+
+        Decodes Stratum messages and routes to _process_miner_message
+        for state validation and handling.
         """
         try:
             while True:
                 line = await self.miner_reader.readline()
                 if not line:
-                    # EOF: miner disconnected
                     break
 
                 message_str = line.decode().strip()
@@ -221,416 +305,466 @@ class MinerSession:
                     continue
 
                 try:
-                    stratum_request = json.loads(message_str)
-                except json.JSONDecodeError:
-                    continue
+                    message = json.loads(message_str)
+                    await self._process_miner_message(message)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[{self.miner_id}] Invalid JSON from miner: {e}")
 
-                method = stratum_request.get("method")
-                req_id = stratum_request.get("id")
-
-                logger.debug(
-                    f"[{self.miner_id}] _handle_from_miner: Received message method={method}, id={req_id}"
-                )
-
-                if method == "mining.subscribe":
-                    await self._handle_subscribe(
-                        stratum_request, req_id, extranonce1, extranonce2_size
-                    )
-                elif method == "mining.extranonce.subscribe":
-                    await self._handle_extranonce_subscribe(stratum_request, req_id)
-                elif method == "mining.configure":
-                    await self._handle_configure(stratum_request, req_id)
-                elif (
-                    method == "mining.suggest_difficulty"
-                    or method == "mining.suggest_target"
-                ):
-                    await self._handle_suggest_difficulty(stratum_request, req_id)
-                elif method == "mining.authorize":
-                    await self._handle_authorize(
-                        stratum_request, req_id, initial_difficulty, initial_job
-                    )
-                elif method == "mining.submit":
-                    await self._handle_submit(stratum_request, req_id)
-                else:
-                    # Any other message: forward as-is
-                    logger.debug(
-                        f"[{self.miner_id}] _handle_from_miner: Forwarding unknown method {method} to pool"
-                    )
-                    await self._send_to_pool(stratum_request)
-
-        except ConnectionResetError:
-            # Miner disconnected ungracefully; exit silently
-            logger.debug(
-                f"[{self.miner_id}] _handle_from_miner: Miner connection reset"
-            )
-            pass
         except asyncio.CancelledError:
-            # Reraise CancelledError so run() can handle shutdown
             raise
         except Exception as e:
-            logger.error(f"[{self.miner_id}] _handle_from_miner: Unexpected error: {e}")
-        finally:
-            return
+            logger.error(f"[{self.miner_id}] Error handling miner messages: {e}")
+            await self.state_machine.handle_error(e, "miner_handler")
 
-    async def _handle_subscribe(
-        self,
-        stratum_request: dict[str, Any],
-        req_id: Any,
-        extranonce1: Optional[str],
-        extranonce2_size: Optional[int],
-    ):
+    async def _handle_pool_messages(self):
         """
-        Process mining.subscribe request from miners.
+        Main loop reading pool messages.
 
-        Responds with extranonce info from the pool. Holds off on sending
-        difficulty and job until after authorization is complete.
+        Decodes Stratum messages and routes to _process_pool_message
+        for handling responses and notifications.
+        """
+        try:
+            while True:
+                if not self.pool_session:
+                    break
 
-        Purpose: Initial handshake when miner registers with the pool and receives
-        work subscription details including extranonce values.
+                line = await self.pool_session.reader.readline()
+                if not line:
+                    break
+
+                message_str = line.decode().strip()
+                if not message_str:
+                    continue
+
+                try:
+                    message = json.loads(message_str)
+                    await self._process_pool_message(message)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[{self.miner_id}] Invalid JSON from pool: {e}")
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"[{self.miner_id}] Error handling pool messages: {e}")
+            await self.state_machine.handle_error(e, "pool_handler")
+
+    async def _process_miner_message(self, message: dict[str, Any]):
+        """
+        Route miner message to appropriate handler.
 
         Args:
-            stratum_request: The original subscribe message from miner
-            req_id: Request ID from the message
-            extranonce1: Pool-provided extranonce1 value
-            extranonce2_size: Pool-provided extranonce2 size
-        """
-        logger.debug(
-            f"[{self.miner_id}] _handle_subscribe: Processing mining.subscribe request id={req_id}"
-        )
+            message: Stratum message dict with method/id/params
 
-        # Use saved extranonce from pool connection if available
-        if extranonce1 is not None and extranonce2_size is not None:
-            resp = {
-                "id": req_id,
+        Validates state before processing and queues/rejects invalid messages.
+        """
+        method = message.get("method")
+        msg_id = message.get("id")
+        handlers = {
+            "mining.subscribe": self._handle_subscribe,
+            "mining.authorize": self._handle_authorize,
+            "mining.submit": self._handle_submit,
+            "mining.extranonce.subscribe": self._handle_extranonce_subscribe,
+            "mining.configure": self._handle_configure,
+            "mining.suggest_difficulty": self._handle_suggest_difficulty,
+            "mining.suggest_target": self._handle_suggest_difficulty,
+        }
+
+        if not method:
+            # Response to a pool message - forwarding
+            await self._send_to_pool(message)
+            return
+
+        log_stratum_message(logger, message, prefix=f"[{self.miner_id}] From miner")
+
+        # Transition enforcement
+        if not await self.state_machine.can_handle_message(method):
+            if self.state_machine.state in {
+                MinerState.CONNECTED,
+                MinerState.SUBSCRIBING,
+                MinerState.SUBSCRIBED,
+            }:
+                # Early in handshake - queue for later
+                await self.state_machine.queue_message(message)
+                logger.debug(
+                    f"[{self.miner_id}] Queued {method} in state {self.state_machine.state.name}"
+                )
+            else:
+                # Invalid message for state
+                logger.warning(
+                    f"[{self.miner_id}] Rejected {method} in state {self.state_machine.state.name}"
+                )
+                if msg_id is not None:
+                    await self._send_error_to_miner(
+                        msg_id, "Invalid message for current state"
+                    )
+            return
+
+        handler = handlers.get(method)
+        if handler:
+            await handler(message, msg_id)
+        else:
+            # Unknown method - forward to pool
+            logger.debug(
+                f"[{self.miner_id}] Forwarding unknown method {method} to pool"
+            )
+            await self._send_to_pool(message)
+
+    async def _process_pool_message(self, message: dict[str, Any]):
+        """
+        Route pool message to appropriate handler.
+
+        Args:
+            message: Stratum message from pool
+
+        Handles responses to our requests (submits) and pool
+        notifications (jobs, difficulty changes).
+        """
+        method = message.get("method")
+        msg_id = message.get("id")
+
+        log_stratum_message(logger, message, prefix=f"[{self.miner_id}] From pool")
+
+        if msg_id is not None and msg_id in self.pending_calls:
+            await self._handle_pool_response(message, msg_id)
+            return
+
+        # Handle pool notifications
+        if method == "mining.notify":
+            await self._handle_job_notify(message)
+        elif method == "mining.set_difficulty":
+            await self._handle_set_difficulty(message)
+        elif method == "mining.set_extranonce":
+            await self._handle_set_extranonce(message)
+        else:
+            if self.state_machine.state in {MinerState.AUTHORIZED, MinerState.ACTIVE}:
+                await self._send_to_miner(message)
+            else:
+                await self.state_machine.queue_message(message)
+
+    async def _handle_job_notify(self, message: dict[str, Any]):
+        """Handle job notification from pool."""
+        await self._store_job_from_notify(message)
+
+        if self.state_machine.state == MinerState.AUTHORIZED:
+            await self.state_machine.transition_to(MinerState.ACTIVE)
+
+        if self.state_machine.state == MinerState.ACTIVE:
+            await self._send_to_miner(message)
+
+    async def _store_job_from_notify(self, message: dict[str, Any]):
+        """Store job data from mining.notify."""
+        params = message.get("params", [])
+        if len(params) < 9:
+            return
+
+        job_id = params[0]
+        logger.debug(f"[{self.miner_id}] Received job {job_id}")
+
+    async def _handle_set_difficulty(self, message: dict[str, Any]):
+        """Handle difficulty change from pool."""
+        params = message.get("params", [])
+        if not params:
+            return
+
+        try:
+            pool_diff = float(params[0])
+        except (ValueError, TypeError):
+            return
+
+        # Apply min difficulty if set
+        effective_diff = pool_diff
+        if self.min_difficulty is not None:
+            effective_diff = self.min_difficulty
+
+        if effective_diff != self.stats.difficulty:
+            logger.info(
+                f"[{self.miner_id}] Difficulty: pool={pool_diff}, "
+                f"effective={effective_diff}"
+            )
+            self.stats.update_difficulty(effective_diff)
+            message["params"][0] = effective_diff
+
+            if self.state_machine.state == MinerState.ACTIVE:
+                await self._send_to_miner(message)
+
+    async def _handle_set_extranonce(self, message: dict[str, Any]):
+        """Handle extranonce change from pool."""
+        params = message.get("params", [])
+        if len(params) >= 2:
+            new_extranonce1 = params[0]
+            new_extranonce2_size = params[1]
+
+            logger.info(
+                f"[{self.miner_id}] Pool changed extranonce: "
+                f"{new_extranonce1} (size {new_extranonce2_size})"
+            )
+
+            # Update pool session data
+            if self.pool_session:
+                self.pool_session.extranonce1 = new_extranonce1
+                self.pool_session.extranonce2_size = new_extranonce2_size
+
+            # Update init data for future reconnections
+            self.pool_init_data["extranonce1"] = new_extranonce1
+            self.pool_init_data["extranonce2_size"] = new_extranonce2_size
+
+            if self.state_machine.state == MinerState.ACTIVE:
+                await self._send_to_miner(message)
+
+    async def _handle_pool_response(self, message: dict[str, Any], msg_id: int):
+        """
+        Process pool's response to our submit request.
+
+        Args:
+            message: Pool response with result/error
+            msg_id: ID matching our original request
+
+        Updates stats based on accept/reject status.
+        """
+        pending_data = self.pending_calls.pop(msg_id)
+
+        if isinstance(pending_data, dict) and pending_data.get("method") == "submit":
+            result = message.get("result")
+            error = message.get("error")
+            accepted = result is True and error is None
+
+            self.stats.record_share(
+                accepted=accepted,
+                difficulty=pending_data.get("pool_difficulty", self.stats.difficulty),
+                pool=f"{self.pool_host}:{self.pool_port}",
+                error=json.dumps(error) if error else None,
+            )
+
+            logger.info(
+                f"[{self.miner_id}] Share {'accepted' if accepted else 'rejected'}"
+            )
+
+        await self._send_to_miner(message)
+
+    async def _handle_subscribe(self, _: dict[str, Any], msg_id: Any):
+        """
+        Handle mining.subscribe - returns pool's extranonce data.
+
+        Args:
+            message: Subscribe request with optional miner version
+            msg_id: Request ID for response
+
+        Returns extranonce1 and extranonce2_size from pool.
+        """
+        logger.debug(f"[{self.miner_id}] Processing mining.subscribe")
+
+        if not await self.state_machine.transition_to(MinerState.SUBSCRIBING):
+            await self._send_error_to_miner(msg_id, "Invalid state for subscribe")
+            return
+
+        if (
+            self.pool_init_data["extranonce1"] is not None
+            and self.pool_init_data["extranonce2_size"] is not None
+            and self.pool_init_data["subscription_ids"] is not None
+        ):
+            response = {
+                "id": msg_id,
                 "result": [
-                    [["mining.notify", "unused"], ["mining.set_difficulty", "unused"]],
-                    extranonce1,
-                    extranonce2_size,
+                    self.pool_init_data["subscription_ids"],
+                    self.pool_init_data["extranonce1"],
+                    self.pool_init_data["extranonce2_size"],
                 ],
                 "error": None,
             }
-            await self._send_to_miner(resp)
-            logger.debug(
-                f"[{self.miner_id}] _handle_subscribe: Sent extranonce1={extranonce1}, extranonce2_size={extranonce2_size}"
-            )
+            await self._send_to_miner(response)
 
-            # We'll send difficulty AFTER authorization, not here
-            # This ensures we respect the md parameter from the password
-            # Don't send job yet either - wait for authorization
+            await self.state_machine.transition_to(MinerState.SUBSCRIBED)
         else:
-            # Forward to pool if we don't have cached values
-            logger.debug(
-                f"[{self.miner_id}] _handle_subscribe: No cached extranonce, forwarding to pool"
+            logger.error(f"[{self.miner_id}] No pool extranonce data available")
+            await self._send_error_to_miner(msg_id, "Pool connection not ready")
+            await self.state_machine.handle_error(
+                Exception("No extranonce"), "subscribe"
             )
-            await self._send_to_pool(stratum_request)
 
-    async def _handle_extranonce_subscribe(
-        self, stratum_request: dict[str, Any], req_id: Any
-    ):
+    async def _handle_extranonce_subscribe(self, _: dict[str, Any], msg_id: Any):
         """
         Process mining.extranonce.subscribe requests with a success response.
 
         Purpose: Acknowledge miner extranonce subscription locally (no forwarding to pool).
 
         Args:
-            stratum_request: The original message from miner
-            req_id: Request ID from the message
+            message: The original message from miner
+            msg_id: Request ID from the message
         """
         logger.debug(
-            f"[{self.miner_id}] _handle_extranonce_subscribe: Acknowledging extranonce subscription id={req_id}"
+            f"[{self.miner_id}] Acknowledging extranonce subscription id={msg_id}"
         )
-        await self._send_to_miner({"id": req_id, "result": True, "error": None})
+        await self._send_to_miner({"id": msg_id, "result": True, "error": None})
 
-    async def _handle_configure(self, stratum_request: dict[str, Any], req_id: Any):
+    async def _handle_configure(self, message: dict[str, Any], msg_id: Any):
         """
         Process mining.configure requests from miners.
 
         Purpose: Negotiate version-rolling locally (proxy handles it without pool involvement).
 
         Args:
-            stratum_request: The original message from miner
-            req_id: Request ID from the message
+            message: The original message from miner
+            msg_id: Request ID from the message
         """
+        params = message.get("params", [])
+        extensions = params[0] if len(params) > 0 else []
+        extension_params = params[1] if len(params) > 1 else {}
+
         logger.debug(
-            f"[{self.miner_id}] _handle_configure: Processing mining.configure request id={req_id}"
-        )
-        await self._send_to_miner(
-            {"id": req_id, "result": {"version-rolling": True}, "error": None}
+            f"[{self.miner_id}] Processing mining.configure request id={msg_id}: {extensions}"
         )
 
-    async def _handle_suggest_difficulty(
-        self, stratum_request: dict[str, Any], req_id: Any
-    ):
+        result = {}
+
+        # Check if version-rolling is requested
+        if (
+            "version-rolling" in extensions
+            and "version-rolling.mask" in extension_params
+        ):
+            requested_mask = extension_params.get("version-rolling.mask", "00000000")
+            # Support full version rolling mask
+            result["version-rolling"] = True
+            result["version-rolling.mask"] = requested_mask
+            logger.info(
+                f"[{self.miner_id}] Version rolling enabled with mask: {requested_mask}"
+            )
+
+        await self._send_to_miner({"id": msg_id, "result": result, "error": None})
+
+    async def _handle_suggest_difficulty(self, message: dict[str, Any], msg_id: Any):
         """
         Process difficulty suggestions from miners.
 
         Purpose: Enforce local min_difficulty if set and forward the effective suggestion to pool.
 
         Args:
-            stratum_request: The original message from miner with difficulty suggestion
-            req_id: Request ID from the message
+            message: The original message from miner with difficulty suggestion
+            msg_id: Request ID from the message
         """
-        difficulty_params = stratum_request.get("params", [])
-        if difficulty_params and len(difficulty_params) > 0:
+        await self._send_to_miner({"id": msg_id, "result": True, "error": None})
+
+        params = message.get("params", [])
+        if params and len(params) > 0:
             try:
-                suggested_diff = float(difficulty_params[0])
-                if suggested_diff > 0:
-                    # If minimum difficulty is set via password, enforce it
-                    if self.min_difficulty is not None:
-                        effective_diff = self.min_difficulty
+                suggested = float(params[0])
+                if suggested > 0 and self.min_difficulty is not None:
+                    # Enforce minimum
+                    effective = self.min_difficulty
+                    self.stats.update_difficulty(effective)
+                    await self._send_to_miner(
+                        {
+                            "id": None,
+                            "method": "mining.set_difficulty",
+                            "params": [effective],
+                        }
+                    )
 
-                        # TODO: Alternative route: take the maximum value
-                        # effective_diff = max(suggested_diff, self.min_difficulty)
-
-                        self.stats.update_difficulty(effective_diff)
-                        await self._send_to_miner(
-                            {
-                                "id": None,
-                                "method": "mining.set_difficulty",
-                                "params": [effective_diff],
-                            }
-                        )
-
-                        # Forward the effective difficulty suggestion to the pool
-                        stratum_request["params"][0] = effective_diff
-                        await self._send_to_pool(stratum_request)
-                        logger.debug(
-                            f"[{self.miner_id}] _handle_suggest_difficulty: Miner suggested {suggested_diff}, enforced min={self.min_difficulty}, forwarded to pool"
-                        )
-
-                    else:
-                        logger.debug(
-                            f"[{self.miner_id}] _handle_suggest_difficulty: Miner suggested difficulty={suggested_diff}, forwarding to pool"
-                        )
-                        # We do NOT update stats here - wait for pool's mining.set_difficulty response
-                        # The pool will respond with what difficulty it actually accepts
-
-                        await self._send_to_pool(stratum_request)
+                    message["params"][0] = effective
+                    await self._send_to_pool(message)
+                    logger.debug(
+                        f"[{self.miner_id}] Miner suggested {suggested}, enforced min={self.min_difficulty}, forwarded to pool"
+                    )
+                else:
+                    await self._send_to_pool(message)
             except (ValueError, TypeError):
-                logger.warning(
-                    f"[{self.miner_id}] _handle_suggest_difficulty: Invalid difficulty suggestion: {difficulty_params[0]}"
-                )
-                await self._send_to_pool(stratum_request)
-        else:
-            logger.debug(
-                f"[{self.miner_id}] _handle_suggest_difficulty: Empty difficulty params, forwarding as-is"
-            )
-            await self._send_to_pool(stratum_request)
+                await self._send_to_pool(message)
 
-        # Ack the request
-        await self._send_to_miner({"id": req_id, "result": True, "error": None})
-
-    async def _handle_authorize(
-        self,
-        stratum_request: dict[str, Any],
-        req_id: Any,
-        initial_difficulty: Optional[float],
-        initial_job: Optional[dict[str, Any]],
-    ):
+    async def _handle_authorize(self, message: dict[str, Any], msg_id: Any):
         """
-        Process mining.authorize requests from miners.
-
-        Purpose: Perform local authorization (proxy already authenticated upstream),
-        extract and enforce min_difficulty, then send difficulty and initial job to miner.
+        Handle mining.authorize - authenticate worker.
 
         Args:
-            stratum_request: The original authorize message from miner
-            req_id: Request ID from the message
-            initial_difficulty: Initial difficulty from pool
-            initial_job: First job notification from pool
-        """
-        # params = [username, password]
-        auth_params = stratum_request.get("params", [])
-        username = auth_params[0] if len(auth_params) >= 1 else ""
-        password = auth_params[1] if len(auth_params) >= 2 else ""
+            message: Auth request with username/password params
+            msg_id: Request ID for response
 
-        logger.debug(
-            f"[{self.miner_id}] _handle_authorize: Processing authorize for worker '{username}'"
-        )
+        Extracts min difficulty from password field (md=X format).
+        Always returns success, then sends initial work.
+        """
+        params = message.get("params", [])
+        username = params[0] if len(params) >= 1 else ""
+        password = params[1] if len(params) >= 2 else ""
+
+        logger.debug(f"[{self.miner_id}] Processing mining.authorize for {username}")
+
+        if not await self.state_machine.transition_to(MinerState.AUTHORIZING):
+            await self._send_error_to_miner(msg_id, "Invalid state for authorize")
+            return
 
         _, min_diff = parse_min_difficulty(password)
         if min_diff is not None:
             self.min_difficulty = min_diff
             logger.info(
-                f"[{self.miner_id}] _handle_authorize: Worker '{username}' set min_difficulty={min_diff} via password"
+                f"[{self.miner_id}] Set min_difficulty={min_diff} from password"
             )
 
         self.stats.worker_name = username
-        await self._send_to_miner({"id": req_id, "result": True, "error": None})
-        logger.debug(
-            f"[{self.miner_id}] _handle_authorize: Sent authorization success response"
-        )
+        await self._send_to_miner({"id": msg_id, "result": True, "error": None})
+        await self.state_machine.transition_to(MinerState.AUTHORIZED)
+        await self._send_initial_work()
 
-        effective_diff = initial_difficulty if initial_difficulty is not None else 1024
+    async def _send_initial_work(self):
+        """
+        Send initial difficulty and job after successful authorization.
 
+        Uses effective difficulty (min of pool/miner requirements) and
+        forwards any cached initial job from pool.
+        """
+        effective_diff = self.pool_init_data["initial_difficulty"] or 1024
         if self.min_difficulty is not None:
-            pool_diff = effective_diff
-            # TODO: Alternative route: take the maximum value
-            # effective_diff = max(effective_diff, self.min_difficulty)
             effective_diff = self.min_difficulty
-            if pool_diff != effective_diff:
-                logger.info(
-                    f"[{self.miner_id}] _handle_authorize: Applied min_difficulty={self.min_difficulty} over pool's {pool_diff}"
-                )
 
         self.stats.update_difficulty(effective_diff)
         await self._send_to_miner(
             {"id": None, "method": "mining.set_difficulty", "params": [effective_diff]}
         )
-        logger.info(
-            f"[{self.miner_id}] _handle_authorize: Sent post-auth difficulty={effective_diff}"
-        )
 
-        if initial_job is not None:
-            await self._send_to_miner(initial_job)
-            logger.info(
-                f"[{self.miner_id}] _handle_authorize: Sent initial job ID={initial_job.get('params', [None])[0] if initial_job.get('params') else None}"
-            )
+        if self.pool_init_data["initial_job"]:
+            await self._send_to_miner(self.pool_init_data["initial_job"])
+            await self.state_machine.transition_to(MinerState.ACTIVE)
+        else:
+            logger.debug(f"[{self.miner_id}] Waiting for initial job from pool")
 
-    async def _handle_submit(self, stratum_request: dict[str, Any], req_id: Any):
+    async def _handle_submit(self, message: dict[str, Any], msg_id: Any):
         """
-        Process share submissions from miners.
-
-        Purpose: Rewrite worker credentials to pool format (for TaoHash mining under HK derived username),
-        forward the share to pool, and track submission for stats.
+        Handle share submission from miner.
 
         Args:
-            stratum_request: The share submission message
-            req_id: Request ID from the message
+            message: Submit with [worker, job_id, extranonce2, ntime, nonce, version_bits]
+            msg_id: Request ID for tracking response
+
+        Forwards to pool and tracks submission for stats.
         """
-        self.pending_calls[req_id] = "submit"
-        submit_params = stratum_request.get("params", [])
-
-        job_id = submit_params[1] if len(submit_params) > 1 else "unknown"
-        nonce = submit_params[2] if len(submit_params) > 2 else "unknown"
-        logger.info(
-            f"[{self.miner_id}] _handle_submit: Processing share submission id={req_id}, job={job_id}, nonce={nonce}"
-        )
-
-        if submit_params:
-            submit_params[0] = self.pool_user
-            stratum_request["params"] = submit_params
-
-        await self._send_to_pool(stratum_request)
-
-    async def _handle_from_pool(self):
-        """
-        Process messages from the pool to forward to miners.
-
-        Handles share submission responses, updates difficulty settings,
-        and forwards mining jobs to the miner. Enforces minimum
-        difficulty when appropriate.
-        """
-        try:
-            while True:
-                line = await self.pool_session.reader.readline()
-                if not line:
-                    # EOF: pool closed the connection
-                    logger.debug(
-                        f"[{self.miner_id}] _handle_from_pool: Pool connection closed"
-                    )
-                    break
-
-                message_str = line.decode().strip()
-                if not message_str:
-                    continue
-
-                try:
-                    pool_response = json.loads(message_str)
-                except json.JSONDecodeError:
-                    continue
-
-                msg_id = pool_response.get("id")
-                method = pool_response.get("method")
-                if method:
-                    logger.debug(
-                        f"[{self.miner_id}] _handle_from_pool: Received method={method}, id={msg_id}"
-                    )
-                else:
-                    logger.debug(
-                        f"[{self.miner_id}] _handle_from_pool: Received response id={msg_id}"
-                    )
-
-                # Match pool's mining.submit response to update share stats
-                response_id = pool_response.get("id")
-                if response_id in self.pending_calls:
-                    method = self.pending_calls.pop(response_id)
-                    if method == "submit":
-                        submit_result = pool_response.get("result")
-                        submit_error = pool_response.get("error")
-                        share_accepted = submit_result is True and submit_error is None
-                        error_str = None
-                        if submit_error is not None:
-                            try:
-                                error_str = json.dumps(submit_error)
-                            except Exception:
-                                error_str = str(submit_error)
-                        self.stats.record_share(
-                            accepted=share_accepted,
-                            difficulty=self.stats.difficulty,
-                            pool=f"{self.pool_host}:{self.pool_port}",
-                            error=error_str,
-                        )
-                        logger.debug(
-                            f"[{self.miner_id}] _handle_from_pool: Share response id={response_id}, accepted={share_accepted}, error={submit_error}"
-                        )
-
-                # Handle difficulty change from pool
-                if pool_response.get("method") == "mining.set_difficulty":
-                    difficulty_params = pool_response.get("params", [])
-                    if difficulty_params:
-                        try:
-                            pool_diff = float(difficulty_params[0])
-                        except (ValueError, TypeError, IndexError):
-                            pool_diff = self.stats.difficulty
-                            if pool_diff < 1.0:
-                                pool_diff = 1.0
-
-                        # Pool's requested difficulty
-                        effective_diff = pool_diff
-
-                        if self.min_difficulty is not None:
-                            # TODO: Alternative route: take the maximum value
-                            # effective_diff = max(effective_diff, self.min_difficulty)
-                            effective_diff = self.min_difficulty
-                        if effective_diff != self.stats.difficulty:
-                            logger.info(
-                                f"[{self.miner_id}] _handle_from_pool: Difficulty change from pool: {pool_diff}, "
-                                + f"effective: {effective_diff} (was: {self.stats.difficulty})"
-                            )
-
-                            self.stats.update_difficulty(effective_diff)
-                            pool_response["params"][0] = effective_diff
-                        else:
-                            logger.info(
-                                f"[{self.miner_id}] _handle_from_pool: Pool attempted difficulty={pool_diff} but enforced={effective_diff}, not forwarded"
-                            )
-                            continue
-
-                if pool_response.get("method") == "mining.notify":
-                    job_id = (
-                        pool_response.get("params", [None])[0]
-                        if pool_response.get("params")
-                        else None
-                    )
-                    logger.debug(
-                        f"[{self.miner_id}] _handle_from_pool: Forwarding job notification, job_id={job_id}"
-                    )
-
-                # Forward everything else to miner
-                await self._send_to_miner(pool_response)
-
-        except ConnectionResetError:
-            # Pool disconnected ungracefully; exit silently
-            logger.debug(f"[{self.miner_id}] _handle_from_pool: Pool connection reset")
-            pass
-        except asyncio.CancelledError:
-            # Reraise CancelledError so run() can handle shutdown
-            raise
-        except Exception as e:
-            logger.error(f"[{self.miner_id}] _handle_from_pool: Unexpected error: {e}")
-        finally:
+        # Must be in Active state
+        if self.state_machine.state != MinerState.ACTIVE:
+            logger.warning(f"[{self.miner_id}] Submit rejected - not in ACTIVE state")
+            await self._send_error_to_miner(msg_id, "Not ready for submissions")
             return
+
+        params = message.get("params", [])
+        worker_name = params[0] if len(params) > 0 else "unknown"
+        job_id = params[1] if len(params) > 1 else "unknown"
+        extranonce2 = params[2] if len(params) > 2 else ""
+        ntime = params[3] if len(params) > 3 else ""
+        nonce = params[4] if len(params) > 4 else ""
+        version = params[5] if len(params) > 5 else None
+
+        logger.info(f"[{self.miner_id}] Share submission for job {job_id}")
+
+        # Store submission details for when pool responds
+        self.pending_calls[msg_id] = {
+            "method": "submit",
+            "worker": worker_name,
+            "job_id": job_id,
+            "extranonce2": extranonce2,
+            "ntime": ntime,
+            "nonce": nonce,
+            "version": version,
+            "pool_difficulty": self.stats.difficulty,
+        }
+
+        # Forward to pool with pool username
+        message["params"][0] = self.pool_user
+        await self._send_to_pool(message)
 
     async def _send_to_miner(self, stratum_message: dict[str, Any]):
         """
@@ -639,7 +773,9 @@ class MinerSession:
         Args:
             stratum_message: The message dictionary to encode and send
         """
-        log_stratum_message(logger, stratum_message, prefix=f"[{self.miner_id}] Sent to miner")
+        log_stratum_message(
+            logger, stratum_message, prefix=f"[{self.miner_id}] Sent to miner"
+        )
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.miner_writer.write(encoded_message)
         await self.miner_writer.drain()
@@ -648,21 +784,59 @@ class MinerSession:
         """
         Send a JSON message to the upstream pool.
         """
-        log_stratum_message(logger, stratum_message, prefix=f"[{self.miner_id}] Sent to pool")
+        if not self.pool_session:
+            logger.warning(f"[{self.miner_id}] Cannot send to pool - not connected")
+            return
+
+        log_stratum_message(
+            logger, stratum_message, prefix=f"[{self.miner_id}] Sent to pool"
+        )
         encoded_message = (json.dumps(stratum_message) + "\n").encode()
         self.pool_session.writer.write(encoded_message)
         await self.pool_session.writer.drain()
 
-    def close(self):
-        """Close all connections and clean up resources."""
+    async def _cleanup(self):
+        """
+        Clean up session resources on disconnect.
+
+        Transitions state machine to DISCONNECTED and closes
+        both miner and pool connections.
+        """
+        logger.info(f"[{self.miner_id}] Cleaning up session")
+
+        await self.state_machine.start_disconnect()
+
         try:
             self.miner_writer.close()
-        except Exception as e:
-            logger.debug(f"[{self.miner_id}] close (miner): Unexpected error: {e}")
+            await self.miner_writer.wait_closed()
+        except Exception:
             pass
+
         if self.pool_session:
             try:
                 self.pool_session.writer.close()
-            except Exception as e:
-                logger.debug(f"[{self.miner_id}] close (pool): Unexpected error: {e}")
+                await self.pool_session.writer.wait_closed()
+            except Exception:
                 pass
+
+        await self.state_machine.transition_to(MinerState.DISCONNECTED)
+
+        summary = self.state_machine.get_state_summary()
+        logger.info(f"[{self.miner_id}] Final state: {summary}")
+
+    def _on_state_change(self, old_state: MinerState, new_state: MinerState):
+        """Callback for state changes."""
+        logger.debug(
+            f"[{self.miner_id}] State change: {old_state.name} -> {new_state.name}"
+        )
+
+        if new_state == MinerState.ACTIVE:
+            logger.info(f"[{self.miner_id}] Miner is now actively mining")
+        elif new_state == MinerState.ERROR:
+            logger.warning(f"[{self.miner_id}] Miner entered error state")
+
+    async def _send_error_to_miner(self, msg_id: Any, error_message: str):
+        """Send error response to miner."""
+        await self._send_to_miner(
+            {"id": msg_id, "result": None, "error": [20, error_message, None]}
+        )
