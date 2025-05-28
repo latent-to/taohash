@@ -146,7 +146,7 @@ class MinerSession:
             miner_task = asyncio.create_task(self._handle_miner_messages())
             pool_task = asyncio.create_task(self._handle_pool_messages())
 
-            done, pending = await asyncio.wait(
+            _, pending = await asyncio.wait(
                 [miner_task, pool_task], return_when=asyncio.FIRST_COMPLETED
             )
 
@@ -318,7 +318,6 @@ class MinerSession:
                     f"[{self.miner_id}] Queued {method} in state {self.state_machine.state.name}"
                 )
             else:
-                # Invalid message for state
                 logger.warning(
                     f"[{self.miner_id}] Rejected {method} in state {self.state_machine.state.name}"
                 )

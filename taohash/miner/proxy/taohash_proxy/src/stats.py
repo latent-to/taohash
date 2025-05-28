@@ -60,19 +60,6 @@ class MinerStats:
                 f"Rejected share from {self.ip} at difficulty {difficulty} with error {error}"
             )
 
-        if hasattr(self, "db") and self.worker_name:
-            try:
-                asyncio.create_task(
-                    self.db.log_share(
-                        self.worker_name,
-                        difficulty,
-                        1 if accepted else 0,
-                        pool,
-                        error
-                    )
-                )
-            except Exception as e:
-                logger.error(f"Failed to log share to DB: {e}")
 
     def update_difficulty(self, difficulty: float) -> None:
         """
@@ -113,9 +100,8 @@ class StatsManager:
     Maintains a registry of all active miners and provides methods to
     register/unregister miners and retrieve aggregated statistics.
     """
-    def __init__(self, db=None):
-        """Initialize an empty miners registry with optional DB persistence."""
-        self.db = db
+    def __init__(self):
+        """Initialize an empty miners registry."""
         self.miners: dict[str, MinerStats] = {}
         logger.info("StatsManager initialized")
 
@@ -131,7 +117,6 @@ class StatsManager:
         """
         key = f"{peer[0]}:{peer[1]}"
         stats = MinerStats(ip=peer[0])
-        stats.db = self.db
         self.miners[key] = stats
         logger.debug(f"Registered miner: {key}")
         return stats
