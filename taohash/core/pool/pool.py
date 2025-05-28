@@ -17,6 +17,7 @@ class PoolIndex(IntEnum):
     # Invalid = 0 reserved for default value
     Custom = 1  # uses the IP and Port
     Braiins = 2
+    Proxy = 3  # uses the Taohash proxy
 
     @classmethod
     def has_value(cls, value):

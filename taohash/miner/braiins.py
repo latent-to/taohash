@@ -96,7 +96,7 @@ class BraiinsMiner(BaseMiner):
         for hotkey, pool_info in all_pools.items():
             if (
                 hotkey in self.metagraph.hotkeys
-                and pool_info.pool_index == PoolIndex.Braiins
+                and pool_info.pool_index == PoolIndex.Proxy
             ):
                 pool_info.extra_data["full_username"] = (
                     f"{pool_info.username}.{self.worker_id}"

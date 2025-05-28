@@ -3,12 +3,14 @@ from typing import Optional, Callable
 
 from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.pool.braiins import BraiinsPool
+from taohash.core.pool.proxy import ProxyPool
 from taohash.core.pool.config import PoolAPIConfig
 from taohash.core.pool.pool import PoolBase, PoolIndex
 
 POOL_URLS_FMT: dict[PoolIndex, Callable[[PoolInfo], str]] = {
     PoolIndex.Braiins: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
     PoolIndex.Custom: lambda pool_info: f"stratum+tcp://{pool_info.ip}:{pool_info.port}",
+    PoolIndex.Proxy: lambda pool_info: f"http://{pool_info.ip}:{pool_info.port}",
 }
 
 
@@ -20,7 +22,10 @@ class Pool:
     and initializes it with the provided API configuration.
     """
 
-    __CLASS_MAP: dict[int, PoolBase] = {PoolIndex.Braiins: BraiinsPool}
+    __CLASS_MAP: dict[int, PoolBase] = {
+        PoolIndex.Braiins: BraiinsPool,
+        PoolIndex.Proxy: ProxyPool,
+    }
 
     def __new__(cls, pool_info: PoolInfo, config: PoolAPIConfig) -> "PoolBase":
         """

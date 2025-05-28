@@ -5,6 +5,8 @@
 
 import argparse
 import traceback
+import time
+from typing import List
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
@@ -17,9 +19,9 @@ from taohash.core.chain_data.pool_info import (
 )
 from taohash.core.constants import VERSION_KEY, U16_MAX
 from taohash.core.pool import Pool, PoolBase
-from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
-from taohash.core.pool.metrics import get_metrics_for_miners, BraiinsMetrics
-from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
+from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
+from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
+from taohash.core.pricing import CoinPriceAPI
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -27,36 +29,40 @@ COIN = "bitcoin"
 BAD_COLDKEYS = ["5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"]
 
 
-class BraiinsValidator(BaseValidator):
+class InhouseProxyValidator(BaseValidator):
     """
-    Braiins BTC Validator.
+    Inhouse Proxy BTC Validator.
+
+    This validator uses the Taohash proxy to retrieve miner statistics
+    instead of directly querying the Braiins pool API.
     """
 
     def __init__(self):
-        # Base validator initialization
         super().__init__()
 
-        self.pool_config = BraiinsPoolConfig.from_args(self.config)
-        self.api_config = BraiinsPoolAPIConfig.from_args(self.config)
+        self.pool_config = ProxyPoolConfig.from_args(self.config)
+        self.api_config = ProxyPoolAPIConfig.from_args(self.config)
         self.pool = Pool(
             pool_info=self.pool_config.to_pool_info(), config=self.api_config
         )
-        self.hash_price_api: "HashPriceAPIBase" = BraiinsHashPriceAPI()
         self.setup_bittensor_objects()
+        self.price_api = CoinPriceAPI("coingecko", None)
 
         self.alpha = 0.8
-        self.weights_interval = self.tempo * 2  # 720 blocks
+        self.weights_interval = self.tempo * 2
         self.config.coins = [COIN]
 
+        self.last_evaluation_timestamp = None
+
     def add_args(self, parser: argparse.ArgumentParser):
-        """Add Braiins-specific arguments to the parser."""
+        """Add proxy-specific arguments to the parser."""
         super().add_args(parser)
-        BraiinsPoolConfig.add_args(parser)
-        BraiinsPoolAPIConfig.add_args(parser)
+        ProxyPoolConfig.add_args(parser)
+        ProxyPoolAPIConfig.add_args(parser)
 
     def setup_bittensor_objects(self):
         """
-        Extend base setup with Braiins-specific setup.
+        Extend base setup with proxy-specific setup.
         """
         super().setup_bittensor_objects()
         self.publish_pool_info(
@@ -96,47 +102,123 @@ class BraiinsValidator(BaseValidator):
         else:
             logging.success("Pool info published successfully")
 
-    def evaluate_miner_hashrate(self, timeframe: str = "5m") -> None:
+    def evaluate_miner_share_value(self) -> None:
         """
-        Evaluate value provided by miners.
-
-        Args:
-            timeframe: The timeframe to evaluate ("5m" for 5 minutes or "60m" for 60 minutes)
+        Evaluate value provided by miners based on share values for a time range.
 
         Evaluation:
-            1. Fetch miner metrics (API fetches hashrate for the last 5m or 60m).
-            2. Fetch hash price for the coin (USD/TH/day).
-            3. Calculate value provided in the specified timeframe
-            4. Update scores for each miner.
+            1. Determine time range (last 10 minutes for first run, or since last evaluation)
+            2. Fetch miner contributions from proxy for that time range
+            3. Update scores for each miner based on share values
         """
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
-        for coin in self.config.coins:
-            miner_metrics: list[BraiinsMetrics] = get_metrics_for_miners(
-                self.pool, self.hotkeys, self.block_at_registration, coin
+
+        current_time = int(time.time())
+
+        if self.last_evaluation_timestamp:
+            start_time = self.last_evaluation_timestamp
+            end_time = current_time
+
+            max_range = 24 * 60 * 60
+            if end_time - start_time > max_range:
+                start_time = end_time - max_range
+
+            logging.info(
+                f"Evaluating miners for time range: {start_time} to {end_time} ({end_time - start_time} seconds)"
             )
-            hash_price = self.hash_price_api.get_hash_price(coin)
-            if hash_price is None:
-                # If we can't grab the price, don't count the shares
-                logging.error(f"Failed to get hash price for coin: {coin}")
-                continue
+        else:
+            # First evaluation - use last 10 minutes
+            end_time = current_time
+            start_time = end_time - (10 * 60)
+            logging.info(
+                f"First evaluation - using last 10 minutes: {start_time} to {end_time}"
+            )
+
+        for coin in self.config.coins:
+            miner_metrics: List[ProxyMetrics] = get_metrics_timerange(
+                self.pool,
+                self.hotkeys,
+                self.block_at_registration,
+                start_time,
+                end_time,
+                coin,
+            )
 
             for metric in miner_metrics:
-                uid = hotkey_to_uid[metric.hotkey]
-                if timeframe == "5m":
-                    mining_value = metric.get_value_last_5m(hash_price)
-                else:  # "60m"
-                    mining_value = metric.get_value_past_hour(hash_price)
+                if metric.hotkey not in hotkey_to_uid:
+                    continue
 
-                if mining_value > 0:
+                uid = hotkey_to_uid[metric.hotkey]
+                btc_price = self.price_api.get_price(coin)
+                share_value = metric.get_share_value(btc_price)
+
+                if share_value > 0:
                     logging.info(
-                        f"Mining value ({timeframe}): {mining_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                        f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
                     )
-                self.scores[uid] += mining_value
-            self._log_scores(coin, hash_price)
+
+                self.scores[uid] += share_value
+
+            self._log_share_value_scores(coin, f"{end_time - start_time}s")
+
+        self.last_evaluation_timestamp = current_time
+        logging.info(f"Updated last_evaluation_timestamp to {current_time}")
+
+    def _log_share_value_scores(self, coin: str, timeframe: str) -> None:
+        """Log current scores based on share values."""
+        rows = []
+        headers = ["UID", "Hotkey", "Score", "Moving Avg"]
+
+        sorted_indices = sorted(
+            range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
+        )
+
+        for i in sorted_indices:
+            if self.scores[i] > 0 or self.moving_avg_scores[i] > 0:
+                hotkey = self.metagraph.hotkeys[i]
+                rows.append(
+                    [
+                        i,
+                        f"{hotkey}",
+                        f"{self.scores[i]:.8f}",
+                        f"{self.moving_avg_scores[i]:.8f}",
+                    ]
+                )
+
+        if not rows:
+            logging.info(
+                f"No active miners for {coin} (timeframe: {timeframe}) at Block {self.current_block}"
+            )
+            return
+
+        from tabulate import tabulate
+
+        table = tabulate(
+            rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
+        )
+
+        title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Timeframe: {timeframe})"
+        logging.info(f"Scores updated at block {self.current_block}")
+        logging.info(f".\n{title}\n{table}")
+
+    def save_state(self) -> None:
+        """Save the current validator state to storage, including timestamp."""
+        state = {
+            "scores": self.scores,
+            "moving_avg_scores": self.moving_avg_scores,
+            "hotkeys": self.hotkeys,
+            "block_at_registration": self.block_at_registration,
+            "current_block": self.current_block,
+            "last_evaluation_timestamp": self.last_evaluation_timestamp,
+        }
+        self.storage.save_state(state)
+        logging.info(
+            f"Saved validator state at block {self.current_block} with timestamp {self.last_evaluation_timestamp}"
+        )
 
     def restore_state_and_evaluate(self) -> None:
         """
-        Braiins specific: Attempt to restore validator state from storage.
+        Proxy specific: Attempt to restore validator state from storage.
         Handles different recovery scenarios based on how long the validator was down.
 
         Process:
@@ -163,6 +245,7 @@ class BraiinsValidator(BaseValidator):
         self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
+        self.last_evaluation_timestamp = state.get("last_evaluation_timestamp", None)
 
         self.resync_metagraph()
 
@@ -171,12 +254,12 @@ class BraiinsValidator(BaseValidator):
             if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
                 self.moving_avg_scores[idx] = 0.0
 
-        if blocks_down > 230:  # 1 hour
-            logging.warning(
-                f"Validator was down for {blocks_down} blocks (> 230). Will fetch last hour's scores."
-            )
-            self.evaluate_miner_hashrate(timeframe="60m")
-        logging.success("Successfully restored validator state")
+        logging.warning(f"Validator was down for {blocks_down} blocks.")
+        self.evaluate_miner_share_value()
+
+        logging.success(
+            f"Successfully restored validator state with last evaluation timestamp: {self.last_evaluation_timestamp}"
+        )
 
     def set_weights(self) -> tuple[bool, str]:
         """Set weights for all miners.
@@ -214,7 +297,7 @@ class BraiinsValidator(BaseValidator):
             weights = [score / total for score in self.moving_avg_scores]
 
         logging.info("Setting weights")
-        # Update the incentive mechanism on the Bittensor blockchain.
+
         success, err_msg = self.subtensor.set_weights(
             netuid=self.config.netuid,
             wallet=self.wallet,
@@ -240,7 +323,7 @@ class BraiinsValidator(BaseValidator):
             2. Ensure the validator has a permit.
             3. Sync on every `sync_interval_blocks` (25 blocks) to:
                 - Sync the metagraph.
-                - Evaluate miner hashrate.
+                - Evaluate miner share value (polling every ~10 minutes).
                 - Set weights for all miners once per `weights_interval`.
         """
         if self.config.state == "restore":
@@ -259,7 +342,8 @@ class BraiinsValidator(BaseValidator):
             try:
                 if self.subtensor.wait_for_block(next_sync_block):
                     self.resync_metagraph()
-                    self.evaluate_miner_hashrate(timeframe="5m")
+
+                    self.evaluate_miner_share_value()
 
                     blocks_since_last_weights = self.subtensor.blocks_since_last_update(
                         self.config.netuid, self.uid
@@ -301,8 +385,7 @@ class BraiinsValidator(BaseValidator):
                 exit()
 
 
-# Run the validator.
 if __name__ == "__main__":
     load_dotenv()
-    validator = BraiinsValidator()
+    validator = InhouseProxyValidator()
     validator.run()

@@ -6,6 +6,7 @@ connected to the proxy. It maintains data on shares submitted, difficulty levels
 and calculates estimated hashrates based on recent share history.
 """
 import time
+import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Tuple, Optional
@@ -39,13 +40,15 @@ class MinerStats:
     difficulty: float = 1.0
     recent_shares: deque = field(default_factory=lambda: deque(maxlen=100))
 
-    def record_share(self, accepted: bool, difficulty: float) -> None:
+    def record_share(self, accepted: bool, difficulty: float, pool: str, error: Optional[str] = None) -> None:
         """
         Record a submitted share and its result.
         
         Args:
             accepted (bool): Whether the share was accepted by the pool
             difficulty (float): Difficulty level of the share
+            pool (str): Name of the pool
+            error (Optional[str]): Error message if the share was rejected
         """
         if accepted:
             self.accepted += 1
@@ -53,7 +56,10 @@ class MinerStats:
             logger.debug(f"Accepted share from {self.ip} at difficulty {difficulty}")
         else:
             self.rejected += 1
-            logger.debug(f"Rejected share from {self.ip}")
+            logger.debug(
+                f"Rejected share from {self.ip} at difficulty {difficulty} with error {error}"
+            )
+
 
     def update_difficulty(self, difficulty: float) -> None:
         """

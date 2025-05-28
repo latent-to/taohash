@@ -1,14 +1,12 @@
 import os
+import base64
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import bt_decode
-import netaddr
 from bittensor import logging
 from bittensor import subtensor as bt_subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
-
-from taohash.core.utils import ip_to_int
 
 
 @dataclass
@@ -50,7 +48,7 @@ class PoolInfo:
         """
         return {
             "pool_index": self.pool_index,
-            "ip": ip_to_int(self.ip) if self.ip else None,
+            "ip": self.ip,
             "port": self.port,
             "domain": self.domain,
             "username": self.username,
@@ -245,16 +243,17 @@ def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
     Returns:
         Decoded PoolInfo instance with human-readable values
     """
+    try:
+        scale_bytes = base64.b64decode(pool_info_bytes)
+    except Exception:
+        scale_bytes = pool_info_bytes
+    
     types_path = os.path.join(os.path.dirname(__file__), "types.json")
     with open(types_path, "r") as f:
         types = f.read()
 
     reg = bt_decode.PortableRegistry.from_json(types)
-
-    data = bt_decode.decode("PoolInfo", reg, pool_info_bytes)
-
-    if data["ip"] is not None:
-        data["ip"] = str(netaddr.IPAddress(data["ip"]))
+    data = bt_decode.decode("PoolInfo", reg, scale_bytes)
 
     return PoolInfo(**data)
 
@@ -280,4 +279,5 @@ def encode_pool_info(pool_info: PoolInfo) -> bytes:
 
     raw_data = pool_info.to_raw()
 
-    return bt_decode.encode("PoolInfo", reg, raw_data)
+    encoded = bt_decode.encode("PoolInfo", reg, raw_data)
+    return base64.b64encode(encoded)
