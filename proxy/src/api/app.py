@@ -193,6 +193,70 @@ async def get_workers_stats(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@app.get("/api/workers/timerange")
+@limiter.limit("60/minute")
+async def get_workers_timerange(
+    request: Request,
+    start_time: int,
+    end_time: int,
+    token: str = Depends(verify_token),
+    miner: Optional[str] = None,
+    worker: Optional[str] = None,
+) -> dict[str, Any]:
+    """
+    Get worker statistics for a specific time range.
+
+    Args:
+        start_time: Start time as unix timestamp (required)
+        end_time: End time as unix timestamp (required)
+        miner: Optional filter by specific miner
+        worker: Optional filter by specific worker
+
+    Returns:
+        Dictionary with worker statistics for the time range
+    """
+    if not db or not db.client:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    if start_time >= end_time:
+        raise HTTPException(
+            status_code=400, detail="start_time must be before end_time"
+        )
+
+    max_range = 7 * 24 * 60 * 60  # 7 days in seconds
+    if end_time - start_time > max_range:
+        raise HTTPException(status_code=400, detail="Time range cannot exceed 7 days")
+
+    try:
+        workers = await _get_worker_stats_timerange(miner, worker, start_time, end_time)
+
+        workers_dict = {}
+        for w in workers:
+            worker_key = w["worker"]
+            workers_dict[worker_key] = {
+                "hotkey": worker_key,
+                "hashrate": w.get("hashrate", 0) / 1e9,  # Convert to GH/s
+                "shares": w.get("shares", 0),
+                "share_value": w.get("share_value", 0),
+                "hash_rate_unit": "Gh/s",
+            }
+
+        return {
+            "btc": {
+                "workers": workers_dict,
+                "time_range": {
+                    "start": start_time,
+                    "end": end_time,
+                    "duration_seconds": end_time - start_time,
+                },
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching worker timerange stats: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 async def _get_pool_stats_for_window(window: str) -> dict[str, Any]:
     """Get pool statistics for a specific time window using the new views."""
     try:
@@ -413,6 +477,83 @@ async def _get_worker_stats(
                 "shares_24h": row[10],
                 "hashrate_24h": row[11],
                 "share_value_24h": row[12],
+            }
+        )
+
+    return workers
+
+
+async def _get_worker_stats_timerange(
+    miner: Optional[str], worker: Optional[str], start_time: int, end_time: int
+) -> list[dict[str, Any]]:
+    """Get worker statistics for a custom time range."""
+    where_conditions = []
+    params = {
+        "start": datetime.fromtimestamp(start_time),
+        "end": datetime.fromtimestamp(end_time),
+        "duration": end_time - start_time,
+    }
+
+    if miner:
+        where_conditions.append("miner = %(miner)s")
+        params["miner"] = miner
+    if worker:
+        where_conditions.append("worker = %(worker)s")
+        params["worker"] = worker
+
+    where_clause = f"AND {' AND '.join(where_conditions)}" if where_conditions else ""
+    where_clause_standalone = (
+        f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+    )
+
+    query = f"""
+    WITH 
+    -- Stats for custom time range
+    stats_range AS (
+        SELECT 
+            miner, worker,
+            count() as shares,
+            sum(actual_difficulty) as share_value,
+            sum(pool_difficulty) * 4294967296 / %(duration)s as hashrate
+        FROM shares
+        WHERE ts >= %(start)s AND ts <= %(end)s
+        {where_clause}
+        GROUP BY miner, worker
+    ),
+    worker_status AS (
+        SELECT 
+            miner, worker,
+            last_share_ts,
+            state
+        FROM worker_state
+        {where_clause_standalone}
+    )
+    SELECT 
+        w.miner, 
+        w.worker,
+        toUnixTimestamp(w.last_share_ts) as last_share_ts,
+        w.state,
+        ifNull(s.shares, 0) as shares,
+        ifNull(s.hashrate, 0) as hashrate,
+        ifNull(s.share_value, 0) as share_value
+    FROM worker_status w
+    LEFT JOIN stats_range s ON (w.miner = s.miner AND w.worker = s.worker)
+    ORDER BY w.miner, w.worker
+    """
+
+    result = await db.client.query(query, parameters=params)
+
+    workers = []
+    for row in result.result_rows:
+        workers.append(
+            {
+                "miner": row[0],
+                "worker": row[1],
+                "last_share_ts": row[2],
+                "state": row[3],
+                "shares": row[4],
+                "hashrate": row[5],
+                "share_value": row[6],
             }
         )
 
