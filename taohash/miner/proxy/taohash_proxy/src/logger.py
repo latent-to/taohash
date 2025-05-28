@@ -8,7 +8,6 @@ if not logging.getLogger().handlers:
     )
 
 logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
-logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:
