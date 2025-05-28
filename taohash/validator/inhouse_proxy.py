@@ -6,7 +6,6 @@
 import argparse
 import traceback
 import time
-from typing import List
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
@@ -135,7 +134,7 @@ class InhouseProxyValidator(BaseValidator):
             )
 
         for coin in self.config.coins:
-            miner_metrics: List[ProxyMetrics] = get_metrics_timerange(
+            miner_metrics: list[ProxyMetrics] = get_metrics_timerange(
                 self.pool,
                 self.hotkeys,
                 self.block_at_registration,

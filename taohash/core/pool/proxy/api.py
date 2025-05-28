@@ -1,5 +1,5 @@
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
 from bittensor import logging
 
@@ -24,14 +24,14 @@ class ProxyPoolAPI(PoolAPI):
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
         splits = worker_name.split(".", maxsplit=1)
-        if len(splits) == 1: # no period
+        if len(splits) == 1:  # no period
             return splits[0]
         else:
             return splits[1]
 
     def get_worker_data(
         self, worker_id: str, coin: str = "bitcoin"
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Get worker data from the proxy API.
 
@@ -78,7 +78,7 @@ class ProxyPoolAPI(PoolAPI):
             logging.error(f"Error getting worker data: {e}")
             return None
 
-    def get_all_workers_data(self, coin: str = "bitcoin") -> Dict[str, Dict[str, Any]]:
+    def get_all_workers_data(self, coin: str = "bitcoin") -> dict[str, dict[str, Any]]:
         """
         Get data for all workers from the proxy API.
 
@@ -123,7 +123,7 @@ class ProxyPoolAPI(PoolAPI):
 
     def get_workers_timerange(
         self, start_time: int, end_time: int, coin: str = "bitcoin"
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Get worker data for a specific time range.
 

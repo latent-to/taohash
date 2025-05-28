@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional
 
 import requests
 
@@ -32,7 +32,7 @@ class CoinGeckoAPI(NetworkedCoinPriceAPI):
         prices = self._get_prices([coin], vs)
         return prices[coin]
 
-    def _get_prices(self, coins: list[str], vs: str = "usd") -> Dict[str, float]:
+    def _get_prices(self, coins: list[str], vs: str = "usd") -> dict[str, float]:
         """
         Get current prices for multiple coins.
 
