@@ -1,5 +1,5 @@
 import argparse
-from typing import Dict, Optional
+from typing import Optional
 
 from taohash.core.pricing.coingecko import CoinGeckoAPI
 from taohash.core.pricing.coinmarketcap import CoinMarketCapAPI
@@ -12,7 +12,7 @@ from taohash.core.pricing.price import (
 
 
 class CoinPriceAPI:
-    __CLASS_MAP: Dict[str, CoinPriceAPIBase] = {
+    __CLASS_MAP: dict[str, CoinPriceAPIBase] = {
         "coingecko": CoinGeckoAPI,
         "unit": UnitCoinPriceAPI,
         "coinmarketcap": CoinMarketCapAPI,
@@ -70,7 +70,7 @@ class HashPriceAPI:
     across different mining pools and cryptocurrencies.
     """
 
-    __CLASS_MAP: Dict[str, HashPriceAPIBase] = {
+    __CLASS_MAP: dict[str, HashPriceAPIBase] = {
         "braiins": BraiinsHashPriceAPI,
     }
 

@@ -3,7 +3,6 @@ Proxy pool metrics implementation for time-based queries.
 """
 
 from dataclasses import dataclass
-from typing import List
 
 from taohash.core.pool.proxy.pool import ProxyPool
 from .base import BaseMetrics
@@ -26,17 +25,19 @@ class ProxyMetrics(BaseMetrics):
         The share value is already calculated by the pool based on actual work done.
         """
         # TODO: Fetch these values dynamically
-        return (self.share_value / 121_660_000_000_000) * 3.125 * btc_price
+        if self.share_value:
+            return (self.share_value / 121_660_000_000_000) * 3.125 * btc_price
+        return 0.0
 
 
 def get_metrics_timerange(
     pool: ProxyPool,
-    hotkeys: List[str],
-    block_at_registration: List[int],
+    hotkeys: list[str],
+    block_at_registration: list[int],
     start_time: int,
     end_time: int,
     coin: str = "bitcoin",
-) -> List[ProxyMetrics]:
+) -> list[ProxyMetrics]:
     """
     Retrieves mining metrics for all miners for a specific time range.
 
