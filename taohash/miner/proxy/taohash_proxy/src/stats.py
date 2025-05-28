@@ -5,24 +5,25 @@ This module provides classes for tracking and calculating statistics for miners
 connected to the proxy. It maintains data on shares submitted, difficulty levels,
 and calculates estimated hashrates based on recent share history.
 """
+
 import time
-import asyncio
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Tuple, Optional
+from typing import Optional
 
 from .logger import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class MinerStats:
     """
     Statistics tracker for an individual miner connection.
-    
+
     Stores connection details, share counts, and calculates hashrate based on
     submitted shares over time using the difficulty-adjusted share method.
-    
+
     Attributes:
         ip (str): Miner's IP address
         worker_name (str): Worker name from mining.authorize
@@ -32,6 +33,7 @@ class MinerStats:
         difficulty (float): Current share difficulty
         recent_shares (deque): Queue of (timestamp, difficulty) tuples for hashrate calculation
     """
+
     ip: str
     worker_name: Optional[str] = None
     connected_at: float = field(default_factory=time.time)
@@ -40,10 +42,12 @@ class MinerStats:
     difficulty: float = 1.0
     recent_shares: deque = field(default_factory=lambda: deque(maxlen=100))
 
-    def record_share(self, accepted: bool, difficulty: float, pool: str, error: Optional[str] = None) -> None:
+    def record_share(
+        self, accepted: bool, difficulty: float, pool: str, error: Optional[str] = None
+    ) -> None:
         """
         Record a submitted share and its result.
-        
+
         Args:
             accepted (bool): Whether the share was accepted by the pool
             difficulty (float): Difficulty level of the share
@@ -60,11 +64,10 @@ class MinerStats:
                 f"Rejected share from {self.ip} at difficulty {difficulty} with error {error}"
             )
 
-
     def update_difficulty(self, difficulty: float) -> None:
         """
         Update the miner's current difficulty level.
-        
+
         Args:
             difficulty (float): New difficulty level
         """
@@ -74,9 +77,9 @@ class MinerStats:
     def get_hashrate(self) -> float:
         """
         Calculate estimated hashrate based on recent shares.
-        
+
         Uses the standard formula: hashrate = (sum of difficulties * 2^32) / timespan
-        
+
         Returns:
             float: Estimated hashrate in hashes per second
         """
@@ -93,25 +96,27 @@ class MinerStats:
         total_hashes = sum(diff * (2**32) for _, diff in self.recent_shares)
         return total_hashes / span
 
+
 class StatsManager:
     """
     Central manager for all connected miner statistics.
-    
+
     Maintains a registry of all active miners and provides methods to
     register/unregister miners and retrieve aggregated statistics.
     """
+
     def __init__(self):
         """Initialize an empty miners registry."""
         self.miners: dict[str, MinerStats] = {}
         logger.info("StatsManager initialized")
 
-    def register_miner(self, peer: Tuple[str, int]) -> MinerStats:
+    def register_miner(self, peer: tuple[str, int]) -> MinerStats:
         """
         Register a new miner connection and create its statistics tracker.
-        
+
         Args:
             peer: (ip, port) tuple from socket connection
-            
+
         Returns:
             MinerStats: Newly created statistics object for this miner
         """
@@ -121,10 +126,10 @@ class StatsManager:
         logger.debug(f"Registered miner: {key}")
         return stats
 
-    def unregister_miner(self, peer: Tuple[str, int]) -> None:
+    def unregister_miner(self, peer: tuple[str, int]) -> None:
         """
         Remove a miner from the registry when they disconnect.
-        
+
         Args:
             peer: (ip, port) tuple from socket connection
         """
@@ -135,18 +140,20 @@ class StatsManager:
     def get_all_stats(self) -> list[dict]:
         """
         Retrieve statistics for all connected miners.
-        
+
         Returns:
             list: List of formatted miner statistics
         """
         stats: list[dict] = []
         for key, s in self.miners.items():
-            stats.append({
-                "miner": key,
-                "worker": s.worker_name or "",
-                "accepted": s.accepted,
-                "rejected": s.rejected,
-                "difficulty": s.difficulty,
-                "hashrate": s.get_hashrate()
-            })
+            stats.append(
+                {
+                    "miner": key,
+                    "worker": s.worker_name or "",
+                    "accepted": s.accepted,
+                    "rejected": s.rejected,
+                    "difficulty": s.difficulty,
+                    "hashrate": s.get_hashrate(),
+                }
+            )
         return stats
