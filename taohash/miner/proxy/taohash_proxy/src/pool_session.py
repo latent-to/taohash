@@ -45,6 +45,7 @@ class PoolSession:
         self._msg_id = 1
         self.extranonce1: Optional[str] = None
         self.extranonce2_size: Optional[int] = None
+        self.subscription_ids: Optional[list] = None
         self.pre_auth_messages: list[dict[str, Any]] = []
 
     def next_id(self) -> int:
@@ -108,12 +109,11 @@ class PoolSession:
                 f"Received subscription response: {subscription_response}",
             )
 
-            # Parse and store extranonce1/2
+            # Parse and store subscription_ids, extranonce1, extranonce2_size
             subscription_result = subscription_response.get("result", [])
-            pool_session.extranonce1, pool_session.extranonce2_size = (
-                subscription_result[1],
-                subscription_result[2],
-            )
+            pool_session.subscription_ids = subscription_result[0]
+            pool_session.extranonce1 = subscription_result[1]
+            pool_session.extranonce2_size = subscription_result[2]
             logger.info(
                 f"Subscription successful, extranonce1: {pool_session.extranonce1}, extranonce2_size: {pool_session.extranonce2_size}"
             )
@@ -134,24 +134,42 @@ class PoolSession:
             )
 
             authorization_response = None
-            while True:
-                authorization_response_raw = await pool_reader.readline()
-                if not authorization_response_raw:
-                    break
+            max_pre_auth_messages = 10
+            message_count = 0
 
-                message = json.loads(authorization_response_raw.decode().strip())
-                log_stratum_message(
-                    logger, message, f"Received post-auth message: {message}"
-                )
+            while message_count < max_pre_auth_messages:
+                try:
+                    authorization_response_raw = await asyncio.wait_for(
+                        pool_reader.readline(), timeout=30.0
+                    )
+                    if not authorization_response_raw:
+                        break
 
-                pool_session.pre_auth_messages.append(message)
+                    message = json.loads(authorization_response_raw.decode().strip())
+                    log_stratum_message(
+                        logger, message, f"Received post-auth message: {message}"
+                    )
 
-                if message.get("id") == authorization_id:
-                    authorization_response = message
+                    pool_session.pre_auth_messages.append(message)
+                    message_count += 1
 
-                # Initial job notification
-                if authorization_response and message.get("method") == "mining.notify":
-                    break
+                    if message.get("id") == authorization_id:
+                        authorization_response = message
+
+                    # Stop after auth response + mining.notify (initial job)
+                    if authorization_response and message_count > 1:
+                        break
+
+                except asyncio.TimeoutError:
+                    if authorization_response:
+                        logger.warning(
+                            "Timeout waiting for initial job, proceeding anyway"
+                        )
+                        break
+                    else:
+                        raise RuntimeError(
+                            "Timeout waiting for authorization response from pool"
+                        )
 
             if authorization_response is None:
                 raise RuntimeError("Did not receive authorization response from pool")
