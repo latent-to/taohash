@@ -33,7 +33,7 @@ def load_config(path: str = CONFIG_PATH) -> dict:
 
     if "pools" not in data:
         raise ValueError("Configuration must have 'pools' section")
-    
+
     return {"pools": data["pools"]}
 
 
@@ -80,8 +80,9 @@ async def handle_reload_request(request: web.Request) -> web.Response:
         return web.Response(status=500, text=str(e))
 
 
-def create_miner_handler(pool_config: dict):
+def create_miner_handler(pool_name: str):
     """Create a handler function for a specific pool configuration."""
+
     async def handle_new_miner(
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
@@ -93,8 +94,19 @@ def create_miner_handler(pool_config: dict):
           4) On completion, clean up stats + the session set
         """
         miner_address = writer.get_extra_info("peername")
-        pool_name = f"{pool_config['host']}:{pool_config['port']}"
-        logger.info(f"➕ Miner connected: {miner_address} → {pool_name}")
+
+        # Read current config from global variable
+        if pool_name not in config.get("pools", {}):
+            logger.error(
+                f"❌ Pool '{pool_name}' not found in config, closing connection"
+            )
+            writer.close()
+            await writer.wait_closed()
+            return
+
+        pool_config = config["pools"][pool_name]
+        pool_display = f"{pool_config['host']}:{pool_config['port']}"
+        logger.info(f"➕ Miner connected: {miner_address} → {pool_display}")
 
         session = MinerSession(
             reader,
@@ -105,7 +117,7 @@ def create_miner_handler(pool_config: dict):
             pool_config["pass"],
             stats_manager,
         )
-        
+
         session.db = stats_db
 
         active_sessions.add(session)
@@ -117,7 +129,7 @@ def create_miner_handler(pool_config: dict):
             logger.info(f"➖ Miner disconnected: {miner_address}")
 
         task.add_done_callback(_on_done)
-    
+
     return handle_new_miner
 
 
@@ -149,6 +161,7 @@ async def main() -> None:
             example_path = os.path.join(parent_dir, "config", "config.toml.example")
             if os.path.exists(example_path):
                 import shutil
+
                 logger.info("📋 No config.toml found; copying from example...")
                 shutil.copy(example_path, config_path)
             else:
@@ -159,7 +172,7 @@ async def main() -> None:
 
     global stats_db
     stats_db = StatsDB()
-    
+
     db_initialized = await stats_db.init()
     if db_initialized:
         logger.info(f"✅ ClickHouse initialized at {stats_db.host}:{stats_db.port}")
@@ -169,7 +182,9 @@ async def main() -> None:
     logger.info("🚀 Starting with configuration:")
     for pool_name, pool_config in config["pools"].items():
         proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
-        logger.info(f"  {pool_name.upper()} Pool: {pool_config['host']}:{pool_config['port']}")
+        logger.info(
+            f"  {pool_name.upper()} Pool: {pool_config['host']}:{pool_config['port']}"
+        )
         logger.info(f"    User: {pool_config['user']}")
         logger.info(f"    Proxy port: {proxy_port}")
     logger.info(f"  Dashboard on: 0.0.0.0:{INTERNAL_DASHBOARD_PORT}")
@@ -180,16 +195,16 @@ async def main() -> None:
     # Start a server for each pool configuration
     servers = []
     for pool_name, pool_config in config["pools"].items():
-        handler = create_miner_handler(pool_config)
+        handler = create_miner_handler(pool_name)
         proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
-        
+
         server = await asyncio.start_server(
             handler,
             "0.0.0.0",
             proxy_port,
         )
         servers.append(server)
-        
+
         addrs = ", ".join(str(s.getsockname()) for s in server.sockets)
         logger.info(f"🔌 {pool_name.upper()} pool proxy listening on {addrs}")
 
@@ -214,6 +229,7 @@ async def shutdown():
     if hasattr(stats_manager, "db") and stats_manager.db:
         await stats_manager.db.close()
     logger.info("Database connection closed")
+
 
 if __name__ == "__main__":
     try:
