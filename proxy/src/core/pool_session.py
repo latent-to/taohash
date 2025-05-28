@@ -45,6 +45,7 @@ class PoolSession:
         self._msg_id = 1
         self.extranonce1: Optional[str] = None
         self.extranonce2_size: Optional[int] = None
+        self.subscription_ids: Optional[list] = None
         self.pre_auth_messages: list[dict[str, Any]] = []
 
     def next_id(self) -> int:
@@ -108,12 +109,12 @@ class PoolSession:
                 f"Received subscription response: {subscription_response}",
             )
 
-            # Parse and store extranonce1/2
+            # Parse and store subscription_ids, extranonce1, extranonce2_size
             subscription_result = subscription_response.get("result", [])
-            pool_session.extranonce1, pool_session.extranonce2_size = (
-                subscription_result[1],
-                subscription_result[2],
-            )
+            pool_session.subscription_ids = subscription_result[0]
+            pool_session.extranonce1 = subscription_result[1]
+            pool_session.extranonce2_size = subscription_result[2]
+
             logger.info(
                 f"Subscription successful, extranonce1: {pool_session.extranonce1}, extranonce2_size: {pool_session.extranonce2_size}"
             )

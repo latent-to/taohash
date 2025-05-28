@@ -74,6 +74,7 @@ class MinerSession:
         self.pool_init_data = {
             "extranonce1": None,
             "extranonce2_size": None,
+            "subscription_ids": None,
             "initial_difficulty": None,
             "initial_job": None,
         }
@@ -174,6 +175,7 @@ class MinerSession:
             # Pool session data
             self.pool_init_data["extranonce1"] = self.pool_session.extranonce1
             self.pool_init_data["extranonce2_size"] = self.pool_session.extranonce2_size
+            self.pool_init_data["subscription_ids"] = self.pool_session.subscription_ids
 
             await self._process_pool_init_messages()
             logger.info(f"[{self.miner_id}] Pool connection established")
@@ -355,15 +357,13 @@ class MinerSession:
 
         if (
             self.pool_init_data["extranonce1"] is not None
-            and self.pool_init_data["extranonce2_size"]
+            and self.pool_init_data["extranonce2_size"] is not None
+            and self.pool_init_data["subscription_ids"] is not None
         ):
             response = {
                 "id": msg_id,
                 "result": [
-                    [
-                        ["mining.notify", "ae6812eb4cd7735a302a8a9dd95cf71f"],
-                        ["mining.set_difficulty", "b4b6693b72a50c7116db18d6497cac52"],
-                    ],
+                    self.pool_init_data["subscription_ids"],
                     self.pool_init_data["extranonce1"],
                     self.pool_init_data["extranonce2_size"],
                 ],
