@@ -6,7 +6,7 @@ if [ ! -f config/config.toml ]; then
   cp config/config.toml.example config/config.toml
 fi
 
-echo "📋 External port mapping: Proxy ${PROXY_PORT:-3331}, Dashboard ${DASHBOARD_PORT:-5000}"
+echo "📋 External port mapping: Proxy ${PROXY_PORT:-3333}, Dashboard ${DASHBOARD_PORT:-8100}"
 
 case "$1" in
   proxy)

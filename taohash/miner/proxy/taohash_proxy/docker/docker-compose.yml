@@ -1,15 +1,15 @@
 services:
-  proxy:
+  mining-proxy:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: taohash-proxy
+    container_name: taohash-mining-proxy
     volumes:
       - ../config:/app/config
     ports:
-      - "${PROXY_PORT:-3331}:3331"
-      - "${DASHBOARD_PORT:-5000}:5000"
-      - "${RELOAD_API_PORT:-5001}:5001"
+      - "${PROXY_PORT:-3333}:3333"
+      - "${DASHBOARD_PORT:-8100}:8100"
+      - "${RELOAD_API_PORT:-5010}:5010"
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
