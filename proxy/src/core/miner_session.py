@@ -477,7 +477,7 @@ class MinerSession:
         actual_difficulty = 0.0
         block_hash = ""
 
-        if job_data and extranonce1 and extranonce2 and ntime and nonce:
+        if job_data and extranonce2 and ntime and nonce:
             try:
                 actual_difficulty, block_hash = calculate_share_difficulty(
                     job=job_data,
