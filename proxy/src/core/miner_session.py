@@ -355,7 +355,7 @@ class MinerSession:
             return
 
         if (
-            self.pool_init_data["extranonce1"]
+            self.pool_init_data["extranonce1"] is not None
             and self.pool_init_data["extranonce2_size"]
         ):
             response = {
@@ -474,13 +474,6 @@ class MinerSession:
             return
 
         extranonce1 = self.pool_session.extranonce1 if self.pool_session else None
-        if not extranonce1:
-            logger.error(f"[{self.miner_id}] No extranonce1 available")
-            await self._send_to_miner(
-                {"id": msg_id, "result": False, "error": [20, "Invalid session", None]}
-            )
-            return
-
         # Calculate actual difficulty
         actual_difficulty = 0.0
         block_hash = ""
