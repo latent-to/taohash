@@ -18,15 +18,13 @@ from taohash.core.chain_data.pool_info import (
 from taohash.core.constants import VERSION_KEY, U16_MAX
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.braiins.config import BraiinsPoolAPIConfig, BraiinsPoolConfig
-from taohash.core.pool.metrics import get_metrics_for_miners, MiningMetrics
+from taohash.core.pool.metrics import get_metrics_for_miners, BraiinsMetrics
 from taohash.core.pricing import BraiinsHashPriceAPI, HashPriceAPIBase
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
 
-BAD_COLDKEYS = [
-    "5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"
-]
+BAD_COLDKEYS = ["5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"]
 
 
 class BraiinsValidator(BaseValidator):
@@ -113,7 +111,7 @@ class BraiinsValidator(BaseValidator):
         """
         hotkey_to_uid = {hotkey: uid for uid, hotkey in enumerate(self.hotkeys)}
         for coin in self.config.coins:
-            miner_metrics: list[MiningMetrics] = get_metrics_for_miners(
+            miner_metrics: list[BraiinsMetrics] = get_metrics_for_miners(
                 self.pool, self.hotkeys, self.block_at_registration, coin
             )
             hash_price = self.hash_price_api.get_hash_price(coin)
@@ -277,7 +275,11 @@ class BraiinsValidator(BaseValidator):
                         "ValidatorTrust",
                         params=[self.config.netuid],
                     )
-                    normalized_validator_trust = validator_trust[self.uid] / U16_MAX if validator_trust[self.uid] > 0 else 0
+                    normalized_validator_trust = (
+                        validator_trust[self.uid] / U16_MAX
+                        if validator_trust[self.uid] > 0
+                        else 0
+                    )
 
                     next_sync_block, sync_reason = self.get_next_sync_block()
                     logging.info(
