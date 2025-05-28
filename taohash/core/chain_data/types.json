@@ -75,7 +75,7 @@
           "composite": {
             "fields": [
               { "name": "pool_index", "type": 3 },
-              { "name": "ip", "type": 5 },
+              { "name": "ip", "type": 6 },
               { "name": "port", "type": 4 },
               { "name": "domain", "type": 6 },
               { "name": "username", "type": 6 },
