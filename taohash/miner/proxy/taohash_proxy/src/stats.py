@@ -30,7 +30,8 @@ class MinerStats:
         connected_at (float): Connection timestamp
         accepted (int): Count of accepted shares
         rejected (int): Count of rejected shares
-        difficulty (float): Current share difficulty
+        difficulty (float): Current share difficulty (effective difficulty sent to miner)
+        pool_difficulty (float): Pool's requested difficulty (may differ from miner difficulty)
         recent_shares (deque): Queue of (timestamp, difficulty) tuples for hashrate calculation
     """
 
@@ -40,6 +41,7 @@ class MinerStats:
     accepted: int = 0
     rejected: int = 0
     difficulty: float = 1.0
+    pool_difficulty: float = 1.0
     recent_shares: deque = field(default_factory=lambda: deque(maxlen=100))
 
     def record_share(
@@ -78,23 +80,30 @@ class MinerStats:
         """
         Calculate estimated hashrate based on recent shares.
 
-        Uses the standard formula: hashrate = (sum of difficulties * 2^32) / timespan
+        Uses a sliding 5-minute window with the formula:
+        hashrate = (sum of difficulties * 2^32) / 300 seconds
 
         Returns:
             float: Estimated hashrate in hashes per second
         """
         if not self.recent_shares:
             return 0.0
+        
         now = time.time()
-        # Drop entries older than 300s
-        while self.recent_shares and now - self.recent_shares[0][0] > 300:
-            self.recent_shares.popleft()
-        if len(self.recent_shares) < 2:
+        five_min_ago = now - 300
+        
+        recent = [(t, d) for t, d in self.recent_shares if t > five_min_ago]
+        
+        if not recent:
             return 0.0
-        first, last = self.recent_shares[0][0], self.recent_shares[-1][0]
-        span = max(last - first, 1e-6)
-        total_hashes = sum(diff * (2**32) for _, diff in self.recent_shares)
-        return total_hashes / span
+        
+        if len(recent) < 10:
+            return 0.0
+            
+        time_span = 300.0
+        total_hashes = sum(diff * (2**32) for _, diff in recent)
+        
+        return total_hashes / time_span
 
 
 class StatsManager:
@@ -153,6 +162,7 @@ class StatsManager:
                     "accepted": s.accepted,
                     "rejected": s.rejected,
                     "difficulty": s.difficulty,
+                    "pool_difficulty": s.pool_difficulty,
                     "hashrate": s.get_hashrate(),
                 }
             )
