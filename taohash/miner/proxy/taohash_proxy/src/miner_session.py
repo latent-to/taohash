@@ -69,6 +69,16 @@ class MinerSession:
     - Statistics gathering
     """
 
+    def _get_worker_name(self) -> str:
+        """Extract worker name from username."""
+        if not self.stats.worker_name:
+            return ""
+
+        parts = self.stats.worker_name.split(".")
+        if len(parts) > 1:
+            return parts[-1]
+        return self.stats.worker_name
+
     def __init__(
         self,
         miner_reader: asyncio.StreamReader,
@@ -238,8 +248,12 @@ class MinerSession:
 
             if method == "mining.set_difficulty":
                 try:
-                    self.pool_init_data["initial_difficulty"] = float(msg["params"][0])
-                    logger.debug(f"[{self.miner_id}] Got initial difficulty from pool")
+                    pool_diff = float(msg["params"][0])
+                    self.pool_init_data["initial_difficulty"] = pool_diff
+                    self.stats.pool_difficulty = pool_diff
+                    logger.debug(
+                        f"[{self.miner_id}] Got initial difficulty {pool_diff} from pool"
+                    )
                 except (ValueError, TypeError, IndexError):
                     pass
 
@@ -478,6 +492,8 @@ class MinerSession:
         except (ValueError, TypeError):
             return
 
+        self.stats.pool_difficulty = pool_diff
+
         effective_diff = pool_diff
         if self.min_difficulty is not None:
             effective_diff = max(pool_diff, self.min_difficulty)
@@ -549,9 +565,21 @@ class MinerSession:
                 error=json.dumps(error) if error else None,
             )
 
-            logger.info(
-                f"[{self.miner_id}] Share {'accepted' if accepted else 'rejected'}"
-            )
+            worker_name = self.stats.worker_name
+            worker_prefix = f"{worker_name} - " if worker_name else ""
+
+            if accepted:
+                logger.info(f"[{self.miner_id}] {worker_prefix}Share accepted")
+            else:
+                reason = "unknown"
+                if error:
+                    if isinstance(error, list) and len(error) > 1:
+                        reason = error[1]
+                    else:
+                        reason = str(error)
+                logger.info(
+                    f"[{self.miner_id}] {worker_prefix}Share rejected ({reason})"
+                )
 
         await self._send_to_miner(message)
 
@@ -712,6 +740,7 @@ class MinerSession:
             )
 
         self.stats.worker_name = username
+        logger.info(f"[{self.miner_id}] Miner authorized with username: {username}")
         await self._send_to_miner({"id": msg_id, "result": True, "error": None})
         await self.state_machine.transition_to(MinerState.AUTHORIZED)
         await self._send_initial_work()
@@ -771,7 +800,13 @@ class MinerSession:
         nonce = params[4] if len(params) > 4 else ""
         version = params[5] if len(params) > 5 else None
 
-        logger.info(f"[{self.miner_id}] Share submission for job {job_id}")
+        worker_name_display = self.stats.worker_name
+        if worker_name_display:
+            logger.info(
+                f"[{self.miner_id}] {worker_name_display} - Share submission for job {job_id}"
+            )
+        else:
+            logger.info(f"[{self.miner_id}] Share submission for job {job_id}")
 
         # Store submission details for when pool responds
         self.pending_calls[msg_id] = {
@@ -849,14 +884,23 @@ class MinerSession:
 
     def _on_state_change(self, old_state: MinerState, new_state: MinerState):
         """Callback for state changes."""
+        worker_name = (
+            self.stats.worker_name if hasattr(self, "stats") and self.stats else ""
+        )
+        worker_prefix = f"{worker_name} - " if worker_name else ""
+
         logger.debug(
-            f"[{self.miner_id}] State change: {old_state.name} -> {new_state.name}"
+            f"[{self.miner_id}] {worker_prefix}State change: {old_state.name} -> {new_state.name}"
         )
 
         if new_state == MinerState.ACTIVE:
-            logger.info(f"[{self.miner_id}] Miner is now actively mining")
+            logger.info(
+                f"[{self.miner_id}] {worker_prefix}Miner is now actively mining"
+            )
         elif new_state == MinerState.ERROR:
-            logger.warning(f"[{self.miner_id}] Miner entered error state")
+            logger.warning(
+                f"[{self.miner_id}] {worker_prefix}Miner entered error state"
+            )
 
     async def _send_error_to_miner(self, msg_id: Any, error_message: str):
         """Send error response to miner."""
