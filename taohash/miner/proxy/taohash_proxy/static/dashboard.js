@@ -321,10 +321,15 @@ function updateMinersTable(data) {
   data.forEach(miner => {
     const row = document.createElement('tr');
     
-    // Worker/Miner name
-    const nameCell = document.createElement('td');
-    nameCell.textContent = miner.worker || miner.miner;
-    row.appendChild(nameCell);
+    // Miner address
+    const minerCell = document.createElement('td');
+    minerCell.textContent = miner.miner;
+    row.appendChild(minerCell);
+    
+    // Worker name
+    const workerCell = document.createElement('td');
+    workerCell.textContent = miner.worker || '-';
+    row.appendChild(workerCell);
     
     // Hashrate
     const hashrateCell = document.createElement('td');
@@ -354,10 +359,20 @@ function updateMinersTable(data) {
     rateCell.appendChild(badge);
     row.appendChild(rateCell);
     
-    // Difficulty
-    const difficultyCell = document.createElement('td');
-    difficultyCell.textContent = miner.difficulty.toFixed(2);
-    row.appendChild(difficultyCell);
+    // Pool Difficulty
+    const poolDiffCell = document.createElement('td');
+    poolDiffCell.textContent = (miner.pool_difficulty || miner.difficulty).toFixed(2);
+    row.appendChild(poolDiffCell);
+    
+    // Miner Difficulty (effective)
+    const minerDiffCell = document.createElement('td');
+    minerDiffCell.textContent = miner.difficulty.toFixed(2);
+    // Highlight if different from pool difficulty
+    if (miner.pool_difficulty && miner.pool_difficulty !== miner.difficulty) {
+      minerDiffCell.style.color = '#1ADABB';
+      minerDiffCell.style.fontWeight = '500';
+    }
+    row.appendChild(minerDiffCell);
     
     tbody.appendChild(row);
   });
