@@ -90,14 +90,19 @@ class TaohashProxyManager(BaseProxyManager):
             return False, f"Config file not found at {self.config_path}"
         try:
             config: dict = toml.load(self.config_path)
-            if (
-                "pool" not in config
-                or "host" not in config["pool"]
-                or "port" not in config["pool"]
+            if "pools" not in config:
+                return (
+                    False,
+                    "Invalid proxy configuration structure, 'pools' section not found",
+                )
+
+            if not config["pools"] or not any(
+                all(k in pool for k in ["host", "port"])
+                for pool in config["pools"].values()
             ):
                 return (
                     False,
-                    "Invalid proxy configuration structure, 'pool' section with 'host' and 'port' missing",
+                    "Invalid proxy configuration structure, 'pools' section must contain pool configs with 'host' and 'port'",
                 )
         except Exception as e:
             return False, f"Failed to read config file: {e}"
@@ -116,31 +121,60 @@ class TaohashProxyManager(BaseProxyManager):
         """
         Called when a new slot's pool targets arrive.
         Writes them to config.toml and triggers the proxy to reload.
+        Uses high_diff_port field if available.
         """
         try:
-            target = slot_data.pool_targets[0]
+            config = {"pools": {}}
 
-            host = None
-            port = None
+            if slot_data.pool_targets:
+                target = slot_data.pool_targets[0]
+                pool_info = target.pool_info
 
-            host, port = target.pool_info["pool_url"].split(":")
-            username = target.pool_info["extra_data"]["full_username"]
-            password = target.pool_info.get("password", "x")
+                host, port = pool_info["pool_url"].split(":")
+                username = pool_info["extra_data"]["full_username"]
+                password = pool_info.get("password", "x")
 
-            config = {
-                "pool": {
+                config["pools"]["normal"] = {
                     "host": host,
                     "port": int(port),
                     "user": username,
                     "pass": password,
+                    "proxy_port": self.proxy_port,
                 }
-            }
+
+                logging.info(
+                    f"🔄 Configured normal pool → {username}@{host}:{port} on proxy port {self.proxy_port}"
+                )
+
+                high_diff_port = pool_info.get("high_diff_port")
+                if high_diff_port is not None:
+                    config["pools"]["high_diff"] = {
+                        "host": host,
+                        "port": int(port),
+                        "user": username,
+                        "pass": password,
+                        "proxy_port": high_diff_port,
+                    }
+
+                    logging.info(
+                        f"🔄 Configured high_diff pool → {username}@{host}:{port} on proxy port {high_diff_port}"
+                    )
+                else:
+                    config["pools"]["high_diff"] = {
+                        "host": host,
+                        "port": int(port),
+                        "user": username,
+                        "pass": password,
+                        "proxy_port": self.proxy_port,
+                    }
+
+                    logging.info(
+                        "🔄 High difficulty pool not specified, using same port as normal pool"
+                    )
 
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
             with open(self.config_path, "w") as f:
                 toml.dump(config, f)
-
-            logging.info(f"🔄 Updated proxy config → {username}@{host}:{port}")
 
             # Trigger reload
             try:
