@@ -29,12 +29,10 @@ def load_config(path: str = CONFIG_PATH) -> dict:
     with open(path, "r") as f:
         data = toml.load(f)
 
-    return {
-        "pool_host": data["pool"]["host"],
-        "pool_port": data["pool"]["port"],
-        "pool_user": data["pool"]["user"],
-        "pool_pass": data["pool"]["pass"],
-    }
+    if "pools" not in data:
+        raise ValueError("Configuration must have 'pools' section")
+
+    return {"pools": data["pools"]}
 
 
 def update_config(path: str = CONFIG_PATH) -> bool:
@@ -88,23 +86,46 @@ async def handle_new_miner(
 ) -> None:
     """
     Fired on each TCP connection from a miner.  We:
-      1) Instantiate a MinerSession with the *current* pool config
-      2) Track it in active_sessions
-      3) Schedule its run() as a background task
-      4) On completion, clean up stats + the session set
+      1) Determine which pool config to use based on connection port
+      2) Instantiate a MinerSession with the appropriate pool config
+      3) Track it in active_sessions
+      4) Schedule its run() as a background task
+      5) On completion, clean up stats + the session set
     """
     miner_address = writer.get_extra_info("peername")
-    logger.info(f"➕ Miner connected: {miner_address}")
+
+    local_addr = writer.get_extra_info("sockname")
+    local_port = local_addr[1] if local_addr else None
+
+    pool_config = None
+    pool_label = None
+    for pool_name, pool_cfg in config["pools"].items():
+        if pool_cfg.get("proxy_port", INTERNAL_PROXY_PORT) == local_port:
+            pool_config = pool_cfg
+            pool_label = pool_name
+            break
+
+    if not pool_config:
+        logger.error(f"❌ No pool config found for port {local_port}")
+        writer.close()
+        await writer.wait_closed()
+        return
+
+    pool_name = f"{pool_config['host']}:{pool_config['port']}"
+    logger.info(
+        f"➕ Miner connected: {miner_address} → {pool_label} pool ({pool_name})"
+    )
 
     session = MinerSession(
         reader,
         writer,
-        config["pool_host"],
-        config["pool_port"],
-        config["pool_user"],
-        config["pool_pass"],
+        pool_config["host"],
+        pool_config["port"],
+        pool_config["user"],
+        pool_config["pass"],
         stats_manager,
     )
+    session.pool_label = pool_label
 
     active_sessions.add(session)
     task = asyncio.create_task(session.run())
@@ -148,23 +169,33 @@ async def main() -> None:
     update_config(config_path)
 
     logger.info("🚀 Starting with configuration:")
-    logger.info(f"  Pool: {config['pool_host']}:{config['pool_port']}")
-    logger.info(f"  User: {config['pool_user']}")
-    logger.info(f"  Proxy listening on: 0.0.0.0:{INTERNAL_PROXY_PORT}")
+    for pool_name, pool_config in config["pools"].items():
+        proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
+        logger.info(
+            f"  {pool_name.upper()} Pool: {pool_config['host']}:{pool_config['port']}"
+        )
+        logger.info(f"    User: {pool_config['user']}")
+        logger.info(f"    Proxy port: {proxy_port}")
     logger.info(f"  Dashboard on: 0.0.0.0:{INTERNAL_DASHBOARD_PORT}")
     logger.info(f"  Reload API on: {RELOAD_API_HOST}:{RELOAD_API_PORT} (internal only)")
 
     # Internal reload API
     await start_reload_api()
 
-    # Stratum proxy TCP server (miners connect here)
-    server = await asyncio.start_server(
-        handle_new_miner,
-        "0.0.0.0",
-        INTERNAL_PROXY_PORT,
-    )
-    addrs = ", ".join(str(s.getsockname()) for s in server.sockets)
-    logger.info(f"🔌 Proxy listening on {addrs}")
+    # Start a server for each pool configuration
+    servers = []
+    for pool_name, pool_config in config["pools"].items():
+        proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
+
+        server = await asyncio.start_server(
+            handle_new_miner,
+            "0.0.0.0",
+            proxy_port,
+        )
+        servers.append(server)
+
+        addrs = ", ".join(str(s.getsockname()) for s in server.sockets)
+        logger.info(f"🔌 {pool_name.upper()} pool proxy listening on {addrs}")
 
     # Dashboard
     app = create_dashboard_app(stats_manager)
@@ -180,7 +211,7 @@ async def main() -> None:
     await site.start()
     logger.info(f"✅ Dashboard available at http://0.0.0.0:{INTERNAL_DASHBOARD_PORT}")
 
-    await server.serve_forever()
+    await asyncio.gather(*(server.serve_forever() for server in servers))
 
 
 if __name__ == "__main__":
