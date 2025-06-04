@@ -6,6 +6,12 @@ from bittensor import logging
 from taohash.core.pool.pool import PoolAPI
 
 
+class ProxyPoolConnectionError(Exception):
+    """Custom exception for Proxy Pool API errors"""
+
+    pass
+
+
 class ProxyPoolAPI(PoolAPI):
     """
     API client for interacting with the Taohash proxy.
@@ -20,6 +26,16 @@ class ProxyPoolAPI(PoolAPI):
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
+
+        if not self.test_connection():
+            logging.error(
+                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
+            )
+            raise ProxyPoolConnectionError(
+                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
+            )
+        else:
+            logging.success("Successfully connected to Proxy Pool API.")
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
@@ -169,3 +185,15 @@ class ProxyPoolAPI(PoolAPI):
         """
         # Proxy doesn't provide FPPS directly
         return 0.0
+
+    def test_connection(self) -> bool:
+        """Test API connection and authentication by hitting the /health endpoint"""
+        try:
+            url = f"{self.proxy_url}/health"
+            with httpx.Client(timeout=10) as client:
+                response = client.get(url, headers=self.headers)
+                response.raise_for_status()
+                return True
+        except Exception as e:
+            logging.error(f"Failed to connect to Proxy Pool API: {str(e)}")
+            return False
