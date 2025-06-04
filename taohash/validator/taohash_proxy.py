@@ -28,9 +28,9 @@ COIN = "bitcoin"
 BAD_COLDKEYS = ["5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"]
 
 
-class InhouseProxyValidator(BaseValidator):
+class TaohashProxyValidator(BaseValidator):
     """
-    Inhouse Proxy BTC Validator.
+    Taohash Proxy BTC Validator.
 
     This validator uses the Taohash proxy to retrieve miner statistics
     instead of directly querying the Braiins pool API.
@@ -386,5 +386,5 @@ class InhouseProxyValidator(BaseValidator):
 
 if __name__ == "__main__":
     load_dotenv()
-    validator = InhouseProxyValidator()
+    validator = TaohashProxyValidator()
     validator.run()
