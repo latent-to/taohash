@@ -7,8 +7,8 @@ RELOAD_API_PORT = 5010
 RELOAD_API_HOST = "0.0.0.0"
 
 # Used by miners to connect to the proxy
-INTERNAL_PROXY_PORT = 3333  
-DEFAULT_PROXY_PORT = 3333  
+PROXY_PORT = 3331  
+PROXY_PORT_HIGH = 3332
 
 # Used by the controller to view the proxy stats
 INTERNAL_DASHBOARD_PORT = 8100  
