@@ -88,6 +88,7 @@ class MinerSession:
         pool_user: str,
         pool_pass: str,
         stats_manager: StatsManager,
+        pool_label: str,
     ):
         """
         Set up a new miner session with connection to pool.
@@ -107,6 +108,7 @@ class MinerSession:
         self.pool_port = pool_port
         self.pool_user = pool_user
         self.pool_pass = pool_pass
+        self.pool_label = pool_label
         self.min_difficulty: Optional[int] = None
 
         self.peer = miner_writer.get_extra_info("peername")
@@ -561,7 +563,7 @@ class MinerSession:
             self.stats.record_share(
                 accepted=accepted,
                 difficulty=pending_data.get("pool_difficulty", self.stats.difficulty),
-                pool=f"{self.pool_host}:{self.pool_port}",
+                pool=self.pool_label or f"{self.pool_host}:{self.pool_port}",
                 error=json.dumps(error) if error else None,
             )
 
@@ -740,6 +742,8 @@ class MinerSession:
             )
 
         self.stats.worker_name = username
+        if self.pool_label:
+            self.stats.pool_type = self.pool_label
         logger.info(f"[{self.miner_id}] Miner authorized with username: {username}")
         await self._send_to_miner({"id": msg_id, "result": True, "error": None})
         await self.state_machine.transition_to(MinerState.AUTHORIZED)

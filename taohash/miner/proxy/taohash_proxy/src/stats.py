@@ -33,6 +33,7 @@ class MinerStats:
         difficulty (float): Current share difficulty (effective difficulty sent to miner)
         pool_difficulty (float): Pool's requested difficulty (may differ from miner difficulty)
         recent_shares (deque): Queue of (timestamp, difficulty) tuples for hashrate calculation
+        pool_type (str): Pool type (NORMAL or HIGH_DIFF)
     """
 
     ip: str
@@ -43,6 +44,8 @@ class MinerStats:
     difficulty: float = 1.0
     pool_difficulty: float = 1.0
     recent_shares: deque = field(default_factory=lambda: deque(maxlen=100))
+    pool_type: Optional[str] = None
+    pool: Optional[str] = None
 
     def record_share(
         self, accepted: bool, difficulty: float, pool: str, error: Optional[str] = None
@@ -56,6 +59,7 @@ class MinerStats:
             pool (str): Name of the pool
             error (Optional[str]): Error message if the share was rejected
         """
+        self.pool = pool  # Update the pool name
         if accepted:
             self.accepted += 1
             self.recent_shares.append((time.time(), difficulty))
@@ -164,6 +168,8 @@ class StatsManager:
                     "difficulty": s.difficulty,
                     "pool_difficulty": s.pool_difficulty,
                     "hashrate": s.get_hashrate(),
+                    "pool_type": s.pool_type or "UNKNOWN",
+                    "pool": s.pool or "",
                 }
             )
         return stats

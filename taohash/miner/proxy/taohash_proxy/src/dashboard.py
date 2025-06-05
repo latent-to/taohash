@@ -7,8 +7,6 @@ endpoint for retrieving real-time statistics about connected miners.
 """
 
 import os
-import time
-from typing import Union
 from aiohttp import web
 
 from .logger import get_logger
@@ -36,11 +34,6 @@ def create_dashboard_app(stats_manager: StatsManager) -> web.Application:
     parent_dir = os.path.dirname(base_dir)
     static_dir = os.path.join(parent_dir, "static")
 
-    pool_info: dict[str, Union[str, int]] = {
-        "url": "Not connected",
-        "user": "N/A",
-        "connected_since": 0,
-    }
 
     async def index(request: web.Request) -> web.Response:
         """
@@ -71,41 +64,57 @@ def create_dashboard_app(stats_manager: StatsManager) -> web.Application:
         stats = stats_manager.get_all_stats()
         return web.json_response(stats)
 
-    async def api_pool_info(request: web.Request) -> web.Response:
+
+    async def api_pools_info(request: web.Request) -> web.Response:
         """
-        Handle GET /api/pool - return current pool information.
+        Handle GET /api/pools - return all mining pools with configuration and live statistics.
 
-        Provides information about the currently configured mining pool,
-        including URL, username, and connection time.
-
-        Args:
-            request (web.Request): HTTP request object
 
         Returns:
-            web.Response: JSON response with pool information
+            JSON with pool names as keys, each containing:
+            - host, port, proxy_port from config
+            - connected_miners count
+            - total_hashrate sum
+            - total accepted/rejected shares
         """
         try:
             import toml
 
             config_dir = os.path.join(parent_dir, "config")
             config_path = os.path.join(config_dir, "config.toml")
-
+            
+            pools_data = {}
+            
             if os.path.exists(config_path):
                 data = toml.load(config_path)
-
-                if "pool" in data:
-                    pool = data["pool"]
-                    if not pool_info["connected_since"]:
-                        pool_info["connected_since"] = int(time.time())
-
-                    pool_info["url"] = (
-                        f"{pool.get('host', 'unknown')}:{pool.get('port', '0')}"
-                    )
-                    pool_info["user"] = pool.get("user", "N/A")
+                if "pools" in data:
+                    for pool_name, pool_config in data["pools"].items():
+                        pools_data[pool_name] = {
+                            "host": pool_config.get("host", "unknown"),
+                            "port": pool_config.get("port", 0),
+                            "proxy_port": pool_config.get("proxy_port", 0),
+                            "user": pool_config.get("user", "unknown"),
+                            "connected_miners": 0,
+                            "total_hashrate": 0.0,
+                            "total_accepted": 0,
+                            "total_rejected": 0,
+                        }
+            
+            # Aggregate miner statistics by pool
+            miner_stats = stats_manager.get_all_stats()
+            for miner in miner_stats:
+                pool_name = miner.get("pool", "unknown")
+                if pool_name in pools_data:
+                    pools_data[pool_name]["connected_miners"] += 1
+                    pools_data[pool_name]["total_hashrate"] += miner.get("hashrate", 0)
+                    pools_data[pool_name]["total_accepted"] += miner.get("accepted", 0)
+                    pools_data[pool_name]["total_rejected"] += miner.get("rejected", 0)
+            
+            return web.json_response(pools_data)
+            
         except Exception as e:
-            logger.error(f"Error reading pool info: {e}")
-
-        return web.json_response(pool_info)
+            logger.error(f"Error reading pools info: {e}")
+            return web.json_response({})
 
     app.router.add_static("/static/", static_dir)
 
@@ -113,7 +122,7 @@ def create_dashboard_app(stats_manager: StatsManager) -> web.Application:
         [
             web.get("/", index),
             web.get("/api/stats", api_stats),
-            web.get("/api/pool", api_pool_info),
+            web.get("/api/pools", api_pools_info),
         ]
     )
 
