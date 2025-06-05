@@ -133,35 +133,42 @@ class TaohashProxyValidator(BaseValidator):
                 f"First evaluation - using last 10 minutes: {start_time} to {end_time}"
             )
 
-        for coin in self.config.coins:
-            miner_metrics: list[ProxyMetrics] = get_metrics_timerange(
-                self.pool,
-                self.hotkeys,
-                self.block_at_registration,
-                start_time,
-                end_time,
-                coin,
+        try:
+            for coin in self.config.coins:
+                miner_metrics: list[ProxyMetrics] = get_metrics_timerange(
+                    self.pool,
+                    self.hotkeys,
+                    self.block_at_registration,
+                    start_time,
+                    end_time,
+                    coin,
+                )
+
+                for metric in miner_metrics:
+                    if metric.hotkey not in hotkey_to_uid:
+                        continue
+
+                    uid = hotkey_to_uid[metric.hotkey]
+                    btc_price = self.price_api.get_price(coin)
+                    share_value = metric.get_share_value(btc_price)
+
+                    if share_value > 0:
+                        logging.info(
+                            f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
+                        )
+
+                    self.scores[uid] += share_value
+
+                self._log_share_value_scores(coin, f"{end_time - start_time}s")
+
+            self.last_evaluation_timestamp = current_time
+            logging.info(f"Updated last_evaluation_timestamp to {current_time}")
+
+        except Exception as e:
+            logging.error(
+                f"Failed to retrieve miner metrics for time range {start_time} to {end_time}: {e}. "
+                f"Keeping last_evaluation_timestamp at {self.last_evaluation_timestamp}"
             )
-
-            for metric in miner_metrics:
-                if metric.hotkey not in hotkey_to_uid:
-                    continue
-
-                uid = hotkey_to_uid[metric.hotkey]
-                btc_price = self.price_api.get_price(coin)
-                share_value = metric.get_share_value(btc_price)
-
-                if share_value > 0:
-                    logging.info(
-                        f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
-                    )
-
-                self.scores[uid] += share_value
-
-            self._log_share_value_scores(coin, f"{end_time - start_time}s")
-
-        self.last_evaluation_timestamp = current_time
-        logging.info(f"Updated last_evaluation_timestamp to {current_time}")
 
     def _log_share_value_scores(self, coin: str, timeframe: str) -> None:
         """Log current scores based on share values."""
@@ -284,7 +291,6 @@ class TaohashProxyValidator(BaseValidator):
         total = sum(self.moving_avg_scores)
         if total == 0:
             logging.info("No miners are mining, we should burn the alpha")
-            # No miners are mining, we should burn the alpha
             owner_uid = self.get_burn_uid()
             if owner_uid is not None:
                 weights = [0.0] * len(self.hotkeys)
