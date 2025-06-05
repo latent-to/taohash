@@ -6,6 +6,7 @@
 import argparse
 import traceback
 import time
+import asyncio
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
@@ -21,6 +22,7 @@ from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
 from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
+from taohash.core.pricing.network_stats import get_current_difficulty
 from taohash.validator import BaseValidator
 
 COIN = "bitcoin"
@@ -144,13 +146,15 @@ class TaohashProxyValidator(BaseValidator):
                     coin,
                 )
 
+                btc_price = self.price_api.get_price(coin)
+                btc_difficulty = asyncio.run(get_current_difficulty())
+
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
                         continue
 
                     uid = hotkey_to_uid[metric.hotkey]
-                    btc_price = self.price_api.get_price(coin)
-                    share_value = metric.get_share_value(btc_price)
+                    share_value = metric.get_share_value(btc_price, btc_difficulty)
 
                     if share_value > 0:
                         logging.info(

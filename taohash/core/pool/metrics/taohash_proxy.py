@@ -19,14 +19,20 @@ class ProxyMetrics(BaseMetrics):
     shares: int = 0
     share_value: float = 0.0
 
-    def get_share_value(self, btc_price: float) -> float:
+    def get_share_value(self, btc_price: float, btc_difficulty: float) -> float:
         """
         Returns the share value for this time period.
         The share value is already calculated by the pool based on actual work done.
+
+        Args:
+            btc_price: Current Bitcoin price in USD
+            btc_difficulty: Current Bitcoin network difficulty
+
+        Returns:
+            float: Share value in USD
         """
-        # TODO: Fetch these values dynamically
         if self.share_value:
-            return (self.share_value / 121_660_000_000_000) * 3.125 * btc_price
+            return (self.share_value / btc_difficulty) * 3.125 * btc_price
         return 0.0
 
 
