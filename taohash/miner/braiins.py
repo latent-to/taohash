@@ -68,8 +68,13 @@ class BraiinsMiner(BaseMiner):
             default=os.getenv("PROXY_TYPE", "taohash"),
             help="Proxy type to use (taohash or braiins)",
         )
-        TaohashProxyManager.add_args(parser)
-        BraiinsProxyManager.add_args(parser)
+
+        args, _ = parser.parse_known_args()
+        if hasattr(args, "proxy_type"):
+            if args.proxy_type == "taohash":
+                TaohashProxyManager.add_args(parser)
+            elif args.proxy_type == "braiins":
+                BraiinsProxyManager.add_args(parser)
 
     def get_target_pools(self) -> dict[str, PoolInfo]:
         """
