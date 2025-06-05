@@ -13,7 +13,8 @@ from taohash.miner.proxy.base import BaseProxyManager
 from .src.constants import (
     RELOAD_API_PORT,
     RELOAD_API_HOST,
-    DEFAULT_PROXY_PORT,
+    PROXY_PORT,
+    PROXY_PORT_HIGH,
     DEFAULT_DASHBOARD_PORT,
 )
 
@@ -40,8 +41,14 @@ class TaohashProxyManager(BaseProxyManager):
         proxy_group.add_argument(
             "--proxy_port",
             type=int,
-            default=int(os.getenv("PROXY_PORT", str(DEFAULT_PROXY_PORT))),
+            default=int(os.getenv("PROXY_PORT", str(PROXY_PORT))),
             help="Port the proxy is running on",
+        )
+        proxy_group.add_argument(
+            "--proxy_port_high",
+            type=int,
+            default=int(os.getenv("PROXY_PORT_HIGH", str(PROXY_PORT_HIGH))),
+            help="Port the high diff proxy is running on",
         )
         proxy_group.add_argument(
             "--dashboard_port",
@@ -50,24 +57,19 @@ class TaohashProxyManager(BaseProxyManager):
             help="Port for the proxy dashboard",
         )
 
-    def __init__(
-        self,
-        config: "bt.Config",
-        proxy_base_path: str = DEFAULT_PROXY_BASE_PATH,
-        proxy_port: int = DEFAULT_PROXY_PORT,
-        dashboard_port: int = DEFAULT_DASHBOARD_PORT,
-    ):
+    def __init__(self, config: "bt.Config"):
         super().__init__(config)
-        self.base_path = os.path.expanduser(proxy_base_path)
+        self.base_path = os.path.expanduser(config.proxy_base_path)
         self.config_path = os.path.join(self.base_path, "config", "config.toml")
-        self.proxy_port = proxy_port
-        self.dashboard_port = dashboard_port
+        self.proxy_port = config.proxy_port
+        self.proxy_port_high = config.proxy_port_high
+        self.dashboard_port = config.dashboard_port
 
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         logging.info(f"Using taohash proxy configuration path: {self.config_path}")
         logging.info(f"Config directory: {os.path.dirname(self.config_path)}")
         logging.info(
-            f"External ports - Proxy: {self.proxy_port}, Dashboard: {self.dashboard_port}"
+            f"External ports - Normal: {self.proxy_port}, High Diff: {self.proxy_port_high}, Dashboard: {self.dashboard_port}"
         )
 
         healthy, msg = self.check_health()
@@ -111,11 +113,19 @@ class TaohashProxyManager(BaseProxyManager):
             with socket.socket() as sock:
                 sock.settimeout(1)
                 if sock.connect_ex(("127.0.0.1", self.proxy_port)) != 0:
-                    return False, f"Proxy port {self.proxy_port} is not open"
+                    return False, f"Normal proxy port {self.proxy_port} is not open"
+
+            with socket.socket() as sock:
+                sock.settimeout(1)
+                if sock.connect_ex(("127.0.0.1", self.proxy_port_high)) != 0:
+                    return (
+                        False,
+                        f"High diff proxy port {self.proxy_port_high} is not open",
+                    )
         except Exception:
             pass
 
-        return True, "All required files present and port open"
+        return True, "All required files present and both proxy ports open"
 
     def update_config(self, slot_data: Any) -> bool:
         """
@@ -139,7 +149,6 @@ class TaohashProxyManager(BaseProxyManager):
                     "port": int(port),
                     "user": username,
                     "pass": password,
-                    "proxy_port": self.proxy_port,
                 }
 
                 logging.info(
@@ -150,14 +159,13 @@ class TaohashProxyManager(BaseProxyManager):
                 if high_diff_port is not None:
                     config["pools"]["high_diff"] = {
                         "host": host,
-                        "port": int(port),
+                        "port": int(high_diff_port),
                         "user": username,
                         "pass": password,
-                        "proxy_port": high_diff_port,
                     }
 
                     logging.info(
-                        f"🔄 Configured high_diff pool → {username}@{host}:{port} on proxy port {high_diff_port}"
+                        f"🔄 Configured high_diff pool → {username}@{host}:{high_diff_port} (proxy listens on port {self.proxy_port_high})"
                     )
                 else:
                     config["pools"]["high_diff"] = {
@@ -165,11 +173,10 @@ class TaohashProxyManager(BaseProxyManager):
                         "port": int(port),
                         "user": username,
                         "pass": password,
-                        "proxy_port": self.proxy_port,
                     }
 
                     logging.info(
-                        "🔄 High difficulty pool not specified, using same port as normal pool"
+                        f"🔄 High difficulty pool not specified, using same upstream port as normal pool (proxy listens on port {self.proxy_port_high})"
                     )
 
             os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
