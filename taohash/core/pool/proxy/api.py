@@ -1,5 +1,7 @@
 import httpx
 from typing import Optional, Any
+from backoff import on_exception, expo
+from ratelimit import limits, RateLimitException
 
 from bittensor import logging
 
@@ -45,6 +47,12 @@ class ProxyPoolAPI(PoolAPI):
         else:
             return splits[1]
 
+    @on_exception(
+        expo,
+        (RateLimitException, httpx.RequestError, httpx.HTTPStatusError),
+        max_tries=5,
+    )
+    @limits(calls=1, period=2)
     def get_worker_data(
         self, worker_id: str, coin: str = "bitcoin"
     ) -> Optional[dict[str, Any]]:
@@ -58,42 +66,40 @@ class ProxyPoolAPI(PoolAPI):
         Returns:
             Worker data dict with hash_rate_5m, hash_rate_60m, shares_5m, shares_60m
         """
-        try:
-            url = f"{self.proxy_url}/api/workers/stats"
-            params = {"worker": worker_id}
+        url = f"{self.proxy_url}/api/workers/stats"
+        params = {"worker": worker_id}
 
-            with httpx.Client(timeout=30) as client:
-                response = client.get(url, headers=self.headers, params=params)
-                response.raise_for_status()
+        with httpx.Client(timeout=30) as client:
+            response = client.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
 
-                data = response.json()
+            data = response.json()
 
-                workers = data.get("btc", {}).get("workers", {})
+            workers = data.get("btc", {}).get("workers", {})
 
-                if worker_id not in workers:
-                    logging.debug(f"Worker {worker_id} not found in proxy response")
-                    return None
+            if worker_id not in workers:
+                logging.debug(f"Worker {worker_id} not found in proxy response")
+                return None
 
-                worker_data = workers[self._worker_name_to_worker_id(worker_id)]
+            worker_data = workers[self._worker_name_to_worker_id(worker_id)]
 
-                return {
-                    "hash_rate_5m": worker_data.get("hash_rate_5m", 0.0),
-                    "hash_rate_60m": worker_data.get("hash_rate_60m", 0.0),
-                    "hash_rate_unit": worker_data.get("hash_rate_unit", "Gh/s"),
-                    "shares_5m": worker_data.get("shares_5m", 0),
-                    "shares_60m": worker_data.get("shares_60m", 0),
-                    "share_value_5m": worker_data.get("share_value_5m", 0.0),
-                    "share_value_60m": worker_data.get("share_value_60m", 0.0),
-                    "share_value_24h": worker_data.get("share_value_24h", 0.0),
-                }
+            return {
+                "hash_rate_5m": worker_data.get("hash_rate_5m", 0.0),
+                "hash_rate_60m": worker_data.get("hash_rate_60m", 0.0),
+                "hash_rate_unit": worker_data.get("hash_rate_unit", "Gh/s"),
+                "shares_5m": worker_data.get("shares_5m", 0),
+                "shares_60m": worker_data.get("shares_60m", 0),
+                "share_value_5m": worker_data.get("share_value_5m", 0.0),
+                "share_value_60m": worker_data.get("share_value_60m", 0.0),
+                "share_value_24h": worker_data.get("share_value_24h", 0.0),
+            }
 
-        except httpx.HTTPStatusError as e:
-            logging.error(f"HTTP error getting worker data: {e}")
-            return None
-        except Exception as e:
-            logging.error(f"Error getting worker data: {e}")
-            return None
-
+    @on_exception(
+        expo,
+        (RateLimitException, httpx.RequestError, httpx.HTTPStatusError),
+        max_tries=5,
+    )
+    @limits(calls=1, period=2)
     def get_all_workers_data(self, coin: str = "bitcoin") -> dict[str, dict[str, Any]]:
         """
         Get data for all workers from the proxy API.
@@ -104,39 +110,37 @@ class ProxyPoolAPI(PoolAPI):
         Returns:
             Dict mapping worker_id to worker data
         """
-        try:
-            url = f"{self.proxy_url}/api/workers/stats"
+        url = f"{self.proxy_url}/api/workers/stats"
 
-            with httpx.Client(timeout=30) as client:
-                response = client.get(url, headers=self.headers)
-                response.raise_for_status()
+        with httpx.Client(timeout=30) as client:
+            response = client.get(url, headers=self.headers)
+            response.raise_for_status()
 
-                data = response.json()
+            data = response.json()
 
-                workers = data.get("btc", {}).get("workers", {})
+            workers = data.get("btc", {}).get("workers", {})
 
-                result = {}
-                for worker_id, worker_data in workers.items():
-                    result[worker_id] = {
-                        "hash_rate_5m": worker_data.get("hash_rate_5m", 0.0),
-                        "hash_rate_60m": worker_data.get("hash_rate_60m", 0.0),
-                        "hash_rate_unit": worker_data.get("hash_rate_unit", "Gh/s"),
-                        "shares_5m": worker_data.get("shares_5m", 0),
-                        "shares_60m": worker_data.get("shares_60m", 0),
-                        "share_value_5m": worker_data.get("share_value_5m", 0.0),
-                        "share_value_60m": worker_data.get("share_value_60m", 0.0),
-                        "share_value_24h": worker_data.get("share_value_24h", 0.0),
-                    }
+            result = {}
+            for worker_id, worker_data in workers.items():
+                result[worker_id] = {
+                    "hash_rate_5m": worker_data.get("hash_rate_5m", 0.0),
+                    "hash_rate_60m": worker_data.get("hash_rate_60m", 0.0),
+                    "hash_rate_unit": worker_data.get("hash_rate_unit", "Gh/s"),
+                    "shares_5m": worker_data.get("shares_5m", 0),
+                    "shares_60m": worker_data.get("shares_60m", 0),
+                    "share_value_5m": worker_data.get("share_value_5m", 0.0),
+                    "share_value_60m": worker_data.get("share_value_60m", 0.0),
+                    "share_value_24h": worker_data.get("share_value_24h", 0.0),
+                }
 
-                return result
+            return result
 
-        except httpx.HTTPStatusError as e:
-            logging.error(f"HTTP error getting all workers data: {e}")
-            return {}
-        except Exception as e:
-            logging.error(f"Error getting all workers data: {e}")
-            return {}
-
+    @on_exception(
+        expo,
+        (RateLimitException, httpx.RequestError, httpx.HTTPStatusError),
+        max_tries=5,
+    )
+    @limits(calls=1, period=2)
     def get_workers_timerange(
         self, start_time: int, end_time: int, coin: str = "bitcoin"
     ) -> dict[str, dict[str, Any]]:
@@ -151,30 +155,22 @@ class ProxyPoolAPI(PoolAPI):
         Returns:
             Dict mapping worker_id to worker timerange data
         """
-        try:
-            url = f"{self.proxy_url}/api/workers/timerange"
-            params = {"start_time": start_time, "end_time": end_time}
+        url = f"{self.proxy_url}/api/workers/timerange"
+        params = {"start_time": start_time, "end_time": end_time}
 
-            with httpx.Client(timeout=30) as client:
-                response = client.get(url, headers=self.headers, params=params)
-                response.raise_for_status()
+        with httpx.Client(timeout=30) as client:
+            response = client.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
 
-                data = response.json()
+            data = response.json()
 
-                workers = data.get("btc", {}).get("workers", {})
+            workers = data.get("btc", {}).get("workers", {})
 
-                result = {}
-                for worker_id, worker_data in workers.items():
-                    result[self._worker_name_to_worker_id(worker_id)] = worker_data
+            result = {}
+            for worker_id, worker_data in workers.items():
+                result[self._worker_name_to_worker_id(worker_id)] = worker_data
 
-                return result
-
-        except httpx.HTTPStatusError as e:
-            logging.error(f"HTTP error getting workers timerange data: {e}")
-            return {}
-        except Exception as e:
-            logging.error(f"Error getting workers timerange data: {e}")
-            return {}
+            return result
 
     def get_fpps(self, coin: str = "bitcoin") -> float:
         """
