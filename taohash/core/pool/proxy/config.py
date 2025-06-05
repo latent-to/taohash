@@ -9,6 +9,8 @@ from taohash.core.pool.pool import PoolIndex
 class ProxyPoolAPIConfig(PoolAPIConfig):
     """Configuration for Proxy Pool API access"""
 
+    DEFAULT_API_PORT = 8888
+
     def __init__(self, proxy_url: str, api_token: str):
         super().__init__()
         self.proxy_url = proxy_url
@@ -18,11 +20,11 @@ class ProxyPoolAPIConfig(PoolAPIConfig):
     def add_args(cls, parser: "argparse.ArgumentParser") -> None:
         """Add Proxy API configuration arguments"""
         parser.add_argument(
-            "--pool.proxy_url",
-            type=str,
+            "--pool.proxy_api_port",
+            type=int,
             required=False,
-            default=os.getenv("PROXY_URL"),
-            help="Proxy URL (e.g., http://proxy.example.com:8888) (env: PROXY_URL, required)",
+            default=int(os.getenv("PROXY_API_PORT", str(cls.DEFAULT_API_PORT))),
+            help=f"Proxy API port (env: PROXY_API_PORT, default: {cls.DEFAULT_API_PORT})",
         )
         parser.add_argument(
             "--pool.proxy_api_token",
@@ -34,22 +36,19 @@ class ProxyPoolAPIConfig(PoolAPIConfig):
 
     @classmethod
     def from_args(cls, args) -> "ProxyPoolAPIConfig":
-        proxy_url = args.pool.proxy_url
-        # TODO: Raise error if proxy_url is not set
-        if not proxy_url:
-            domain = None
-            if hasattr(args.pool, "domain") and args.pool.domain:
-                domain = args.pool.domain
-            elif hasattr(args.pool, "ip") and args.pool.ip:
-                domain = args.pool.ip
+        domain = None
+        if hasattr(args.pool, "domain") and args.pool.domain:
+            domain = args.pool.domain
+        elif hasattr(args.pool, "ip") and args.pool.ip:
+            domain = args.pool.ip
 
-            if domain:
-                proxy_url = f"http://{domain}:8888"
-            else:
-                raise ValueError(
-                    "Proxy URL must be provided via --pool.proxy_url or PROXY_URL env var, "
-                    "or pool.domain must be set to auto-construct the URL"
-                )
+        if not domain:
+            raise ValueError(
+                "Pool domain must be provided via --pool.domain or PROXY_DOMAIN env var"
+            )
+
+        api_port = args.pool.proxy_api_port
+        proxy_url = f"http://{domain}:{api_port}"
 
         api_token = args.pool.proxy_api_token
         if not api_token:
@@ -63,7 +62,8 @@ class ProxyPoolAPIConfig(PoolAPIConfig):
 class ProxyPoolConfig:
     """Configuration for Proxy Pool connection details"""
 
-    DEFAULT_PORT = 8888
+    DEFAULT_PORT = 3331
+    DEFAULT_HIGH_DIFF_PORT = 3331
     DEFAULT_PASSWORD = "x"
 
     def __init__(
@@ -114,7 +114,7 @@ class ProxyPoolConfig:
             type=int,
             required=False,
             default=int(os.getenv("PROXY_PORT", str(cls.DEFAULT_PORT))),
-            help=f"Proxy port (env: PROXY_PORT, default: {cls.DEFAULT_PORT})",
+            help=f"Proxy port for normal miners (env: PROXY_PORT, default: {cls.DEFAULT_PORT})",
         )
         parser.add_argument(
             "--pool.username",
@@ -134,10 +134,10 @@ class ProxyPoolConfig:
             "--pool.high_diff_port",
             type=int,
             required=False,
-            default=int(os.getenv("PROXY_HIGH_DIFF_PORT"))
-            if os.getenv("PROXY_HIGH_DIFF_PORT")
-            else None,
-            help="Optional proxy port for high difficulty miners (env: PROXY_HIGH_DIFF_PORT)",
+            default=int(
+                os.getenv("PROXY_HIGH_DIFF_PORT", str(cls.DEFAULT_HIGH_DIFF_PORT))
+            ),
+            help=f"Proxy port for high difficulty miners (env: PROXY_HIGH_DIFF_PORT, default: {cls.DEFAULT_HIGH_DIFF_PORT})",
         )
 
     @classmethod
