@@ -13,7 +13,6 @@ from .logger import get_logger
 from .constants import (
     RELOAD_API_PORT,
     RELOAD_API_HOST,
-    INTERNAL_PROXY_PORT,
     INTERNAL_DASHBOARD_PORT,
     CONFIG_PATH,
 )
@@ -100,7 +99,8 @@ async def handle_new_miner(
     pool_config = None
     pool_label = None
     for pool_name, pool_cfg in config["pools"].items():
-        if pool_cfg.get("proxy_port", INTERNAL_PROXY_PORT) == local_port:
+        expected_port = get_proxy_port(pool_name)
+        if expected_port == local_port:
             pool_config = pool_cfg
             pool_label = pool_name
             break
@@ -124,8 +124,8 @@ async def handle_new_miner(
         pool_config["user"],
         pool_config["pass"],
         stats_manager,
+        pool_label
     )
-    session.pool_label = pool_label
 
     active_sessions.add(session)
     task = asyncio.create_task(session.run())
@@ -137,6 +137,14 @@ async def handle_new_miner(
 
     task.add_done_callback(_on_done)
 
+
+def get_proxy_port(pool_name: str) -> int:
+      if pool_name == "normal":
+          return int(os.getenv("PROXY_PORT", 3331))
+      elif pool_name == "high_diff":
+          return int(os.getenv("PROXY_PORT_HIGH", 3332))
+      else:
+          return 3331
 
 async def start_reload_api() -> web.TCPSite:
     """Start a separate web server just for handling reload requests (internal use only)"""
@@ -170,7 +178,7 @@ async def main() -> None:
 
     logger.info("🚀 Starting with configuration:")
     for pool_name, pool_config in config["pools"].items():
-        proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
+        proxy_port = get_proxy_port(pool_name)
         logger.info(
             f"  {pool_name.upper()} Pool: {pool_config['host']}:{pool_config['port']}"
         )
@@ -185,7 +193,7 @@ async def main() -> None:
     # Start a server for each pool configuration
     servers = []
     for pool_name, pool_config in config["pools"].items():
-        proxy_port = pool_config.get("proxy_port", INTERNAL_PROXY_PORT)
+        proxy_port = get_proxy_port(pool_name)
 
         server = await asyncio.start_server(
             handle_new_miner,
