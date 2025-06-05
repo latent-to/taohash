@@ -12,31 +12,18 @@
   <div class="container">
     <header>
       <div class="logo-title">
-        <h1><span class="tao-letter">t</span>ao hash <span class="subtitle">proxy</span></h1>
+        <img src="/static/logos/taohash-logo.png" alt="TaoHash" style="height: 40px; width: auto;">
       </div>
       <div class="refresh-time">
         Last updated: <span id="lastRefreshed">-</span>
       </div>
     </header>
 
-    <div class="pool-info-card">
-      <div class="pool-header">
-        <h2>Current Mining Pool</h2>
-        <span class="pool-status">Connected</span>
-      </div>
-      <div class="pool-details">
-        <div class="pool-detail">
-          <span class="detail-label">Pool:</span>
-          <span class="detail-value" id="poolUrl">-</span>
-        </div>
-        <div class="pool-detail">
-          <span class="detail-label">Username:</span>
-          <span class="detail-value" id="poolUser">-</span>
-        </div>
-        <div class="pool-detail">
-          <span class="detail-label">Connection:</span>
-          <span class="detail-value" id="poolConnectionTime">-</span>
-        </div>
+
+    <div class="pools-section">
+      <h2>Mining Pools</h2>
+      <div id="poolsContainer" class="pools-grid">
+        <!-- Pool cards will be dynamically inserted here -->
       </div>
     </div>
 
@@ -59,34 +46,33 @@
       </div>
     </div>
 
-    <div class="charts-row">
-      <div class="chart-container">
-        <h2>Hashrate History</h2>
-        <div style="height: 300px;">
-          <canvas id="hashrateChart"></canvas>
-        </div>
+    <div class="chart-container">
+      <h2>Hashrate History</h2>
+      <div style="height: 300px;">
+        <canvas id="hashrateChart"></canvas>
       </div>
     </div>
 
-    <div class="charts-row" style="display: flex; gap: 20px; margin-bottom: 30px;">
+    <div style="display: flex; gap: 20px; margin-bottom: 30px;">
       <div class="chart-container" style="flex: 3;">
         <h2>Connected Miners</h2>
         <table id="minersTable">
-          <thead>
-            <tr>
-              <th>Miner</th>
-              <th>Worker</th>
-              <th>Hashrate</th>
-              <th>Accepted</th>
-              <th>Rejected</th>
-              <th>Accept Rate</th>
-              <th>Pool Diff</th>
-              <th>Miner Diff</th>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
+            <thead>
+              <tr>
+                <th>Miner</th>
+                <th>Worker</th>
+                <th>Pool Type</th>
+                <th>Hashrate</th>
+                <th>Accepted</th>
+                <th>Rejected</th>
+                <th>Accept Rate</th>
+                <th>Pool Diff</th>
+                <th>Miner Diff</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
       </div>
       <div class="chart-container" style="flex: 1;">
         <h2>Share Distribution</h2>
@@ -97,7 +83,8 @@
     </div>
 
     <footer>
-      <p>TaoHash Proxy (beta) · Bittensor Subnet 14</p>
+      <img src="/static/logos/taohash-logo-with-text.png" alt="TaoHash" style="height: 30px; width: auto; margin-bottom: 10px;">
+      <p>taohash.com · Powered by Bittensor</p>
     </footer>
   </div>
 

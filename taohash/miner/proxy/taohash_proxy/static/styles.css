@@ -1,16 +1,16 @@
 :root {
-  --primary: #00B9B9;
-  --secondary: #1ADABB;
-  --dark: #121212;
-  --dark-accent: #1E1E1E;
+  --primary: #4ECDC4;
+  --secondary: #52D9D0;
+  --dark: #0A1628;
+  --dark-accent: #162236;
   --light-text: #FFFFFF;
-  --muted-text: #EEEEEE;
-  --card-bg: #1E1E1E;
-  --hover: #252525;
-  --border: #333333;
-  --danger: #FF4C5B;
-  --warning: #FFC107;
-  --accent: #00B9B9;
+  --muted-text: #B8C5D6;
+  --card-bg: #162236;
+  --hover: #1A2940;
+  --border: rgba(78, 205, 196, 0.15);
+  --danger: #FF6B6B;
+  --warning: #FFE66D;
+  --accent: #4ECDC4;
 }
 
 * {
@@ -24,8 +24,6 @@ body {
   background-color: var(--dark);
   color: var(--light-text);
   line-height: 1.6;
-  background-image: radial-gradient(circle at 50% 0%, rgba(0, 185, 185, 0.1) 0%, transparent 75%);
-  background-attachment: fixed;
   min-height: 100vh;
 }
 
@@ -49,33 +47,51 @@ header {
   align-items: center;
 }
 
-h1 {
-  font-size: 32px;
-  color: var(--light-text);
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  position: relative;
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
-.tao-letter {
+.analytics-link {
+  padding: 8px 16px;
+  background: rgba(0, 185, 185, 0.1);
   color: var(--primary);
-  font-weight: 700;
-}
-
-.subtitle {
-  font-size: 18px;
-  color: var(--muted-text);
-  opacity: 0.8;
-  font-weight: 500;
-  margin-left: 4px;
-}
-
-/* Pool information card */
-.pool-info-card {
-  background-color: var(--card-bg);
+  text-decoration: none;
   border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
+  font-weight: 500;
+  transition: all 0.2s;
+  border: 1px solid rgba(0, 185, 185, 0.2);
+}
+
+.analytics-link:hover {
+  background: rgba(0, 185, 185, 0.2);
+  transform: translateY(-1px);
+}
+
+
+/* Pools section */
+.pools-section {
+  margin-bottom: 2rem;
+}
+
+.pools-section h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--muted-text);
+}
+
+.pools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.pool-card {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   border: 1px solid var(--border);
 }
@@ -84,45 +100,54 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
 }
 
-.pool-header h2 {
-  font-size: 18px;
-  color: var(--muted-text);
+.pool-header h3 {
   margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--light-text);
 }
 
 .pool-status {
-  background-color: rgba(26, 218, 187, 0.2);
-  color: var(--secondary);
   padding: 4px 10px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
 }
 
+.pool-status.active {
+  background-color: rgba(26, 218, 187, 0.2);
+  color: var(--secondary);
+}
+
+.pool-status.inactive {
+  background-color: rgba(128, 128, 128, 0.2);
+  color: #888;
+}
+
 .pool-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .pool-detail {
   display: flex;
+  gap: 0.5rem;
   align-items: center;
+  font-size: 0.875rem;
 }
 
 .detail-label {
-  font-weight: 600;
-  margin-right: 8px;
   color: var(--muted-text);
   min-width: 80px;
 }
 
 .detail-value {
+  color: var(--light-text);
   font-family: monospace;
   background-color: var(--hover);
   padding: 4px 8px;
@@ -132,6 +157,33 @@ h1 {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--primary);
+}
+
+.pool-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.pool-stat {
+  text-align: center;
+}
+
+.pool-stat .stat-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.pool-stat .stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted-text);
+  margin-top: 0.25rem;
 }
 
 .summary-stats {
@@ -250,6 +302,12 @@ footer {
   text-align: right;
 }
 
+.refresh-time {
+  font-size: 12px;
+  color: var(--muted-text);
+  text-align: right;
+}
+
 @media (max-width: 768px) {
   .summary-stats {
     grid-template-columns: 1fr;
@@ -257,4 +315,9 @@ footer {
   .charts-row {
     flex-direction: column;
   }
-} 
+  .dashboard-bottom-section {
+    flex-direction: column !important;
+  }
+}
+
+ 

@@ -12,15 +12,15 @@ let shareChart = null;
 const REFRESH_INTERVAL = 10000; // 10 seconds
 const MAX_HISTORY_POINTS = 20;
 const COLORS = [
-  '#00B9B9', '#1ADABB', '#4CD4FF', '#3498db', '#9b59b6', 
-  '#e74c3c', '#f1c40f', '#34495e', '#d35400', '#7f8c8d'
+  '#4ECDC4', '#52D9D0', '#6AE4DB', '#82EFE6', '#9AF9F1', 
+  '#FFE66D', '#FF6B6B', '#C9ADA7', '#B8C5D6', '#7A8CA0'
 ];
 
 // Initialize the dashboard
 document.addEventListener('DOMContentLoaded', function() {
-  // Set Chart.js defaults to match theme
-  Chart.defaults.color = '#EEEEEE';
-  Chart.defaults.borderColor = '#333333';
+  // Set Chart.js defaults
+  Chart.defaults.color = '#B8C5D6';
+  Chart.defaults.borderColor = 'rgba(78, 205, 196, 0.15)';
   Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
   
   initCharts();
@@ -49,26 +49,26 @@ function initCharts() {
       scales: {
         x: {
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
-            borderColor: '#333333'
+            color: 'rgba(78, 205, 196, 0.05)',
+            borderColor: 'rgba(78, 205, 196, 0.15)'
           },
           ticks: {
-            color: '#EEEEEE'
+            color: '#B8C5D6'
           }
         },
         y: {
           beginAtZero: true,
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
-            borderColor: '#333333'
+            color: 'rgba(78, 205, 196, 0.05)',
+            borderColor: 'rgba(78, 205, 196, 0.15)'
           },
           ticks: {
-            color: '#EEEEEE'
+            color: '#B8C5D6'
           },
           title: {
             display: true,
             text: 'Hashrate',
-            color: '#EEEEEE'
+            color: '#B8C5D6'
           }
         }
       },
@@ -76,16 +76,16 @@ function initCharts() {
         legend: {
           position: 'top',
           labels: {
-            color: '#EEEEEE',
+            color: '#B8C5D6',
             usePointStyle: true,
             padding: 20
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(30, 30, 30, 0.9)',
+          backgroundColor: 'rgba(22, 34, 54, 0.95)',
           titleColor: '#FFFFFF',
-          bodyColor: '#EEEEEE',
-          borderColor: '#333333',
+          bodyColor: '#B8C5D6',
+          borderColor: 'rgba(78, 205, 196, 0.3)',
           borderWidth: 1,
           padding: 12,
           callbacks: {
@@ -114,12 +114,12 @@ function initCharts() {
       datasets: [{
         data: [0, 0],
         backgroundColor: [
-          'rgba(26, 218, 187, 0.8)',
-          'rgba(255, 76, 91, 0.8)'
+          'rgba(78, 205, 196, 0.8)',
+          'rgba(255, 107, 107, 0.8)'
         ],
         borderColor: [
-          '#1ADABB',
-          '#FF4C5B'
+          '#4ECDC4',
+          '#FF6B6B'
         ],
         borderWidth: 1
       }]
@@ -135,16 +135,16 @@ function initCharts() {
         legend: {
           position: 'bottom',
           labels: {
-            color: '#EEEEEE',
+            color: '#B8C5D6',
             usePointStyle: true,
             padding: 15
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(30, 30, 30, 0.9)',
+          backgroundColor: 'rgba(22, 34, 54, 0.95)',
           titleColor: '#FFFFFF',
-          bodyColor: '#EEEEEE',
-          borderColor: '#333333',
+          bodyColor: '#B8C5D6',
+          borderColor: 'rgba(78, 205, 196, 0.3)',
           borderWidth: 1,
           padding: 12
         }
@@ -165,15 +165,14 @@ async function updateData() {
       return;
     }
     
-    // Fetch pool info
-    const poolResponse = await fetch('/api/pool');
-    const poolInfo = await poolResponse.json();
+    const poolsResponse = await fetch('/api/pools');
+    const poolsInfo = await poolsResponse.json();
     
     // Update last refresh time
     document.getElementById('lastRefreshed').textContent = new Date().toLocaleTimeString();
     
-    // Update pool information
-    updatePoolInfo(poolInfo);
+    // Update pools display
+    updatePoolsDisplay(poolsInfo);
     
     // Calculate summary statistics
     updateSummaryStats(minerStats);
@@ -192,43 +191,56 @@ async function updateData() {
   }
 }
 
-// Update pool information
-function updatePoolInfo(poolInfo) {
-  document.getElementById('poolUrl').textContent = poolInfo.url || 'Not connected';
-  document.getElementById('poolUser').textContent = poolInfo.user || 'N/A';
+// Update pools display with cards
+function updatePoolsDisplay(poolsData) {
+  const container = document.getElementById('poolsContainer');
+  container.innerHTML = '';
   
-  // Format the connection time
-  if (poolInfo.connected_since) {
-    const connectedDate = new Date(poolInfo.connected_since * 1000);
-    const now = new Date();
-    const diffSeconds = Math.floor((now - connectedDate) / 1000);
+  // Create a card for each pool
+  for (const [poolName, poolData] of Object.entries(poolsData)) {
+    const card = document.createElement('div');
+    card.className = 'pool-card';
     
-    let timeString;
-    if (diffSeconds < 60) {
-      timeString = `${diffSeconds} seconds`;
-    } else if (diffSeconds < 3600) {
-      timeString = `${Math.floor(diffSeconds / 60)} minutes`;
-    } else if (diffSeconds < 86400) {
-      timeString = `${Math.floor(diffSeconds / 3600)} hours`;
-    } else {
-      timeString = `${Math.floor(diffSeconds / 86400)} days`;
-    }
+    const isActive = poolData.connected_miners > 0;
     
-    document.getElementById('poolConnectionTime').textContent = `${timeString} ago`;
+    card.innerHTML = `
+      <div class="pool-header">
+        <h3>${poolName.toUpperCase()}</h3>
+        <span class="pool-status ${isActive ? 'active' : 'inactive'}">
+          ${isActive ? 'Active' : 'Idle'}
+        </span>
+      </div>
+      <div class="pool-details">
+        <div class="pool-detail">
+          <span class="detail-label">Address:</span>
+          <span class="detail-value">${poolData.host}</span>
+        </div>
+        <div class="pool-detail">
+          <span class="detail-label">Port:</span>
+          <span class="detail-value">${poolData.port}</span>
+        </div>
+        <div class="pool-detail">
+          <span class="detail-label">User:</span>
+          <span class="detail-value">${poolData.user}</span>
+        </div>
+        <div class="pool-stats">
+          <div class="pool-stat">
+            <span class="stat-value">${poolData.connected_miners}</span>
+            <span class="stat-label">Miners</span>
+          </div>
+          <div class="pool-stat">
+            <span class="stat-value">${formatHashrate(poolData.total_hashrate)}</span>
+            <span class="stat-label">Hashrate</span>
+          </div>
+          <div class="pool-stat">
+            <span class="stat-value">${poolData.total_accepted}</span>
+            <span class="stat-label">Accepted</span>
+          </div>
+        </div>
+      </div>
+    `;
     
-    // Update connection status
-    const statusElement = document.querySelector('.pool-status');
-    statusElement.textContent = 'Connected';
-    statusElement.style.backgroundColor = 'rgba(26, 218, 187, 0.2)';
-    statusElement.style.color = 'var(--secondary)';
-  } else {
-    document.getElementById('poolConnectionTime').textContent = 'N/A';
-    
-    // Update connection status
-    const statusElement = document.querySelector('.pool-status');
-    statusElement.textContent = 'Disconnected';
-    statusElement.style.backgroundColor = 'rgba(255, 76, 91, 0.2)';
-    statusElement.style.color = 'var(--danger)';
+    container.appendChild(card);
   }
 }
 
@@ -269,9 +281,26 @@ function addHashrateDataPoint(data) {
   // Add new label
   hashrateHistory.labels.push(timeString);
   
-  // Process each miner
-  data.forEach((miner, index) => {
-    const existingDataset = hashrateHistory.datasets.find(d => d.label === miner.worker || d.label === miner.miner);
+  // Aggregate miners for graph display
+  const aggregatedData = {};
+  data.forEach(miner => {
+    const label = miner.worker || miner.miner;
+    if (aggregatedData[label]) {
+      // Sum hashrates for miners with same worker name
+      aggregatedData[label].hashrate += miner.hashrate;
+    } else {
+      aggregatedData[label] = {
+        ...miner,
+        hashrate: miner.hashrate
+      };
+    }
+  });
+  
+  const graphData = Object.values(aggregatedData);
+  
+  graphData.forEach((miner, index) => {
+    const label = miner.worker || miner.miner;
+    const existingDataset = hashrateHistory.datasets.find(d => d.label === label);
     
     if (existingDataset) {
       // Update existing dataset
@@ -280,7 +309,7 @@ function addHashrateDataPoint(data) {
       // Create new dataset
       const color = COLORS[index % COLORS.length];
       const newDataset = {
-        label: miner.worker || miner.miner,
+        label: label,
         data: Array(hashrateHistory.labels.length - 1).fill(0).concat([miner.hashrate]),
         borderColor: color,
         backgroundColor: color + '20',
@@ -294,9 +323,9 @@ function addHashrateDataPoint(data) {
   });
   
   // Remove datasets for miners that are no longer connected
-  const activeMiners = data.map(m => m.worker || m.miner);
+  const activeLabels = Object.keys(aggregatedData);
   hashrateHistory.datasets = hashrateHistory.datasets.filter(ds => 
-    activeMiners.includes(ds.label));
+    activeLabels.includes(ds.label));
   
   // Update chart
   hashrateChart.data.labels = hashrateHistory.labels;
@@ -330,6 +359,24 @@ function updateMinersTable(data) {
     const workerCell = document.createElement('td');
     workerCell.textContent = miner.worker || '-';
     row.appendChild(workerCell);
+    
+    // Pool Type
+    const poolTypeCell = document.createElement('td');
+    const poolTypeBadge = document.createElement('span');
+    poolTypeBadge.classList.add('badge');
+    poolTypeBadge.textContent = miner.pool_type || 'UNKNOWN';
+    if (miner.pool_type === 'HIGH_DIFF') {
+      poolTypeBadge.style.backgroundColor = 'rgba(255, 107, 107, 0.2)';
+      poolTypeBadge.style.color = '#FF6B6B';
+    } else if (miner.pool_type === 'NORMAL') {
+      poolTypeBadge.style.backgroundColor = 'rgba(78, 205, 196, 0.2)';
+      poolTypeBadge.style.color = '#4ECDC4';
+    } else {
+      poolTypeBadge.style.backgroundColor = 'rgba(184, 197, 214, 0.2)';
+      poolTypeBadge.style.color = '#B8C5D6';
+    }
+    poolTypeCell.appendChild(poolTypeBadge);
+    row.appendChild(poolTypeCell);
     
     // Hashrate
     const hashrateCell = document.createElement('td');
@@ -369,7 +416,7 @@ function updateMinersTable(data) {
     minerDiffCell.textContent = miner.difficulty.toFixed(2);
     // Highlight if different from pool difficulty
     if (miner.pool_difficulty && miner.pool_difficulty !== miner.difficulty) {
-      minerDiffCell.style.color = '#1ADABB';
+      minerDiffCell.style.color = '#4ECDC4';
       minerDiffCell.style.fontWeight = '500';
     }
     row.appendChild(minerDiffCell);
@@ -380,7 +427,11 @@ function updateMinersTable(data) {
 
 // Helper function to format hashrate
 function formatHashrate(hashrate) {
-  if (hashrate >= 1e12) {
+  if (hashrate >= 1e18) {
+    return (hashrate / 1e18).toFixed(2) + ' EH/s';
+  } else if (hashrate >= 1e15) {
+    return (hashrate / 1e15).toFixed(2) + ' PH/s';
+  } else if (hashrate >= 1e12) {
     return (hashrate / 1e12).toFixed(2) + ' TH/s';
   } else if (hashrate >= 1e9) {
     return (hashrate / 1e9).toFixed(2) + ' GH/s';
@@ -391,4 +442,6 @@ function formatHashrate(hashrate) {
   } else {
     return hashrate.toFixed(2) + ' H/s';
   }
-} 
+}
+
+ 
