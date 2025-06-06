@@ -177,12 +177,12 @@ pm2 startup
 2. Start the miner
 ```bash
 # Using .env file
-pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/taohash_miner.py run \
     --subtensor.network finney \
     --logging.info
 
 # Using command-line arguments
-pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/taohash_miner.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \
@@ -193,7 +193,7 @@ pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
     --logging.info
 
 # Or without PM2
-python3 taohash/miner/braiins.py run \
+python3 taohash/miner/taohash_miner.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \

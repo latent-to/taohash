@@ -148,14 +148,14 @@ Now you have two options to run the validator: using PM2 for process management 
 
    Using `.env` configuration:
    ```bash
-   pm2 start python3 --name "taohash-validator" -- taohash/validator/braiins.py run \
+   pm2 start python3 --name "taohash-validator" -- taohash/validator/taohash_validator.py run \
        --subtensor.network finney \
        --logging.info
    ```
 
    Or with command-line arguments:
    ```bash
-   pm2 start python3 --name "taohash-validator" -- taohash/validator/braiins.py run \
+   pm2 start python3 --name "taohash-validator" -- taohash/validator/taohash_validator.py run \
        --netuid 14 \
        --subtensor.network finney \
        --wallet.name YOUR_WALLET_NAME \
@@ -170,14 +170,14 @@ Now you have two options to run the validator: using PM2 for process management 
 
    Using `.env` configuration:
    ```bash
-   python3 taohash/validator/braiins.py run \
+   python3 taohash/validator/taohash_validator.py run \
        --subtensor.network finney \
        --logging.info
    ```
 
    Or with command-line arguments:
    ```bash
-   python3 taohash/validator/braiins.py run \
+   python3 taohash/validator/taohash_validator.py run \
        --netuid 14 \
        --subtensor.network finney \
        --wallet.name YOUR_WALLET_NAME \
