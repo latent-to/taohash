@@ -92,8 +92,6 @@ The setup spawns a single service. Changing the pool is done through an API endp
 **Important**: Make sure you never expose this port over the internet as it can lead to vulnerabilities. 
 You can manually trigger a reload by using `curl -X POST http://localhost:5010/api/reload`
 
-By default, the port is `3333`and the Stratum Host should be your local IP address 
-
 `ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'`
 
 ### 2. Braiins Proxy
