@@ -273,12 +273,10 @@ def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
     reg = bt_decode.PortableRegistry.from_json(types)
     
     try:
-        # Attempt parsing high_diff_port
         data = bt_decode.decode("PoolInfo", reg, pool_info_bytes)
     except ValueError as e:
         if "Failed to decode type" in str(e):
-            # Old data
-            # Append empty bytes for high_diff_port
+            # Old data - fallback mechanism
             scale_bytes_with_none = pool_info_bytes + b'\x00'
             try:
                 data = bt_decode.decode("PoolInfo", reg, scale_bytes_with_none)
