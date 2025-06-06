@@ -20,7 +20,7 @@ dependencies = [
     "python-dotenv>=0.21.0",
     "backoff==2.2.1",
     "redis==5.2.1",
-    httpx==0.25.2
+    "httpx==0.25.2",
 ]
 [project.optional-dependencies]
 dev = [

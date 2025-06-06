@@ -7,6 +7,8 @@ import argparse
 import traceback
 import time
 
+from tabulate import tabulate
+
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
 from dotenv import load_dotenv
@@ -199,8 +201,6 @@ class TaohashProxyValidator(BaseValidator):
                 f"No active miners for {coin} (timeframe: {timeframe}) at Block {self.current_block}"
             )
             return
-
-        from tabulate import tabulate
 
         table = tabulate(
             rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
