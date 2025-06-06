@@ -6,7 +6,6 @@
 import argparse
 import traceback
 import time
-import asyncio
 
 from bittensor import logging, Subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
@@ -147,7 +146,7 @@ class TaohashProxyValidator(BaseValidator):
                 )
 
                 btc_price = self.price_api.get_price(coin)
-                btc_difficulty = asyncio.run(get_current_difficulty())
+                btc_difficulty = get_current_difficulty()
 
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
