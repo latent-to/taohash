@@ -69,7 +69,7 @@ class ProxyPoolAPI(PoolAPI):
         url = f"{self.proxy_url}/api/workers/stats"
         params = {"worker": worker_id}
 
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=180) as client:
             response = client.get(url, headers=self.headers, params=params)
             response.raise_for_status()
 
@@ -112,7 +112,7 @@ class ProxyPoolAPI(PoolAPI):
         """
         url = f"{self.proxy_url}/api/workers/stats"
 
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=180) as client:
             response = client.get(url, headers=self.headers)
             response.raise_for_status()
 
@@ -158,7 +158,7 @@ class ProxyPoolAPI(PoolAPI):
         url = f"{self.proxy_url}/api/workers/timerange"
         params = {"start_time": start_time, "end_time": end_time}
 
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=180) as client:
             response = client.get(url, headers=self.headers, params=params)
             response.raise_for_status()
 
