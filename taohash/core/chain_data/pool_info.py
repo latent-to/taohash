@@ -6,6 +6,7 @@ import bt_decode
 from bittensor import logging
 from bittensor import subtensor as bt_subtensor
 from bittensor_wallet.bittensor_wallet import Wallet
+from taohash.core.utils import ip_to_int
 
 
 @dataclass
@@ -48,7 +49,7 @@ class PoolInfo:
         """
         return {
             "pool_index": self.pool_index,
-            "ip": self.ip,
+            "ip": ip_to_int(self.ip) if self.ip else None,
             "port": self.port,
             "domain": self.domain,
             "username": self.username,
