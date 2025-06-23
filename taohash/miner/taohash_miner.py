@@ -99,9 +99,9 @@ class BraiinsMiner(BaseMiner):
         # Filter from metagraph and only include btc braiins pools
         target_pools = {}
         for hotkey, pool_info in all_pools.items():
-            if hotkey in self.metagraph.hotkeys and (
-                pool_info.pool_index == PoolIndex.Braiins
-                or pool_info.pool_index == PoolIndex.Proxy
+            if (
+                hotkey in self.metagraph.hotkeys
+                and pool_info.pool_index == PoolIndex.Proxy
             ):
                 pool_info.extra_data["full_username"] = (
                     f"{pool_info.username}.{self.worker_id}"
