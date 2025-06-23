@@ -1,4 +1,5 @@
 from typing import Optional, Union, TYPE_CHECKING
+import socket
 
 import bittensor as bt
 from tabulate import tabulate
@@ -78,11 +79,42 @@ class MiningScheduler:
         if not pool_info:
             return None
 
+        bt.logging.info("Checking pool availability for all validators...")
+        reachable_pools = {}
+
+        for hotkey, info in pool_info.items():
+            domain = info.get("domain")
+            port = info.get("port")
+
+            if domain and port:
+                if self._check_pool_liveness(domain, port):
+                    reachable_pools[hotkey] = info
+                    bt.logging.info(
+                        f"✅ Pool reachable: {domain}:{port} (validator {hotkey[:8]} {info.get('username')})"
+                    )
+                else:
+                    bt.logging.warning(
+                        f"❌ Skipping validator {hotkey[:8]} ({info.get('username')}) - pool {domain}:{port} unreachable"
+                    )
+            else:
+                bt.logging.warning(
+                    f"Invalid pool info for validator {hotkey[:8]}: "
+                    f"domain={domain}, port={port}"
+                )
+
+        if not reachable_pools:
+            bt.logging.error("No validators with reachable pools found!")
+            return None
+
+        bt.logging.info(
+            f"Found {len(reachable_pools)}/{len(pool_info)} validators with reachable pools"
+        )
+
         slots = self.allocation.create_schedule(
             current_block=current_block,
             available_blocks_this_window=available_blocks,
             next_window_block=next_window_block,
-            pool_info=pool_info,
+            pool_info=reachable_pools,
             metagraph=self.metagraph,
         )
 
@@ -230,3 +262,23 @@ class MiningScheduler:
             success = self.proxy_manager.update_config(new_slot)
             if not success:
                 bt.logging.warning("Failed to update proxy configuration")
+
+    def _check_pool_liveness(self, domain: str, port: int) -> bool:
+        """
+        Check if a pool is reachable via TCP socket connection.
+
+        Args:
+            domain: The domain or IP address of the pool
+            port: The port number of the pool
+
+        Returns:
+            bool: True if the pool is reachable, False otherwise
+        """
+        try:
+            with socket.socket() as sock:
+                sock.settimeout(5)
+                result = sock.connect_ex((domain, port))
+                return result == 0
+        except Exception as e:
+            bt.logging.debug(f"Pool check failed for {domain}:{port} - {e}")
+            return False
