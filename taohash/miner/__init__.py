@@ -21,7 +21,9 @@ class BaseMiner:
         self.uid = None
 
         self.subtensor = self.setup_bittensor_objects()
-        self.storage = get_miner_storage(storage_type=self.config.storage, config=self.config)
+        self.storage = get_miner_storage(
+            storage_type=self.config.storage, config=self.config
+        )
         self.worker_id = self.create_worker_id()
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.current_block = 0
@@ -32,7 +34,7 @@ class BaseMiner:
 
     def get_config(self):
         """Create and parse configuration."""
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(conflict_handler="resolve")
         self.add_args(parser)
         return config(parser)
 
@@ -105,11 +107,13 @@ class BaseMiner:
 
         # Initialize metagraph.
         self.metagraph = self.subtensor.get_metagraph_info(netuid=self.config.netuid)
-        logging.info(f"Metagraph: "
-                     f"<netuid:{self.metagraph.netuid}, "
-                     f"n:{len(self.metagraph.axons)}, "
-                     f"block:{self.metagraph.block}, "
-                     f"network: {self.subtensor.network}>")
+        logging.info(
+            f"Metagraph: "
+            f"<netuid:{self.metagraph.netuid}, "
+            f"n:{len(self.metagraph.axons)}, "
+            f"block:{self.metagraph.block}, "
+            f"network: {self.subtensor.network}>"
+        )
 
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
             logging.error(

@@ -1,5 +1,3 @@
-from typing import Dict
-
 import bittensor as bt
 import requests
 from backoff import on_exception, expo
@@ -28,7 +26,7 @@ class BraiinsPoolAPI(PoolAPI):
         else:
             bt.logging.success("Successfully pinged Braiins Pool API.")
 
-    __UNIT_TO_GHS: Dict[str, float] = {
+    __UNIT_TO_GHS: dict[str, float] = {
         "H/s": 1e-9,
         "Kh/s": 1e-6,
         "Mh/s": 1e-3,
@@ -53,7 +51,7 @@ class BraiinsPoolAPI(PoolAPI):
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
         splits = worker_name.split(".", maxsplit=1)
-        if len(splits) == 1: # no period
+        if len(splits) == 1:  # no period
             return splits[0]
         else:
             return splits[1]
@@ -62,7 +60,7 @@ class BraiinsPoolAPI(PoolAPI):
         expo, (RateLimitException, RequestException, JSONDecodeError), max_tries=8
     )
     @limits(calls=1, period=5)  # rate limit once per 5s
-    def _get_worker_data(self, coin: str) -> Dict[str, float]:
+    def _get_worker_data(self, coin: str) -> dict[str, float]:
         coin_name = self.__COIN_TO_COIN_NAME[coin]
         url = f"https://pool.braiins.com/accounts/workers/json/{coin_name}"
 

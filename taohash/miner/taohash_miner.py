@@ -1,4 +1,5 @@
 import argparse
+import os
 import traceback
 
 from bittensor import logging
@@ -9,7 +10,11 @@ from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
 from taohash.miner.allocation import get_allocation
-from taohash.miner.proxy.braiins_farm.controller import BraiinsProxyManager
+from taohash.miner.proxy import (
+    get_proxy_manager,
+    BraiinsProxyManager,
+    TaohashProxyManager,
+)
 from taohash.miner.scheduler import MiningScheduler
 
 DEFAULT_SYNC_FREQUENCY = 6
@@ -37,16 +42,10 @@ class BraiinsMiner(BaseMiner):
 
         self.blocks_per_window = self.tempo * 2
 
-        # Braiins-specific setup
         self.proxy_manager = None
         if self.config.use_proxy:
-            logging.info(
-                f"Setting up proxy manager with path: {self.config.proxy_base_path}"
-            )
-            self.proxy_manager = BraiinsProxyManager(
-                config=self.config,
-                proxy_base_path=self.config.proxy_base_path,
-                proxy_port=self.config.proxy_port,
+            self.proxy_manager = get_proxy_manager(
+                proxy_type=self.config.proxy_type, config=self.config
             )
 
         allocation_type = get_allocation(self.config.allocation.type, self.config)
@@ -62,7 +61,20 @@ class BraiinsMiner(BaseMiner):
     def add_args(self, parser: argparse.ArgumentParser):
         """Add Braiins-specific arguments to the parser."""
         super().add_args(parser)
-        BraiinsProxyManager.add_args(parser)
+        parser.add_argument(
+            "--proxy_type",
+            type=str,
+            choices=["taohash", "braiins"],
+            default=os.getenv("PROXY_TYPE", "taohash"),
+            help="Proxy type to use (taohash or braiins)",
+        )
+
+        args, _ = parser.parse_known_args()
+        if hasattr(args, "proxy_type"):
+            if args.proxy_type == "taohash":
+                TaohashProxyManager.add_args(parser)
+            elif args.proxy_type == "braiins":
+                BraiinsProxyManager.add_args(parser)
 
     def get_target_pools(self) -> dict[str, PoolInfo]:
         """
@@ -89,7 +101,7 @@ class BraiinsMiner(BaseMiner):
         for hotkey, pool_info in all_pools.items():
             if (
                 hotkey in self.metagraph.hotkeys
-                and pool_info.pool_index == PoolIndex.Braiins
+                and pool_info.pool_index == PoolIndex.Proxy
             ):
                 pool_info.extra_data["full_username"] = (
                     f"{pool_info.username}.{self.worker_id}"

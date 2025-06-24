@@ -79,7 +79,8 @@
               { "name": "port", "type": 4 },
               { "name": "domain", "type": 6 },
               { "name": "username", "type": 6 },
-              { "name": "password", "type": 6 }
+              { "name": "password", "type": 6 },
+              { "name": "high_diff_port", "type": 5 }
             ]
           }
         }

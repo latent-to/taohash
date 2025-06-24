@@ -41,20 +41,30 @@ class BraiinsPoolConfig:
     DEFAULT_PORT = 3333
     DEFAULT_PASSWORD = "x"
 
-    def __init__(self, domain: str, port: int, username: str, password: str) -> None:
+    def __init__(
+        self,
+        domain: str,
+        port: int,
+        username: str,
+        password: str,
+        high_diff_port: int | None = None,
+    ) -> None:
         self.domain = domain
         self.port = port
         self.username = username
         self.password = password
+        self.high_diff_port = high_diff_port
 
     def to_pool_info(self) -> PoolInfo:
         """Convert config to PoolInfo"""
         return PoolInfo(
             pool_index=int(PoolIndex.Braiins),
+            ip=None,
             domain=self.domain,
             port=self.port,
             username=self.username,
             password=self.password,
+            high_diff_port=self.high_diff_port,
         )
 
     @classmethod
@@ -88,6 +98,15 @@ class BraiinsPoolConfig:
             default=os.getenv("BRAIINS_WORKER_PASSWORD", cls.DEFAULT_PASSWORD),
             help=f"Pool worker password (env: BRAIINS_WORKER_PASSWORD, default: '{cls.DEFAULT_PASSWORD}')",
         )
+        parser.add_argument(
+            "--pool.high_diff_port",
+            type=int,
+            required=False,
+            default=int(os.getenv("BRAIINS_HIGH_DIFF_PORT"))
+            if os.getenv("BRAIINS_HIGH_DIFF_PORT")
+            else None,
+            help="Optional proxy port for high difficulty miners (env: BRAIINS_HIGH_DIFF_PORT)",
+        )
 
     @classmethod
     def from_args(cls, args) -> "BraiinsPoolConfig":
@@ -97,9 +116,14 @@ class BraiinsPoolConfig:
                 "Braiins pool username must be provided via --pool.username or BRAIINS_POOL_USERNAME env var."
             )
 
+        high_diff_port = args.pool.high_diff_port
+        if high_diff_port is not None:
+            high_diff_port = int(high_diff_port)
+
         return cls(
             domain=args.pool.domain,
             port=args.pool.port,
             username=username,
             password=args.pool.password,
+            high_diff_port=high_diff_port,
         )

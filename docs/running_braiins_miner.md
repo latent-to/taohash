@@ -43,7 +43,9 @@ btcli subnet register --netuid 14 --wallet.name YOUR_WALLET --wallet.hotkey YOUR
 ```
 You can use the network `test` when testing on testnet. 
 
-## 2. Install Redis
+## 2. Use JSON or use Redis
+
+By not passing any explicit arguments for storage, `json` storage will automatically be selected. 
 
 ### Ubuntu/Debian
 ```bash
@@ -63,8 +65,37 @@ redis-cli ping
 You should receive PONG as a response.
 
 ## 3. Set up Proxy and Miners
-### 1. Braiins Farm Proxy
-Here you have two options:
+
+### 1. TaoHash Proxy
+This is an in-house proxy developed by the subnet team. Miners can also use the validator's proxy but do note that it contains database access and other features which might not be relevant for the miners. 
+
+The lightweight proxy has the following features:
+- Minimum difficulty enforcement: 
+    - By setting `x;md=100000;`, you can enforce the minimum difficulty that your miner will be using. 
+    - This is useful when using high difficulty miners who do not support low difficulties. 
+- Dashboard for statistics
+    - A simple real-time dashboard is available to see the following statistics:
+        - Connected miners (IP address, current hashrate, accepted/rejected shares, pool requested difficulty, miner's difficulty)
+        - A chart showing % of accepted and rejected shares
+        - A combined Hashrate graph showing details for each connected miner
+        - Current mining pool
+    - The port can be changed easily through environment variables. This endpoint doesn't have the ability to write or change any configuration so it is safe to be exposed.
+
+The proxy is located in `miner > proxy > taohash_proxy` directory. 
+You can navigate to the directory and run
+```bash
+docker compose up -d
+```
+
+The setup spawns a single service. Changing the pool is done through an API endpoint which is only accessed by the controller. 
+
+**Important**: Make sure you never expose this port over the internet as it can lead to vulnerabilities. 
+You can manually trigger a reload by using `curl -X POST http://localhost:5010/api/reload`
+
+`ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'`
+
+### 2. Braiins Proxy
+You can still use Braiins proxy per your preference. There are 2 options available:
 #### 1. Minimal setup 
 There is already a minimal Braiins Farm setup in `miner > proxy > braiins_farm` directory.
 You can navigate to the directory and run
@@ -97,8 +128,6 @@ By default, the port is `3333`and the Stratum Host should be your local IP addre
 
 The username and password doesn't matter here as the proxy config files will have your workerid (derived through your hotkey) already set with the prper pool name. 
 
-### 2. Nice Hash
-Coming soon
 
 ## 4. Install TaoHash
 
@@ -148,12 +177,12 @@ pm2 startup
 2. Start the miner
 ```bash
 # Using .env file
-pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/taohash_miner.py run \
     --subtensor.network finney \
     --logging.info
 
 # Using command-line arguments
-pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
+pm2 start python3 --name "taohash-miner" -- taohash/miner/taohash_miner.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \
@@ -164,7 +193,7 @@ pm2 start python3 --name "taohash-miner" -- taohash/miner/braiins.py run \
     --logging.info
 
 # Or without PM2
-python3 taohash/miner/braiins.py run \
+python3 taohash/miner/taohash_miner.py run \
     --netuid 14 \
     --subtensor.network finney \
     --wallet.name YOUR_WALLET_NAME \
