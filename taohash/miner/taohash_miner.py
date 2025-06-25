@@ -91,18 +91,16 @@ class BraiinsMiner(BaseMiner):
         all_pools: dict[str, PoolInfo] = get_all_pool_info(
             self.subtensor,
             self.config.netuid,
+            self.metagraph.hotkeys,
         )
         if not all_pools:
             logging.warning("No validators found with pool information")
             return {}
 
-        # Filter from metagraph and only include btc braiins pools
+        # Only include proxy pools
         target_pools = {}
         for hotkey, pool_info in all_pools.items():
-            if (
-                hotkey in self.metagraph.hotkeys
-                and pool_info.pool_index == PoolIndex.Proxy
-            ):
+            if pool_info.pool_index == PoolIndex.Proxy:
                 pool_info.extra_data["full_username"] = (
                     f"{pool_info.username}.{self.worker_id}"
                 )
