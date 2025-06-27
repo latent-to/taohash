@@ -40,7 +40,7 @@ class BraiinsMiner(BaseMiner):
         # Base miner initialization
         super().__init__()
 
-        self.blocks_per_window = self.tempo * 2
+        self.blocks_per_window = self.config.blocks_per_window or (self.tempo * 2)
 
         self.proxy_manager = None
         if self.config.use_proxy:
