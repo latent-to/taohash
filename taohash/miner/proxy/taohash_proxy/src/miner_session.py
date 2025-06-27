@@ -145,9 +145,9 @@ class MinerSession:
         pending_requests = []
 
         start_time = time.time()
-        while time.time() - start_time < 1:
+        while time.time() - start_time < 10:
             try:
-                line = await asyncio.wait_for(self.miner_reader.readline(), 0.1)
+                line = await asyncio.wait_for(self.miner_reader.readline(), 5)
                 if not line:
                     break
 
@@ -763,14 +763,26 @@ class MinerSession:
                     )
 
                     message["params"][0] = effective
+                if self.pool_session:
                     await self._send_to_pool(message)
                     logger.debug(
                         f"[{self.miner_id}] Miner suggested {suggested}, enforced min={self.min_difficulty}, forwarded to pool"
                     )
                 else:
-                    await self._send_to_pool(message)
+                    # Pool session not established yet - queue for later
+                    self._initial_pending_requests.append(message)
             except (ValueError, TypeError):
+                # Invalid difficulty value - forward as-is
+                if self.pool_session:
+                    await self._send_to_pool(message)
+                else:
+                    self._initial_pending_requests.append(message)
+        else:
+            # Empty params - forward as-is
+            if self.pool_session:
                 await self._send_to_pool(message)
+            else:
+                self._initial_pending_requests.append(message)
 
     async def _handle_authorize(self, message: dict[str, Any], msg_id: Any):
         """
