@@ -117,9 +117,9 @@ class MinerStateMachine:
     ]
 
     ALLOWED_MESSAGES: dict[MinerState, set[str]] = {
-        MinerState.CONNECTED: {"mining.subscribe"},
+        MinerState.CONNECTED: {"mining.subscribe", "mining.configure"},
         MinerState.SUBSCRIBING: set(),
-        MinerState.SUBSCRIBED: {"mining.authorize"},
+        MinerState.SUBSCRIBED: {"mining.authorize", "mining.configure"},
         MinerState.AUTHORIZING: set(),
         MinerState.AUTHORIZED: {
             "mining.submit",
