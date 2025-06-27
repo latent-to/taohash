@@ -47,6 +47,7 @@ class PoolSession:
         self.extranonce2_size: Optional[int] = None
         self.subscription_ids: Optional[list] = None
         self.pre_auth_messages: list[dict[str, Any]] = []
+        self.configure_response: Optional[dict] = None
 
     def next_id(self) -> int:
         """
@@ -61,7 +62,12 @@ class PoolSession:
 
     @classmethod
     async def connect(
-        cls, host: str, port: int, user: str, password: str
+        cls,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        configure_request: Optional[dict] = None,
     ) -> "PoolSession":
         """
         Create a pool connection and perform the Stratum protocol handshake.
@@ -74,6 +80,7 @@ class PoolSession:
             port (int): Pool port number
             user (str): Username for pool authentication
             password (str): Password for pool authentication
+            configure_request (Optional[dict[str, Any]]): Optional mining.configure request to send
 
         Returns:
             PoolSession: Initialized pool session object
@@ -85,6 +92,34 @@ class PoolSession:
         try:
             pool_reader, pool_writer = await asyncio.open_connection(host, port)
             pool_session = cls(pool_reader, pool_writer)
+
+            if configure_request:
+                pool_writer.write((json.dumps(configure_request) + "\n").encode())
+                await pool_writer.drain()
+                logger.debug(f"Sent mining.configure to pool: {configure_request}")
+
+                try:
+                    configure_response_raw = await asyncio.wait_for(
+                        pool_reader.readline(), timeout=2.0
+                    )
+                    configure_response = json.loads(configure_response_raw.decode())
+                    logger.info(f"Configure response parsed: {configure_response}")
+                    if configure_response.get("id") == configure_request.get("id"):
+                        pool_session.configure_response = configure_response.get(
+                            "result", {}
+                        )
+                        logger.info(
+                            f"Configure response result: {pool_session.configure_response}"
+                        )
+                    else:
+                        logger.error(
+                            f"Configure response ID mismatch: expected {configure_request.get('id')}, got {configure_response.get('id')}"
+                        )
+                except asyncio.TimeoutError:
+                    logger.debug(
+                        "No mining.configure response received within 2s - likely connecting to old validator proxy"
+                    )
+                    pool_session.configure_response = None
 
             # 1) Subscribe
             subscription_id = pool_session.next_id()

@@ -116,6 +116,7 @@ class MinerSession:
         self.stats = stats_manager.register_miner(self.peer)
         self.pool_session: Optional[PoolSession] = None
         self.pending_calls: dict[int, Any] = {}
+        self.pending_configure = None
 
         self.state_machine = MinerStateMachine(self.miner_id)
         self.state_machine.on_state_change = self._on_state_change
@@ -144,9 +145,9 @@ class MinerSession:
         pending_requests = []
 
         start_time = time.time()
-        while time.time() - start_time < 1:
+        while time.time() - start_time < 10:
             try:
-                line = await asyncio.wait_for(self.miner_reader.readline(), 0.1)
+                line = await asyncio.wait_for(self.miner_reader.readline(), 5)
                 if not line:
                     break
 
@@ -164,7 +165,8 @@ class MinerSession:
                     )
 
                     if method == "mining.configure":
-                        await self._handle_configure(request, req_id)
+                        self.pending_configure = request
+
                     elif method == "mining.suggest_difficulty":
                         await self._handle_suggest_difficulty(request, req_id)
                     else:
@@ -218,7 +220,8 @@ class MinerSession:
         """
         try:
             self.pool_session = await PoolSession.connect(
-                self.pool_host, self.pool_port, self.pool_user, self.pool_pass
+                self.pool_host, self.pool_port, self.pool_user, self.pool_pass,
+                configure_request=self.pending_configure
             )
 
             # Store pool session data
@@ -228,6 +231,44 @@ class MinerSession:
 
             await self._process_pool_init_messages()
             logger.info(f"[{self.miner_id}] Pool connection established")
+            
+            if self.pending_configure:
+                logger.debug(f"[{self.miner_id}] Pending configure request: {self.pending_configure}")
+                if self.pool_session:
+                    if self.pool_session.configure_response is not None:
+                        response = {
+                            "id": self.pending_configure.get("id"),
+                            "result": self.pool_session.configure_response,
+                            "error": None
+                        }
+                        await self._send_to_miner(response)
+                        logger.debug(f"[{self.miner_id}] Sent configure response to miner: {response}")
+                    else:
+                        params = self.pending_configure.get("params", [])
+                        extensions = params[0] if len(params) > 0 else []
+                        extension_params = params[1] if len(params) > 1 else {}
+                        
+                        result = {}
+                        if "version-rolling" in extensions and "version-rolling.mask" in extension_params:
+                            requested_mask = extension_params.get("version-rolling.mask", "00000000")
+                            result["version-rolling"] = True
+                            result["version-rolling.mask"] = requested_mask
+                            logger.info(
+                                f"[{self.miner_id}] Old validator detected - returning local version rolling support with mask: {requested_mask}"
+                            )
+                        
+                        response = {
+                            "id": self.pending_configure.get("id"),
+                            "result": result,
+                            "error": None
+                        }
+                        await self._send_to_miner(response)
+                        logger.debug(f"[{self.miner_id}] Sent fallback configure response to miner: {response}")
+                else:
+                    logger.debug(f"[{self.miner_id}] No pool session available")
+            else:
+                logger.debug(f"[{self.miner_id}] No pending configure request")
+            
             await self._process_pending_miner_requests()
 
         except Exception as e:
@@ -642,38 +683,56 @@ class MinerSession:
 
     async def _handle_configure(self, message: dict[str, Any], msg_id: Any):
         """
-        Process mining.configure requests from miners.
-
-        Purpose: Negotiate version-rolling locally (proxy handles it without pool involvement).
+        Handle mining.configure (version rolling) by forwarding to pool.
 
         Args:
-            message: The original message from miner
-            msg_id: Request ID from the message
+            message: Configure request with extensions and parameters
+            msg_id: Request ID for response
+
+        Forwards configure requests to the pool for actual negotiation.
+        Caches pool response for subsequent requests.
         """
-        params = message.get("params", [])
-        extensions = params[0] if len(params) > 0 else []
-        extension_params = params[1] if len(params) > 1 else {}
-
+        if self.pool_session:
+            if self.pool_session.configure_response is not None:
+                await self._send_to_miner({
+                    "id": msg_id,
+                    "result": self.pool_session.configure_response,
+                    "error": None,
+                })
+                logger.debug(
+                    f"[{self.miner_id}] Returned cached configure response to miner"
+                )
+            elif self.pool_session.configure_response is None:
+                # Old vali (configure timed out) - provide local response
+                params = message.get("params", [])
+                extensions = params[0] if len(params) > 0 else []
+                extension_params = params[1] if len(params) > 1 else {}
+                
+                result = {}
+                if "version-rolling" in extensions and "version-rolling.mask" in extension_params:
+                    requested_mask = extension_params.get("version-rolling.mask", "00000000")
+                    result["version-rolling"] = True
+                    result["version-rolling.mask"] = requested_mask
+                    
+                await self._send_to_miner({
+                    "id": msg_id,
+                    "result": result,
+                    "error": None,
+                })
+                logger.debug(
+                    f"[{self.miner_id}] Returned fallback configure response for old validator"
+                )
+            else:
+                logger.debug(
+                    f"[{self.miner_id}] Forwarding late mining.configure to pool"
+                )
+                await self._send_to_pool(message)
+            return
+        
+        self.pending_configure = message
         logger.debug(
-            f"[{self.miner_id}] Processing mining.configure request id={msg_id}: {extensions}"
+            f"[{self.miner_id}] Stored configure request until pool connection ready"
         )
-
-        result = {}
-
-        # Check if version-rolling is requested
-        if (
-            "version-rolling" in extensions
-            and "version-rolling.mask" in extension_params
-        ):
-            requested_mask = extension_params.get("version-rolling.mask", "00000000")
-            # Support full version rolling mask
-            result["version-rolling"] = True
-            result["version-rolling.mask"] = requested_mask
-            logger.info(
-                f"[{self.miner_id}] Version rolling enabled with mask: {requested_mask}"
-            )
-
-        await self._send_to_miner({"id": msg_id, "result": result, "error": None})
 
     async def _handle_suggest_difficulty(self, message: dict[str, Any], msg_id: Any):
         """
@@ -704,14 +763,26 @@ class MinerSession:
                     )
 
                     message["params"][0] = effective
+                if self.pool_session:
                     await self._send_to_pool(message)
                     logger.debug(
                         f"[{self.miner_id}] Miner suggested {suggested}, enforced min={self.min_difficulty}, forwarded to pool"
                     )
                 else:
-                    await self._send_to_pool(message)
+                    # Pool session not established yet - queue for later
+                    self._initial_pending_requests.append(message)
             except (ValueError, TypeError):
+                # Invalid difficulty value - forward as-is
+                if self.pool_session:
+                    await self._send_to_pool(message)
+                else:
+                    self._initial_pending_requests.append(message)
+        else:
+            # Empty params - forward as-is
+            if self.pool_session:
                 await self._send_to_pool(message)
+            else:
+                self._initial_pending_requests.append(message)
 
     async def _handle_authorize(self, message: dict[str, Any], msg_id: Any):
         """

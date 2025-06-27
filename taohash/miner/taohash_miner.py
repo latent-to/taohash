@@ -40,7 +40,7 @@ class BraiinsMiner(BaseMiner):
         # Base miner initialization
         super().__init__()
 
-        self.blocks_per_window = self.tempo * 2
+        self.blocks_per_window = self.config.blocks_per_window or (self.tempo * 2)
 
         self.proxy_manager = None
         if self.config.use_proxy:
@@ -91,18 +91,16 @@ class BraiinsMiner(BaseMiner):
         all_pools: dict[str, PoolInfo] = get_all_pool_info(
             self.subtensor,
             self.config.netuid,
+            self.metagraph.hotkeys,
         )
         if not all_pools:
             logging.warning("No validators found with pool information")
             return {}
 
-        # Filter from metagraph and only include btc braiins pools
+        # Only include proxy pools
         target_pools = {}
         for hotkey, pool_info in all_pools.items():
-            if (
-                hotkey in self.metagraph.hotkeys
-                and pool_info.pool_index == PoolIndex.Proxy
-            ):
+            if pool_info.pool_index == PoolIndex.Proxy:
                 pool_info.extra_data["full_username"] = (
                     f"{pool_info.username}.{self.worker_id}"
                 )
@@ -141,6 +139,10 @@ class BraiinsMiner(BaseMiner):
                 logging.success(
                     f"Mining slot updated at block {self.current_block} from recovered schedule."
                 )
+                for target in changed_slot.pool_targets:
+                    logging.success(
+                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
+                    )
             else:
                 current_slot = self.mining_scheduler.current_schedule.current_slot
                 logging.info(
@@ -179,6 +181,10 @@ class BraiinsMiner(BaseMiner):
             )
             if changed_slot:
                 logging.success(f"Mining slot updated at block {self.current_block}")
+                for target in changed_slot.pool_targets:
+                    logging.success(
+                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
+                    )
 
     def get_next_sync_block(self) -> tuple[int, str]:
         """

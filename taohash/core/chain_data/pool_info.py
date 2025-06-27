@@ -112,15 +112,15 @@ class PoolInfo:
     def high_diff_pool_url(self) -> str:
         """
         Construct the high difficulty pool URL.
-        
+
         If high_diff_port is set, uses that port. Otherwise falls back to regular pool_url.
-        
+
         Returns:
             Formatted high difficulty pool connection URL
         """
         if self.high_diff_port is None:
             return self.pool_url
-            
+
         if self.domain:
             return f"{self.domain}:{self.high_diff_port}"
         elif self.ip:
@@ -176,7 +176,7 @@ def publish_pool_info(
 
 
 def get_all_pool_info(
-    subtensor: bt_subtensor, netuid: int
+    subtensor: bt_subtensor, netuid: int, valid_hotkeys: list[str]
 ) -> Optional[dict[str, PoolInfo]]:
     """
     Retrieve all validators' pool information from the blockchain.
@@ -198,6 +198,9 @@ def get_all_pool_info(
 
     all_pool_info: dict[str, PoolInfo] = {}
     for hotkey, raw_data in commitments.items():
+        if hotkey not in valid_hotkeys:
+            continue
+
         try:
             if isinstance(raw_data, str):
                 raw_bytes = bytes(raw_data, "latin1")
@@ -266,19 +269,19 @@ def decode_pool_info(pool_info_bytes: bytes) -> PoolInfo:
     Returns:
         Decoded PoolInfo instance with human-readable values
     """
-    
+
     types_path = os.path.join(os.path.dirname(__file__), "types.json")
     with open(types_path, "r") as f:
         types = f.read()
 
     reg = bt_decode.PortableRegistry.from_json(types)
-    
+
     try:
         data = bt_decode.decode("PoolInfo", reg, pool_info_bytes)
     except ValueError as e:
         if "Failed to decode type" in str(e):
             # Old data - fallback mechanism
-            scale_bytes_with_none = pool_info_bytes + b'\x00'
+            scale_bytes_with_none = pool_info_bytes + b"\x00"
             try:
                 data = bt_decode.decode("PoolInfo", reg, scale_bytes_with_none)
             except Exception:
