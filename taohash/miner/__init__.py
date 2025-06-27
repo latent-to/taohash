@@ -76,6 +76,12 @@ class BaseMiner:
             default=os.getenv("STORAGE_TYPE", "json"),
             help="Storage type to use (json or redis)",
         )
+        parser.add_argument(
+            "--blocks_per_window",
+            type=int,
+            default=int(os.getenv("BLOCKS_PER_WINDOW")) if os.getenv("BLOCKS_PER_WINDOW") else None,
+            help="Number of blocks per mining window (default: tempo * 2, env: BLOCKS_PER_WINDOW)",
+        )
 
         # Add other base arguments
         BaseAllocation.add_args(parser)
