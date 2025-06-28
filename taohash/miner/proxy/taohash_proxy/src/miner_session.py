@@ -145,9 +145,9 @@ class MinerSession:
         pending_requests = []
 
         start_time = time.time()
-        while time.time() - start_time < 10:
+        while time.time() - start_time < 1.5:
             try:
-                line = await asyncio.wait_for(self.miner_reader.readline(), 5)
+                line = await asyncio.wait_for(self.miner_reader.readline(), 1)
                 if not line:
                     break
 
