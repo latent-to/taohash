@@ -23,6 +23,7 @@ from taohash.core.constants import (
     U16_MAX,
     OWNER_TAKE,
     SPLIT_WITH_MINERS,
+    PAYOUT_FACTOR,
 )
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
@@ -302,7 +303,12 @@ class TaohashProxyValidator(BaseValidator):
                 (score / total_value) * weights_to_dist
                 for score in self.moving_avg_scores
             ]
-            weights[self.burn_uid] = max(0.0, 1.0 - sum(weights))
+
+        weights = [w * PAYOUT_FACTOR for w in weights]
+
+        remaining = max(0.0, 1.0 - sum(weights))
+        if remaining > 0:
+            weights[self.burn_uid] += remaining
         return weights
 
     def set_weights(self) -> tuple[bool, str]:
