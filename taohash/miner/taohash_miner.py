@@ -139,6 +139,10 @@ class BraiinsMiner(BaseMiner):
                 logging.success(
                     f"Mining slot updated at block {self.current_block} from recovered schedule."
                 )
+                for target in changed_slot.pool_targets:
+                    logging.success(
+                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
+                    )
             else:
                 current_slot = self.mining_scheduler.current_schedule.current_slot
                 logging.info(
@@ -177,6 +181,10 @@ class BraiinsMiner(BaseMiner):
             )
             if changed_slot:
                 logging.success(f"Mining slot updated at block {self.current_block}")
+                for target in changed_slot.pool_targets:
+                    logging.success(
+                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
+                    )
 
     def get_next_sync_block(self) -> tuple[int, str]:
         """
