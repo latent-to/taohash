@@ -205,6 +205,12 @@ class MinerSession:
             for task in pending:
                 task.cancel()
 
+            for task in pending:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
         except Exception as e:
             logger.error(f"[{self.miner_id}] Session error: {e}")
             await self.state_machine.handle_error(e, "session_error")
