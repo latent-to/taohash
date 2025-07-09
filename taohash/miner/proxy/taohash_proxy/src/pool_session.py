@@ -98,6 +98,35 @@ class PoolSession:
                 await pool_writer.drain()
                 logger.debug(f"Sent mining.configure to pool: {configure_request}")
 
+            subscription_id = pool_session.next_id()
+            subscription_request = {
+                "id": subscription_id,
+                "method": "mining.subscribe",
+                "params": ["async_proxy", None],
+            }
+            pool_writer.write((json.dumps(subscription_request) + "\n").encode())
+            await pool_writer.drain()
+            log_stratum_message(
+                logger,
+                subscription_request,
+                f"Sent subscription request with id {subscription_id}",
+            )
+
+            authorization_id = pool_session.next_id()
+            authorization_request = {
+                "id": authorization_id,
+                "method": "mining.authorize",
+                "params": [user, password],
+            }
+            pool_writer.write((json.dumps(authorization_request) + "\n").encode())
+            await pool_writer.drain()
+            log_stratum_message(
+                logger,
+                authorization_request,
+                f"Sent authorization request with id {authorization_id}",
+            )
+
+            if configure_request:
                 try:
                     configure_response_raw = await asyncio.wait_for(
                         pool_reader.readline(), timeout=2.0
@@ -121,21 +150,7 @@ class PoolSession:
                     )
                     pool_session.configure_response = None
 
-            # 1) Subscribe
-            subscription_id = pool_session.next_id()
-            subscription_request = {
-                "id": subscription_id,
-                "method": "mining.subscribe",
-                "params": ["async_proxy", None],
-            }
-            pool_writer.write((json.dumps(subscription_request) + "\n").encode())
-            await pool_writer.drain()
-            log_stratum_message(
-                logger,
-                subscription_request,
-                f"Sent subscription request with id {subscription_id}",
-            )
-
+            # Get subscription response
             subscription_response_raw = await pool_reader.readline()
             subscription_response = json.loads(subscription_response_raw.decode())
             log_stratum_message(
@@ -151,21 +166,6 @@ class PoolSession:
             pool_session.extranonce2_size = subscription_result[2]
             logger.info(
                 f"Subscription successful, extranonce1: {pool_session.extranonce1}, extranonce2_size: {pool_session.extranonce2_size}"
-            )
-
-            # 2) Authorize
-            authorization_id = pool_session.next_id()
-            authorization_request = {
-                "id": authorization_id,
-                "method": "mining.authorize",
-                "params": [user, password],
-            }
-            pool_writer.write((json.dumps(authorization_request) + "\n").encode())
-            await pool_writer.drain()
-            log_stratum_message(
-                logger,
-                authorization_request,
-                f"Sent authorization request with id {authorization_id}",
             )
 
             authorization_response = None
