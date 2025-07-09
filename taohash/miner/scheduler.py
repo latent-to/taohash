@@ -244,9 +244,35 @@ class MiningScheduler:
         bt.logging.info(
             f"\nMining Schedule (created at block {schedule.created_at_block}):\n"
             f"Total Blocks: {schedule.total_blocks}\n"
-            f"Validators: {len(schedule.slots)}\n"
+            f"Pools: {len(schedule.slots)}\n"
             f"{table}"
         )
+
+    def _slots_have_same_pools(self, slot1: Optional["MiningSlot"], slot2: Optional["MiningSlot"]) -> bool:
+        """
+        Check if two mining slots have the same pool targets.
+        
+        Args:
+            slot1: First mining slot to compare
+            slot2: Second mining slot to compare
+            
+        Returns:
+            bool: True if both slots have identical pool targets, False otherwise
+        """
+        if slot1 is None or slot2 is None:
+            return False
+            
+        if len(slot1.pool_targets) != len(slot2.pool_targets):
+            return False
+            
+        for target1, target2 in zip(slot1.pool_targets, slot2.pool_targets):
+            if (target1.validator_hotkey != target2.validator_hotkey or
+                target1.pool_info.get('pool_url') != target2.pool_info.get('pool_url') or
+                target1.pool_info.get('domain') != target2.pool_info.get('domain') or
+                target1.pool_info.get('port') != target2.pool_info.get('port')):
+                return False
+                
+        return True
 
     def _on_slot_change(self, new_slot: "MiningSlot") -> None:
         """
@@ -254,14 +280,36 @@ class MiningScheduler:
 
         This method is called whenever the miner transitions to a new mining slot.
         It communicates with the mining proxy to redirect hashrate to new pools.
+        Only updates configuration if the pool targets have changed.
 
         Args:
             new_slot: The new active mining slot containing target pool information
         """
         if self.proxy_manager:
-            success = self.proxy_manager.update_config(new_slot)
-            if not success:
-                bt.logging.warning("Failed to update proxy configuration")
+            previous_slot = getattr(self, '_previous_slot', None)
+            
+            pools_unchanged = self._slots_have_same_pools(previous_slot, new_slot)
+            
+            config_matches = False
+            if hasattr(self.proxy_manager, 'verify_config_matches_slot'):
+                config_matches = self.proxy_manager.verify_config_matches_slot(new_slot)
+            
+            if pools_unchanged and config_matches:
+                bt.logging.info(
+                    f"Pool targets remain the same and TOML is correct - skipping config update. "
+                    f"Continuing with: {new_slot.pool_targets[0].pool_info['domain']}:{new_slot.pool_targets[0].pool_info['port']}"
+                )
+            else:
+                if not config_matches:
+                    bt.logging.info("TOML config doesn't match expected pool - updating proxy configuration")
+                else:
+                    bt.logging.info("Pool targets changed - updating proxy configuration")
+                    
+                success = self.proxy_manager.update_config(new_slot)
+                if not success:
+                    bt.logging.warning("Failed to update proxy configuration")
+                    
+            self._previous_slot = new_slot
 
     def _check_pool_liveness(self, domain: str, port: int) -> bool:
         """
