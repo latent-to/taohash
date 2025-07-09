@@ -5,7 +5,7 @@ import traceback
 from bittensor import logging
 from dotenv import load_dotenv
 
-from taohash.core.chain_data.pool_info import get_all_pool_info, PoolInfo
+from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
@@ -78,34 +78,34 @@ class BraiinsMiner(BaseMiner):
 
     def get_target_pools(self) -> dict[str, PoolInfo]:
         """
-        Fetch Braiins pools from the chain.
+        Fetch the subnet's pool from the chain.
 
         Returns:
-            Dict: Dictionary of Braiins pool information indexed by validator hotkeys
+            Dict: Dictionary containing only the subnet's pool information
 
         Process:
-            1. Get all pools from base implementation
-            2. Filter to include only Braiins pools (PoolIndex.Braiins)
+            1. Get the subnet's pool info
+            2. Verify it's a Proxy pool
             3. Enhance pool data with worker-specific username
         """
-        all_pools: dict[str, PoolInfo] = get_all_pool_info(
-            self.subtensor,
-            self.config.netuid,
-            self.metagraph.hotkeys,
-        )
-        if not all_pools:
-            logging.warning("No validators found with pool information")
+        subnet_pool_info = self.get_subnet_pool()
+        if not subnet_pool_info:
+            logging.error("Subnet's pool has not published information")
             return {}
 
-        # Only include proxy pools
-        target_pools = {}
-        for hotkey, pool_info in all_pools.items():
-            if pool_info.pool_index == PoolIndex.Proxy:
-                pool_info.extra_data["full_username"] = (
-                    f"{pool_info.username}.{self.worker_id}"
-                )
-                target_pools[hotkey] = pool_info.to_json()
-        return target_pools
+        if subnet_pool_info.pool_index != PoolIndex.Proxy:
+            logging.error(
+                f"Subnet's pool is not a Proxy pool (index: {subnet_pool_info.pool_index}). "
+                f"Expected PoolIndex.Proxy ({PoolIndex.Proxy})"
+            )
+            return {}
+
+        # Add worker-specific username
+        subnet_pool_info.extra_data["full_username"] = (
+            f"{subnet_pool_info.username}.{self.worker_id}"
+        )
+
+        return {self.pool_hotkey: subnet_pool_info.to_json()}
 
     def restore_schedule(self) -> None:
         """
