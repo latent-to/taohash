@@ -1,11 +1,13 @@
 import argparse
 import os
+from typing import Optional
 
 from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.miner.allocation import BaseAllocation
 from taohash.miner.storage import get_miner_storage, BaseJsonStorage, BaseRedisStorage
+from taohash.core.chain_data.pool_info import get_pool_info, PoolInfo
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -19,6 +21,7 @@ class BaseMiner:
         self.wallet = None
         self.metagraph = None
         self.uid = None
+        self.pool_hotkey = None
 
         self.subtensor = self.setup_bittensor_objects()
         self.storage = get_miner_storage(
@@ -79,7 +82,9 @@ class BaseMiner:
         parser.add_argument(
             "--blocks_per_window",
             type=int,
-            default=int(os.getenv("BLOCKS_PER_WINDOW")) if os.getenv("BLOCKS_PER_WINDOW") else None,
+            default=int(os.getenv("BLOCKS_PER_WINDOW"))
+            if os.getenv("BLOCKS_PER_WINDOW")
+            else None,
             help="Number of blocks per mining window (default: tempo * 2, env: BLOCKS_PER_WINDOW)",
         )
 
@@ -142,3 +147,44 @@ class BaseMiner:
         """Get number of blocks until new tempo starts"""
         blocks = self.subtensor.subnet(self.config.netuid).blocks_since_last_step
         return self.tempo - blocks
+
+    def get_owner_hotkey(self) -> Optional[int]:
+        """Get the hotkey of the subnet owner."""
+        try:
+            sn_owner_hotkey = self.subtensor.query_subtensor(
+                "SubnetOwnerHotkey",
+                params=[self.config.netuid],
+            )
+            return sn_owner_hotkey
+        except Exception as e:
+            logging.error(f"Error getting subnet owner hotkey: {e}")
+            return None
+
+    def get_subnet_pool(self) -> Optional[PoolInfo]:
+        """Get the subnet's pool info."""
+        if not self.pool_hotkey:
+            self.pool_hotkey = self.get_owner_hotkey()
+
+        if self.pool_hotkey is None:
+            logging.error("Cannot get subnet pool - pool hotkey not found")
+            return None
+
+        try:
+            pool_info = get_pool_info(self.subtensor, self.config.netuid, self.pool_hotkey)
+
+            if pool_info:
+                logging.info(
+                    f"Retrieved subnet's pool info: "
+                    f"pool_index={pool_info.pool_index}, "
+                    f"domain={pool_info.domain}, "
+                    f"port={pool_info.port}"
+                )
+            else:
+                logging.warning(
+                    f"No pool info found for subnet (hotkey: {self.pool_hotkey})"
+                )
+
+            return pool_info
+        except Exception as e:
+            logging.error(f"Error getting subnet's pool info: {e}")
+            return None
