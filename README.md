@@ -90,19 +90,19 @@ After completing the common setup, the easiest way to start mining is:
 
 ### Advanced Setup (Optional)
 For features like minimum difficulty settings and advanced monitoring:
-* [Set up Braiins Farm Proxy](docs/running_braiins_miner.md#optional-proxy-setup)
-* [Run the miner script for automatic pool management](docs/running_braiins_miner.md#legacy-miner-script)
+* [Set up Taohash Proxy](docs/running_miner.md#optional-proxy-setup)
+* [Run the miner script for pool management](docs/running_miner.md#legacy-miner-script)
 
-For complete details, see the [TaoHash Miner Setup Guide](docs/running_braiins_miner.md).
+For complete details, see the [TaoHash Miner Setup Guide](docs/running_miner.md).
 
 ## Validator Specific Setup
 After completing the common setup, follow the detailed steps in the Validator Guide:
 
-* [Get subnet proxy credentials from the subnet staff](docs/running_braiins_validator.md#1-get-subnet-proxy-credentials)
-* [Configure your validator (`.env` file)](docs/running_braiins_validator.md#4-configuration)
-* [Run the validator (using PM2 recommended)](docs/running_braiins_validator.md#5-running-the-validator)
+* [Get subnet proxy credentials from the subnet staff](docs/running_validator.md#1-get-subnet-proxy-credentials)
+* [Configure your validator (`.env` file)](docs/running_validator.md#4-configuration)
+* [Run the validator (using PM2 recommended)](docs/running_validator.md#5-running-the-validator)
 
-For the complete, step-by-step instructions for setting up and running your validator, please refer to the [TaoHash Validator Setup](docs/running_braiins_validator.md).
+For the complete, step-by-step instructions for setting up and running your validator, please refer to the [TaoHash Validator Setup](docs/running_validator.md).
 
 # Get Involved
 
@@ -112,5 +112,5 @@ For the complete, step-by-step instructions for setting up and running your vali
 
 ---
 **Full Guides:**
-- [TaoHash Miner Setup Guide (BTC Braiins Pool)](docs/running_braiins_miner.md)
-- [TaoHash Validator Setup (BTC Braiins pool)](docs/running_braiins_validator.md) 
+- [TaoHash Miner Setup Guide](docs/running_miner.md)
+- [TaoHash Validator Setup](docs/running_validator.md) 
