@@ -1,13 +1,9 @@
-import json
-import base64
-
 from typing import Optional, Union
 
 from bittensor.core.config import Config
 from bittensor.utils.btlogging import logging
 
 from taohash.core.storage import BaseJsonStorage, BaseRedisStorage
-from taohash.core.storage.utils import dumps, loads
 
 
 class JsonStorage(BaseJsonStorage):
@@ -29,25 +25,6 @@ class JsonStorage(BaseJsonStorage):
         """Get the most recent pool info."""
         prefix = f"{self.miner_id}_pools"
         return self.get_latest(prefix=prefix)
-
-    def save_schedule(self, block_number: int, schedule_obj) -> None:
-        """Save schedule data for a specific block."""
-        readable_data = json.dumps(schedule_obj, default=lambda x: x.__dict__)
-        dumped_data = dumps(schedule_obj)
-        string_data = base64.b64encode(dumped_data).decode("utf-8")
-        dict_data = {"data": readable_data, "data_encoded": string_data}
-        prefix = f"{self.miner_id}_schedule"
-        self.save_data(key=block_number, data=dict_data, prefix=prefix)
-
-    def load_latest_schedule(self):
-        """Load the most recent schedule data."""
-        prefix = f"{self.miner_id}_schedule"
-        data = self.get_latest(prefix=prefix)
-        if data is None:
-            return None
-        string_data = data.get("data_encoded")
-        decoded_data = base64.b64decode(string_data.encode("utf-8"))
-        return loads(decoded_data)
 
 
 class RedisStorage(BaseRedisStorage):
@@ -85,21 +62,6 @@ class RedisStorage(BaseRedisStorage):
             The latest pool info, or None if no pool info is found.
         """
         prefix = f"{self.miner_id}_pools"
-        return self.get_latest(prefix=prefix)
-
-    # Schedule data
-    def save_schedule(self, block_number: int, schedule_obj) -> None:
-        """Save schedule data for a specific block."""
-        prefix = f"{self.miner_id}_schedule"
-        self.save_data(key=block_number, data=schedule_obj, prefix=prefix)
-
-    def load_latest_schedule(self) -> Optional[dict]:
-        """Load the most recent schedule data.
-
-        Returns:
-            The latest schedule data, or None if no schedule data is found.
-        """
-        prefix = f"{self.miner_id}_schedule"
         return self.get_latest(prefix=prefix)
 
 
