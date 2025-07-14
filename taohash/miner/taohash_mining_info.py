@@ -6,13 +6,11 @@ This script retrieves the subnet's mining pool details and formats them with the
 appropriate worker name based on your wallet's hotkey.
 
 Usage:
-    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY
-    
     # Or with network specification
-    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network finney
+    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network finney --btc_address YOUR_BTC_ADDRESS
     
     # Or for testnet
-    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network test --netuid 91
+    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network test --netuid 331 --btc_address YOUR_BTC_ADDRESS
 """
 
 import argparse
@@ -23,11 +21,17 @@ from bittensor import logging, Subtensor, config
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.core.chain_data.pool_info import get_pool_info
+from taohash.core.chain_data.miner_info import (
+    publish_miner_info,
+    get_miner_info,
+    encode_miner_info,
+    MinerInfo,
+)
 from taohash.core.pool import PoolIndex
 
 
 def get_subnet_pool_info():
-    """Fetch and display subnet pool connection information."""
+    """Setup miner with BTC address commitment and display pool connection information."""
     
     parser = argparse.ArgumentParser(
         description="Get subnet pool connection information for mining"
@@ -50,6 +54,13 @@ def get_subnet_pool_info():
         default=os.getenv("SUBTENSOR_CHAIN_ENDPOINT"),
         help="Subtensor chain endpoint",
     )
+    parser.add_argument(
+        "--btc_address",
+        type=str,
+        default=os.getenv("BTC_ADDRESS"),
+        help="Bitcoin address for receiving mining rewards (REQUIRED)",
+        required=not os.getenv("BTC_ADDRESS"),
+    )
     
     Wallet.add_args(parser)
     Subtensor.add_args(parser)
@@ -67,6 +78,59 @@ def get_subnet_pool_info():
     logging.info(f"Netuid: {config_obj.netuid}")
     logging.info(f"Wallet: {wallet}")
     
+    logging.info("Checking wallet registration...")
+    metagraph = subtensor.get_metagraph_info(netuid=config_obj.netuid)
+    
+    if wallet.hotkey.ss58_address not in metagraph.hotkeys:
+        logging.error(
+            f"\n❌ Your wallet {wallet} is not registered on subnet {config_obj.netuid}.\n"
+            f"   Please run 'btcli subnet register' and try again."
+        )
+        sys.exit(1)
+    
+    uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+    logging.success(f"✓ Wallet registered on subnet with UID: {uid}")
+    
+    btc_address = config_obj.btc_address
+    if not btc_address:
+        logging.error("❌ BTC address is mandatory. Please set BTC_ADDRESS in .env or use --btc_address")
+        sys.exit(1)
+    
+    if not btc_address.startswith(('1', '3', 'bc1')):
+        logging.error(f"❌ Invalid BTC address format: {btc_address}")
+        sys.exit(1)
+    
+    logging.info("Checking BTC address commitment...")
+    
+    published_miner_info = get_miner_info(subtensor, config_obj.netuid, wallet.hotkey.ss58_address)
+    
+    need_publish = False
+    if published_miner_info is not None:
+        if published_miner_info.btc_address == btc_address:
+            logging.success(f"✓ BTC address already published: {btc_address}")
+        else:
+            logging.info(
+                f"BTC address changed. Current: {published_miner_info.btc_address}, "
+                f"New: {btc_address}"
+            )
+            need_publish = True
+    else:
+        logging.info("No miner commitment found, will publish BTC address")
+        need_publish = True
+    
+    if need_publish:
+        logging.info("Publishing BTC address to the chain...")
+        miner_info = MinerInfo.from_btc_address(btc_address)
+        miner_info_bytes = encode_miner_info(miner_info)
+        
+        success = publish_miner_info(subtensor, config_obj.netuid, wallet, miner_info_bytes)
+        if not success:
+            logging.error("❌ Failed to publish BTC address to chain")
+            sys.exit(1)
+        else:
+            logging.success(f"✓ BTC address published successfully: {btc_address}")
+    
+    published_miner_info = get_miner_info(subtensor, config_obj.netuid, wallet.hotkey.ss58_address)
     try:
         logging.info("Fetching subnet information...")
         owner_hotkey = subtensor.query_subtensor(
@@ -106,10 +170,17 @@ def get_subnet_pool_info():
     worker_suffix = hotkey[:4] + hotkey[-4:]
     worker_name = f"{pool_info.username}.{worker_suffix}"
     
-    # Display information
-    print("\n" + "="*50)
+    # Display complete setup status
+    print("\n" + "="*60)
+    print("MINING SETUP STATUS")
+    print("="*60)
+    print(f"\n✓ Wallet registered on subnet {config_obj.netuid}")
+    print(f"✓ BTC address committed: {btc_address}")
+    print("✓ Pool information retrieved")
+    
+    print("\n" + "="*60)
     print("SUBNET POOL CONFIGURATION")
-    print("="*50)
+    print("="*60)
     
     print("\nNormal Pool:")
     print(f"  URL: {pool_info.domain or pool_info.ip}:{pool_info.port}")
@@ -127,14 +198,16 @@ def get_subnet_pool_info():
     print("  Use the password field: Eg: x;md=10000;")
     print("  Following the format is important")
     
-    print("\n" + "="*50)
+    print("\n" + "="*60)
     print("Configure your miners with the above settings.")
-    print("="*50 + "\n")
+    print("="*60 + "\n")
     
     # Additional helpful information
     print("Additional Information:")
+    print(f"  Your UID: {uid}")
     print(f"  Your Hotkey: {hotkey}")
     print(f"  Worker Suffix: {worker_suffix}")
+    print(f"  BTC Address: {btc_address}")
     print(f"  Pool Type: {'Proxy' if pool_info.pool_index == PoolIndex.Proxy else 'Other'}")
     
     if hasattr(pool_info, 'extra_data') and pool_info.extra_data:
