@@ -78,9 +78,9 @@ These steps apply to both miners and validators:
 After completing the common setup, the easiest way to start mining is:
 
 ### Quick Start (Direct Mining)
-1. **Get Mining Pool Credentials**: Run the [`taohash_mining_info.py`](taohash/miner/taohash_mining_info.py) script to fetch your pool information:
+1. **Get Mining Pool Credentials**: Run the [`miner.py`](taohash/miner/miner.py) script to fetch your pool information:
    ```bash
-   python taohash/miner/taohash_mining_info.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY
+   python taohash/miner/miner.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY
    ```
    This will display your unique worker credentials and pool connection details.
 
