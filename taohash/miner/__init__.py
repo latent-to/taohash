@@ -5,7 +5,6 @@ from typing import Optional
 from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.miner.allocation import BaseAllocation
 from taohash.miner.storage import get_miner_storage, BaseJsonStorage, BaseRedisStorage
 from taohash.core.chain_data.pool_info import get_pool_info, PoolInfo
 
@@ -32,9 +31,6 @@ class BaseMiner:
         self.current_block = 0
         self.blocks_per_sync = self.tempo // self.config.sync_frequency
 
-        self._first_sync = True
-        self._recover_schedule = self.config.recover_schedule
-
     def get_config(self):
         """Create and parse configuration."""
         parser = argparse.ArgumentParser(conflict_handler="resolve")
@@ -57,39 +53,14 @@ class BaseMiner:
             help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
         parser.add_argument(
-            "--no-recover_schedule",
-            action="store_false",
-            dest="recover_schedule",
-            default=os.getenv("RECOVER_SCHEDULE", "true").lower() == "true",
-            help="Disable schedule recovery between restarts.",
-        )
-        parser.add_argument(
-            "--blacklist",
-            type=str,
-            nargs="+",
-            default=os.getenv("BLACKLIST", "").split(",")
-            if os.getenv("BLACKLIST")
-            else [],
-            help="List of validator hotkeys to exclude from mining",
-        )
-        parser.add_argument(
             "--storage",
             type=str,
             choices=["json", "redis"],
             default=os.getenv("STORAGE_TYPE", "json"),
             help="Storage type to use (json or redis)",
         )
-        parser.add_argument(
-            "--blocks_per_window",
-            type=int,
-            default=int(os.getenv("BLOCKS_PER_WINDOW"))
-            if os.getenv("BLOCKS_PER_WINDOW")
-            else None,
-            help="Number of blocks per mining window (default: tempo * 2, env: BLOCKS_PER_WINDOW)",
-        )
 
         # Add other base arguments
-        BaseAllocation.add_args(parser)
         BaseRedisStorage.add_args(parser)
         BaseJsonStorage.add_args(parser)
         Subtensor.add_args(parser)
