@@ -12,16 +12,13 @@ from taohash.core.chain_data.miner_info import (
     encode_miner_info,
     MinerInfo,
 )
-from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
-from taohash.miner.allocation import get_allocation
 from taohash.miner.proxy import (
     get_proxy_manager,
     BraiinsProxyManager,
     TaohashProxyManager,
 )
-from taohash.miner.scheduler import MiningScheduler
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -31,7 +28,8 @@ class BraiinsMiner(BaseMiner):
     Braiins BTC Miner implementation.
 
     This miner targets the Braiins pool ecosystem for Bitcoin mining,
-    handling proxy connections and scheduling mining across validators.
+    connecting to the subnet's pool and maintaining
+    proxy configuration in sync with the subnets's published pool info.
     """
 
     def __init__(self):
@@ -40,14 +38,11 @@ class BraiinsMiner(BaseMiner):
 
         Process:
             1. Perform base miner initialization
-            2. Set up Braiins-specific proxy manager if enabled and storage
-            3. Initialize mining scheduler with appropriate allocation strategy
-            4. Check and publish BTC address commitment if needed
+            2. Set up Braiins-specific proxy manager if enabled
+            3. Check and publish BTC address commitment
         """
         # Base miner initialization
         super().__init__()
-
-        self.blocks_per_window = self.config.blocks_per_window or (self.tempo * 2)
         
         self.publish_miner_info()
 
@@ -56,16 +51,6 @@ class BraiinsMiner(BaseMiner):
             self.proxy_manager = get_proxy_manager(
                 proxy_type=self.config.proxy_type, config=self.config
             )
-
-        allocation_type = get_allocation(self.config.allocation.type, self.config)
-        self.mining_scheduler = MiningScheduler(
-            config=self.config,
-            window_size=self.blocks_per_window,
-            storage=self.storage,
-            allocation=allocation_type,
-            metagraph=self.metagraph,
-            proxy_manager=self.proxy_manager,
-        )
 
     def add_args(self, parser: argparse.ArgumentParser):
         """Add Braiins-specific arguments to the parser."""
@@ -93,7 +78,7 @@ class BraiinsMiner(BaseMiner):
             elif args.proxy_type == "braiins":
                 BraiinsProxyManager.add_args(parser)
 
-    def get_target_pools(self) -> dict[str, PoolInfo]:
+    def get_target_pool(self) -> dict[str, PoolInfo]:
         """
         Fetch the subnet's pool from the chain.
 
@@ -171,84 +156,31 @@ class BraiinsMiner(BaseMiner):
         else:
             logging.success(f"BTC address published successfully: {btc_address}")
 
-    def restore_schedule(self) -> None:
-        """
-        Restore the mining schedule from storage.
-
-        Process:
-            1. Load the latest schedule from storage if recovery is enabled
-            2. Update the mining scheduler with the recovered schedule
-            3. Check if the schedule is still valid or needs updating
-            4. Report the recovery status and any slot changes
-        """
-        if self._recover_schedule:
-            recovered_schedule = self.storage.load_latest_schedule()
-            if recovered_schedule:
-                self.mining_scheduler.current_schedule = recovered_schedule
-                logging.success(
-                    f"Recovered schedule from creation block {recovered_schedule.created_at_block}"
-                )
-            else:
-                logging.info("No schedule to recover; will create fresh.")
-
-            changed_slot = self.mining_scheduler.update_mining_schedule(
-                current_block=self.current_block,
-                metagraph=self.metagraph,
-            )
-            if self.mining_scheduler.current_schedule != recovered_schedule:
-                logging.warning(
-                    "Recovered schedule was outdated - created new schedule."
-                )
-            elif changed_slot:
-                logging.success(
-                    f"Mining slot updated at block {self.current_block} from recovered schedule."
-                )
-                for target in changed_slot.pool_targets:
-                    logging.success(
-                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
-                    )
-            else:
-                current_slot = self.mining_scheduler.current_schedule.current_slot
-                logging.info(
-                    f"No slot change detected - current slot is still valid: \n{current_slot}"
-                )
-
     def sync_and_refresh(self) -> None:
         """
-        Sync metagraph, fetch pools, and update mining schedule.
+        Sync metagraph, fetch pools, and update proxy configuration if needed.
 
         Process:
             1. Sync metagraph to get latest network state
-            2. Fetch current target pools from validators
+            2. Fetch subnet's pool info
             3. Save pool data to persistent storage
-            4. Handle first sync and schedule recovery
-            5. Update mining schedule based on current network state
+            4. Update proxy configuration if pool info changed
         """
         self.metagraph = self.subtensor.get_metagraph_info(netuid=self.config.netuid)
         self.current_block = self.metagraph.block
         logging.info(f"Syncing at block {self.current_block}")
 
-        target_pools = self.get_target_pools()
+        target_pools = self.get_target_pool()
         if target_pools:
             self.storage.save_pool_data(self.current_block, target_pools)
             logging.info(f"Saved pool data on block: {self.current_block}")
-
-        if self.mining_scheduler and target_pools:
-            if self._first_sync:
-                self._first_sync = False
-                if self._recover_schedule:
-                    self.restore_schedule()
-
-            changed_slot = self.mining_scheduler.update_mining_schedule(
-                current_block=self.current_block,
-                metagraph=self.metagraph,
-            )
-            if changed_slot:
-                logging.success(f"Mining slot updated at block {self.current_block}")
-                for target in changed_slot.pool_targets:
-                    logging.success(
-                        f"Check out the slot's dashboard for realtime-metrics: {target.pool_info['domain']}:5000"
-                    )
+            
+            if self.proxy_manager and target_pools:
+                pool_info = list(target_pools.values())[0]
+                
+                success = self.proxy_manager.update_config(pool_info)
+                if success:
+                    logging.info(f"Proxy configuration verified/updated for {pool_info['domain']}:{pool_info['port']}")
 
     def get_next_sync_block(self) -> tuple[int, str]:
         """
@@ -260,16 +192,7 @@ class BraiinsMiner(BaseMiner):
         Process:
             1. Calculate next regular sync interval
             2. Check for upcoming epoch boundaries
-            3. Check for slot changes or window boundaries
-            4. Return the earliest event with its explanation
         """
-        if not self.mining_scheduler.current_schedule:
-            next_sync = self.current_block + (
-                10 * 60 // BLOCK_TIME
-            )  # Check again after 10 minutes
-            sync_reason = "No schedule"
-            return next_sync, sync_reason
-
         next_sync = self.current_block + (
             self.blocks_per_sync - (self.current_block % self.blocks_per_sync)
         )
@@ -281,22 +204,6 @@ class BraiinsMiner(BaseMiner):
             if epoch_block < next_sync:
                 next_sync = epoch_block
                 sync_reason = "Epoch boundary"
-
-        # Check slot changes
-        if (
-            self.mining_scheduler
-            and self.mining_scheduler.current_schedule
-            and self.mining_scheduler.current_schedule.current_slot
-        ):
-            # If we have a mining slot, check when it ends
-            current_schedule = self.mining_scheduler.current_schedule
-            slot_end = current_schedule.current_slot.end_block + 1
-            if self.current_block <= slot_end < next_sync:
-                next_sync = slot_end
-                if slot_end == current_schedule.end_block + 1:
-                    sync_reason = "New window"
-                else:
-                    sync_reason = "Slot change"
 
         return next_sync, sync_reason
 
