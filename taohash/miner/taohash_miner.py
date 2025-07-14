@@ -6,6 +6,12 @@ from bittensor import logging
 from dotenv import load_dotenv
 
 from taohash.core.chain_data.pool_info import PoolInfo
+from taohash.core.chain_data.miner_info import (
+    publish_miner_info,
+    get_miner_info,
+    encode_miner_info,
+    MinerInfo,
+)
 from taohash.core.constants import BLOCK_TIME
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
@@ -36,11 +42,14 @@ class BraiinsMiner(BaseMiner):
             1. Perform base miner initialization
             2. Set up Braiins-specific proxy manager if enabled and storage
             3. Initialize mining scheduler with appropriate allocation strategy
+            4. Check and publish BTC address commitment if needed
         """
         # Base miner initialization
         super().__init__()
 
         self.blocks_per_window = self.config.blocks_per_window or (self.tempo * 2)
+        
+        self.publish_miner_info()
 
         self.proxy_manager = None
         if self.config.use_proxy:
@@ -61,6 +70,14 @@ class BraiinsMiner(BaseMiner):
     def add_args(self, parser: argparse.ArgumentParser):
         """Add Braiins-specific arguments to the parser."""
         super().add_args(parser)
+
+        parser.add_argument(
+            "--btc_address",
+            type=str,
+            default=os.getenv("BTC_ADDRESS"),
+            help="Bitcoin address for receiving mining rewards (REQUIRED)",
+            required=not os.getenv("BTC_ADDRESS"),
+        )
         parser.add_argument(
             "--proxy_type",
             type=str,
@@ -106,6 +123,53 @@ class BraiinsMiner(BaseMiner):
         )
 
         return {self.pool_hotkey: subnet_pool_info.to_json()}
+
+    def publish_miner_info(self) -> None:
+        """
+        Publish the miner's BTC address to Bittensor.
+        Process:
+            1. Check if BTC address is provided in config (mandatory)
+            2. Try to retrieve and decode existing commitment
+            3. If decode fails or doesn't exist, publish new commitment
+            4. If exists but differs, update the commitment
+        """
+        btc_address = self.config.btc_address
+        if not btc_address:
+            logging.error("BTC address is mandatory for miners. Please set BTC_ADDRESS in .env or use --btc_address")
+            exit(1)
+
+        if not btc_address.startswith(('1', '3', 'bc1')):
+            logging.error(f"Invalid BTC address format: {btc_address}")
+            exit(1)
+
+        published_miner_info = get_miner_info(
+            self.subtensor, self.config.netuid, self.wallet.hotkey.ss58_address
+        )
+        
+        if published_miner_info is not None:
+            if published_miner_info.btc_address == btc_address:
+                logging.success(f"BTC address already published: {btc_address}")
+                return
+            else:
+                logging.info(
+                    f"BTC address changed. Current: {published_miner_info.btc_address}, "
+                    f"New: {btc_address}"
+                )
+        else:
+            logging.info("No miner commitment found for this miner")
+
+        logging.info("Publishing BTC address to the chain...")
+        miner_info = MinerInfo.from_btc_address(btc_address)
+        miner_info_bytes = encode_miner_info(miner_info)
+        
+        success = publish_miner_info(
+            self.subtensor, self.config.netuid, self.wallet, miner_info_bytes
+        )
+        if not success:
+            logging.error("Failed to publish BTC address to chain")
+            exit(1)
+        else:
+            logging.success(f"BTC address published successfully: {btc_address}")
 
     def restore_schedule(self) -> None:
         """
