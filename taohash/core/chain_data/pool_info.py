@@ -235,24 +235,29 @@ def get_pool_info(
     Returns:
         PoolInfo object if found, None otherwise
     """
-    commitments = subtensor.get_all_commitments(netuid)
-    if not commitments or hotkey not in commitments:
-        return None
-
     try:
-        raw_data = commitments[hotkey]
-
-        if isinstance(raw_data, str):
-            raw_bytes = bytes(raw_data, "latin1")
-        elif isinstance(raw_data, bytes):
-            raw_bytes = raw_data
-        else:
-            logging.error(f"Unexpected data type in commitments: {type(raw_data)}")
+        commit_data = subtensor.substrate.query(
+            module="Commitments",
+            storage_function="CommitmentOf",
+            params=[netuid, hotkey],
+        )
+        
+        if not commit_data:
             return None
-
-        return decode_pool_info(raw_bytes)
+        
+        try:
+            commitment = commit_data["info"]["fields"][0][0]
+            bytes_key = next(iter(commitment.keys()))
+            bytes_tuple = commitment[bytes_key][0]
+            raw_bytes = bytes(bytes_tuple)
+            
+            return decode_pool_info(raw_bytes)
+        except Exception as e:
+            logging.debug(f"Failed to decode pool info (might be miner commitment): {e}")
+            return None
+            
     except Exception as e:
-        logging.error(f"Failed to get pool info: {e}")
+        logging.debug(f"Error retrieving pool info: {e}")
         return None
 
 
