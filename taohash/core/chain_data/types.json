@@ -85,6 +85,19 @@
           }
         }
       }
+    },
+    {
+      "id": 8,
+      "type": {
+        "path": ["MinerInfo"],
+        "def": {
+          "composite": {
+            "fields": [
+              { "name": "btc_address", "type": 2 }
+            ]
+          }
+        }
+      }
     }
   ]
 }
