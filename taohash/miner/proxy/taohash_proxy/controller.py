@@ -3,7 +3,6 @@ import os
 import socket
 import requests
 import toml
-from typing import Any
 
 import bittensor as bt
 from bittensor.utils.btlogging import logging
@@ -127,19 +126,20 @@ class TaohashProxyManager(BaseProxyManager):
 
         return True, "All required files present and both proxy ports open"
 
-    def update_config(self, slot_data: Any) -> bool:
+    def update_config(self, pool_info: dict) -> bool:
         """
-        Called when a new slot's pool targets arrive.
-        Writes them to config.toml and triggers the proxy to reload.
+        Update proxy configuration with pool information.
+        Writes to config.toml and triggers the proxy to reload.
         Uses high_diff_port field if available.
         """
         try:
+            if self.verify_config_matches_pool(pool_info):
+                logging.info("Proxy config already matches expected pool - no update needed")
+                return True
+                
             config = {"pools": {}}
 
-            if slot_data.pool_targets:
-                target = slot_data.pool_targets[0]
-                pool_info = target.pool_info
-
+            if pool_info:
                 host, port = pool_info["pool_url"].split(":")
                 username = pool_info["extra_data"]["full_username"]
                 password = pool_info.get("password", "x")
@@ -198,12 +198,12 @@ class TaohashProxyManager(BaseProxyManager):
             logging.error(f"Failed to update proxy config: {e}")
             return False
 
-    def verify_config_matches_slot(self, slot_data: Any) -> bool:
+    def verify_config_matches_pool(self, pool_info: dict) -> bool:
         """
-        Verify that the current TOML configuration matches the expected slot data.
+        Verify that the current TOML configuration matches the expected pool info.
 
         Args:
-            slot_data: Mining slot data containing pool targets
+            pool_info: Pool information dictionary
 
         Returns:
             bool: True if config matches, False otherwise
@@ -219,11 +219,10 @@ class TaohashProxyManager(BaseProxyManager):
                 logging.debug("No pools section in config")
                 return False
 
-            if not slot_data.pool_targets:
-                logging.debug("No pool targets in slot data")
+            if not pool_info:
+                logging.debug("No pool info provided")
                 return False
 
-            pool_info = slot_data.pool_targets[0].pool_info
             expected_host = pool_info.get("domain") or pool_info.get("ip")
             expected_port = pool_info.get("port")
             expected_user = pool_info.get("extra_data", {}).get("full_username", "")
@@ -256,7 +255,7 @@ class TaohashProxyManager(BaseProxyManager):
                 return False
 
             logging.debug(
-                "Config verification passed - TOML matches expected slot data"
+                "Config verification passed - TOML matches expected pool data"
             )
             return True
 
