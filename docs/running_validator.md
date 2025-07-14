@@ -85,7 +85,7 @@ npm install pm2@latest -g
 
 2. Start the validator:
 ```bash
-pm2 start python3 --name "taohash-validator" -- taohash/validator/taohash_validator.py run \
+pm2 start python3 --name "taohash-validator" -- taohash/validator/validator.py run \
     --subtensor.network finney \
     --logging.info
 
@@ -97,7 +97,7 @@ pm2 startup
 #### Direct Execution
 
 ```bash
-python3 taohash/validator/taohash_validator.py run \
+python3 taohash/validator/validator.py run \
     --subtensor.network finney \
     --logging.info
 ```
