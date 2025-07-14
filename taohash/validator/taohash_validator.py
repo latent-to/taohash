@@ -10,12 +10,20 @@ import time
 
 from tabulate import tabulate
 
-from bittensor import logging
+from bittensor import logging, Subtensor
+from bittensor_wallet.bittensor_wallet import Wallet
 from dotenv import load_dotenv
 
+from taohash.core.chain_data.pool_info import (
+    publish_pool_info,
+    get_pool_info,
+    encode_pool_info,
+)
 from taohash.core.constants import VERSION_KEY, U16_MAX
+from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
 from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
+from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
 from taohash.core.pricing.network_stats import get_current_difficulty
 from taohash.validator import BaseValidator
@@ -36,16 +44,10 @@ class TaohashProxyValidator(BaseValidator):
     def __init__(self):
         super().__init__()
 
-        proxy_url = os.getenv("SUBNET_PROXY_API_URL")
-        api_token = os.getenv("SUBNET_PROXY_API_TOKEN")
-
-        if not proxy_url:
-            raise ValueError("SUBNET_PROXY_API_URL environment variable must be set")
-        if not api_token:
-            raise ValueError("SUBNET_PROXY_API_TOKEN environment variable must be set")
-
-        api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
-        self.pool = ProxyPool(pool_info=None, api=api)
+        self.is_subnet_owner = False
+        self.pool = None
+        self.pool_config = None
+        self.api_config = None
 
         self.setup_bittensor_objects()
         self.price_api = CoinPriceAPI("coingecko", None)
@@ -59,12 +61,84 @@ class TaohashProxyValidator(BaseValidator):
     def add_args(self, parser: argparse.ArgumentParser):
         """Add validator arguments to the parser."""
         super().add_args(parser)
+        
+        ProxyPoolConfig.add_args(parser)
+        ProxyPoolAPIConfig.add_args(parser)
 
     def setup_bittensor_objects(self):
         """
-        Extend base setup - no pool publishing needed.
+        Extend base setup with pool configuration and publishing.
         """
         super().setup_bittensor_objects()
+        
+        owner_hotkey = self.get_owner_hotkey()
+        self.is_subnet_owner = (owner_hotkey == self.wallet.hotkey.ss58_address)
+        
+        if self.is_subnet_owner:
+            logging.info("SN owner detected - setting up pool configuration")
+            try:
+                self.pool_config = ProxyPoolConfig.from_args(self.config)
+                self.api_config = ProxyPoolAPIConfig.from_args(self.config)
+                self.pool = Pool(
+                    pool_info=self.pool_config.to_pool_info(), config=self.api_config
+                )
+                
+                self.publish_pool_info(
+                    self.subtensor, self.config.netuid, self.wallet, self.pool
+                )
+                logging.info(f"Pool configured with domain/IP: {self.pool.get_pool_info().domain}")
+            except Exception as e:
+                logging.error(
+                    f"Subnet owner must provide pool configuration via command line "
+                    f"(--pool.domain, --pool.port) or environment variables "
+                    f"(PROXY_DOMAIN, PROXY_PORT). Error: {e}"
+                )
+                exit(1)
+        else:
+            # Other validators need proxy API credentials
+            proxy_url = os.getenv("SUBNET_PROXY_API_URL")
+            api_token = os.getenv("SUBNET_PROXY_API_TOKEN")
+            
+            if not proxy_url:
+                raise ValueError("SUBNET_PROXY_API_URL environment variable must be set")
+            if not api_token:
+                raise ValueError("SUBNET_PROXY_API_TOKEN environment variable must be set")
+            
+            api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
+            self.pool = ProxyPool(pool_info=None, api=api)
+
+    def publish_pool_info(
+        self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
+    ) -> None:
+        """
+        Publish the mining pool info to bittensor.
+        Process:
+            1. Check if pool info is already published.
+            2. If not, publish the pool info to the chain.
+            3. Update the pool info if it is outdated.
+        """
+        pool_info = pool.get_pool_info()
+        pool_info_bytes = encode_pool_info(pool_info)
+
+        published_pool_info = get_pool_info(
+            subtensor, netuid, wallet.hotkey.ss58_address
+        )
+        if published_pool_info is not None:
+            logging.info("Pool info detected.")
+            published_pool_info_bytes = encode_pool_info(published_pool_info)
+            if published_pool_info_bytes == pool_info_bytes:
+                logging.success("Pool info is already published.")
+                return
+            else:
+                logging.info("Pool info is outdated.")
+
+        logging.info("Publishing pool info to the chain.")
+        success = publish_pool_info(subtensor, netuid, wallet, pool_info_bytes)
+        if not success:
+            logging.error("Failed to publish pool info")
+            exit(1)
+        else:
+            logging.success("Pool info published successfully")
 
     def evaluate_miner_share_value(self) -> None:
         """
