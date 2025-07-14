@@ -42,7 +42,7 @@ cd taohash
 pip install -e .
 
 # Get your mining configuration
-python taohash/miner/taohash_mining_info.py \
+python taohash/miner/miner.py \
     --wallet.name YOUR_WALLET \
     --wallet.hotkey YOUR_HOTKEY \
     --subtensor.network finney
@@ -93,10 +93,10 @@ Note: It is important to follow the format of setting the difficulty.
 
 ## Legacy Mining Script
 
-The `taohash_miner.py` script is still supported and automatically mines to the subnet pool:
+The `miner_with_proxy.py` script is still supported and automatically mines to the subnet pool:
 
 ```bash
-python taohash/miner/taohash_miner.py \
+python taohash/miner/miner_with_proxy.py \
     --wallet.name YOUR_WALLET \
     --wallet.hotkey YOUR_HOTKEY \
     --subtensor.network finney
@@ -105,7 +105,7 @@ python taohash/miner/taohash_miner.py \
 ## Troubleshooting
 
 **Cannot connect to pool**
-- Verify pool information using `taohash_mining_info.py`
+- Verify pool information using `miner.py`
 - Check firewall settings
 - Ensure wallet is registered on subnet 14
 
