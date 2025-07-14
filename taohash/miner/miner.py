@@ -6,10 +6,10 @@ This script retrieves the subnet's mining pool details and formats them with the
 appropriate worker name based on your wallet's hotkey.
 
 Usage:
-    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network finney --btc_address YOUR_BTC_ADDRESS
+    python miner.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network finney --btc_address YOUR_BTC_ADDRESS
 
     # Or for testnet
-    python taohash_mining_info.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network test --netuid 331 --btc_address YOUR_BTC_ADDRESS
+    python miner.py --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --subtensor.network test --netuid 331 --btc_address YOUR_BTC_ADDRESS
 """
 
 import argparse
