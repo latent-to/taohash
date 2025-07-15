@@ -355,15 +355,3 @@ class BaseValidator:
         title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Hash Price: ${hash_price:.8f})"
         logging.info(f"Scores updated at block {self.current_block}")
         logging.info(f".\n{title}\n{table}")
-
-    def get_owner_hotkey(self) -> Optional[int]:
-        """Get the hotkey of the subnet owner."""
-        try:
-            sn_owner_hotkey = self.subtensor.query_subtensor(
-                "SubnetOwnerHotkey",
-                params=[self.config.netuid],
-            )
-            return sn_owner_hotkey
-        except Exception as e:
-            logging.error(f"Error getting subnet owner hotkey: {e}")
-            return None
