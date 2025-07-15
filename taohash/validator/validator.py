@@ -317,21 +317,20 @@ class TaohashProxyValidator(BaseValidator):
     def _log_share_value_scores(self, coin: str, timeframe: str) -> None:
         """Log current scores based on share values."""
         rows = []
-        headers = ["UID", "Hotkey", "Score", "Moving Avg"]
+        headers = ["UID", "Hotkey", "Score"]
 
         sorted_indices = sorted(
             range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
         )
 
         for i in sorted_indices:
-            if self.scores[i] > 0 or self.moving_avg_scores[i] > 0:
+            if self.scores[i] > 0:
                 hotkey = self.metagraph.hotkeys[i]
                 rows.append(
                     [
                         i,
                         f"{hotkey}",
                         f"{self.scores[i]:.8f}",
-                        f"{self.moving_avg_scores[i]:.8f}",
                     ]
                 )
 
@@ -353,7 +352,6 @@ class TaohashProxyValidator(BaseValidator):
         """Save the current validator state to storage, including timestamp."""
         state = {
             "scores": self.scores,
-            "moving_avg_scores": self.moving_avg_scores,
             "hotkeys": self.hotkeys,
             "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
@@ -390,7 +388,6 @@ class TaohashProxyValidator(BaseValidator):
         # Restore state
         total_hotkeys = len(state.get("hotkeys", []))
         self.scores = state.get("scores", [0.0] * total_hotkeys)
-        self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
         self.last_evaluation_timestamp = state.get("last_evaluation_timestamp", None)
@@ -398,9 +395,9 @@ class TaohashProxyValidator(BaseValidator):
         self.resync_metagraph()
 
         for idx in range(len(self.hotkeys)):
-            # If the coldkey is a bad one, set the moving avg score to 0
+            # If the coldkey is a bad one, set the score to 0
             if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
-                self.moving_avg_scores[idx] = 0.0
+                self.scores[idx] = 0.0
 
         logging.warning(f"Validator was down for {blocks_down} blocks.")
         self.evaluate_miner_share_value()
@@ -418,19 +415,12 @@ class TaohashProxyValidator(BaseValidator):
                 - str: Error message if weights were not set successfully, empty string otherwise
 
         Evaluation:
-            1. Update moving_avg_scores from base scores.
+            1. Set weights using current scores.
             2. Ensure miners are still active - otherwise burn the alpha.
-            3. Set weights using moving_avg_scores.
-            4. Reset scores for next evaluation.
+            3. Reset scores for next evaluation.
         """
-        # Update moving_avg_scores from base scores.
-        for i, current_score in enumerate(self.scores):
-            self.moving_avg_scores[i] = (1 - self.alpha) * self.moving_avg_scores[
-                i
-            ] + self.alpha * current_score
-
         # Calculate weights
-        total = sum(self.moving_avg_scores)
+        total = sum(self.scores)
         if total == 0:
             logging.info("No miners are mining, we should burn the alpha")
             owner_uid = self.get_burn_uid()
@@ -441,7 +431,7 @@ class TaohashProxyValidator(BaseValidator):
                 logging.error("No owner found for subnet. Skipping weight update.")
                 return False, "No owner found for the subnet"
         else:
-            weights = [score / total for score in self.moving_avg_scores]
+            weights = [score / total for score in self.scores]
 
         logging.info("Setting weights")
 
