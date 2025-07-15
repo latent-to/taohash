@@ -306,8 +306,8 @@ class BaseValidator:
                     [
                         i,
                         f"{hotkey}",
-                        f"{weights[i]:.8f}",
-                        f"{weights[i] * 100:.2f}%",
+                        f"{weights[i]:.10f}",
+                        f"{weights[i] * 100:.10f}%",
                     ]
                 )
 

@@ -21,7 +21,13 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import VERSION_KEY, U16_MAX
+from taohash.core.constants import (
+    VERSION_KEY,
+    U16_MAX,
+    OWNER_TAKE,
+    SPLIT_WITH_MINERS,
+    PAYOUT_FACTOR,
+)
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
 from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
@@ -73,8 +79,8 @@ class TaohashProxyValidator(BaseValidator):
         """
         super().setup_bittensor_objects()
 
-        owner_hotkey = self.get_owner_hotkey()
-        self.is_subnet_owner = owner_hotkey == self.wallet.hotkey.ss58_address
+        self.burn_uid = self.get_burn_uid()
+        self.is_subnet_owner = self.burn_uid == self.wallet.hotkey.ss58_address
 
         if self.is_subnet_owner:
             logging.info("SN owner detected - setting up pool configuration")
@@ -406,6 +412,36 @@ class TaohashProxyValidator(BaseValidator):
             f"Successfully restored validator state with last evaluation timestamp: {self.last_evaluation_timestamp}"
         )
 
+    def calculate_weights_distribution(self, total_value: float) -> list[float]:
+        weights = [0.0] * len(self.hotkeys)
+        tao_price = self.price_api.get_price("bittensor")
+        subnet_price = self.subtensor.subnet(self.config.netuid).price.tao
+        alpha_price = subnet_price * tao_price
+
+        own_stake_weight = self.metagraph.total_stake[self.uid].tao
+        total_stake = sum(self.metagraph.total_stake).tao
+
+        blocks_to_set_for = self.current_block - self.last_update
+        alpha_to_dist = (
+            blocks_to_set_for
+            * (1 - OWNER_TAKE)
+            * SPLIT_WITH_MINERS
+            * (own_stake_weight / total_stake)
+        )
+        value_to_dist = alpha_to_dist * alpha_price
+        scaled_total_value = total_value * PAYOUT_FACTOR
+
+        if scaled_total_value > value_to_dist:
+            weights = [score / scaled_total_value for score in self.scores]
+        else:
+            weights_to_dist = scaled_total_value / value_to_dist
+            weights = [(score / total_value) * weights_to_dist for score in self.scores]
+
+        remaining = max(0.0, 1.0 - sum(weights))
+        if remaining > 0:
+            weights[self.burn_uid] += remaining
+        return weights
+
     def set_weights(self) -> tuple[bool, str]:
         """Set weights for all miners.
 
@@ -420,18 +456,13 @@ class TaohashProxyValidator(BaseValidator):
             3. Reset scores for next evaluation.
         """
         # Calculate weights
-        total = sum(self.scores)
-        if total == 0:
+        total_value = sum(self.scores)
+        if total_value == 0:
             logging.info("No miners are mining, we should burn the alpha")
-            owner_uid = self.get_burn_uid()
-            if owner_uid is not None:
-                weights = [0.0] * len(self.hotkeys)
-                weights[owner_uid] = 1.0
-            else:
-                logging.error("No owner found for subnet. Skipping weight update.")
-                return False, "No owner found for the subnet"
+            weights = [0.0] * len(self.hotkeys)
+            weights[self.burn_uid] = 1.0
         else:
-            weights = [score / total for score in self.scores]
+            weights = self.calculate_weights_distribution(total_value)
 
         logging.info("Setting weights")
 
