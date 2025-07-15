@@ -19,7 +19,7 @@ class ProxyMetrics(BaseMetrics):
     shares: int = 0
     share_value: float = 0.0
 
-    def get_share_value(self, btc_price: float, btc_difficulty: float) -> float:
+    def get_share_value_fiat(self, btc_price: float, btc_difficulty: float) -> float:
         """
         Returns the share value for this time period.
         The share value is already calculated by the pool based on actual work done.
