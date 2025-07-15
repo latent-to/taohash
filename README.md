@@ -6,9 +6,9 @@
 
 </div>
 
-TAO Hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) mining hashrate, rental and exchange. Validators receive hashrate from miners in exchange for issuing weights, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
+TAO Hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) BTC mining hashrate, rental and exchange. Validators evaluate miners by issuing weights based on the share-value produced, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
 
-Although the initial implementation primarily supports Bitcoin mining via Braiins Pool, the architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance presicely and efficiently.
+The architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance presicely and efficiently.
 
 ---
 - [Incentive Design](#incentive-design)
@@ -23,7 +23,7 @@ Although the initial implementation primarily supports Bitcoin mining via Braiin
 ---
 
 # Incentive Design
-The core incentive mechanism aligns miners and validators through a market where hashrate is exchanged for on-chain rewards (Alpha). All miners contribute hashrate to a unified subnet pool, and validators evaluate miners based on the share value they generate rather than raw hashrate.
+The core incentive mechanism aligns miners through a market where BTC hashrate is exchanged for BTC and on-chain rewards (Alpha). All miners contribute hashrate to a unified subnet pool, and validators evaluate miners based on the share value they generate rather than raw hashrate.
 
 ![TAO Hash Diagram](docs/images/incentive-design.png)
 
@@ -32,14 +32,11 @@ The core incentive mechanism aligns miners and validators through a market where
 ## Miner Requirements
 To run a TaoHash miner, you will need:
 - A Bittensor wallet
-- Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate
+- Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate (NiceHash, MiningRigRentals)
 - Python 3.9 or higher
-- Any BTC Miner software capable of pointing hashrate to a mining pool
 
-### Optional (for advanced features):
-- Redis server (for miner script persistence)
-- Docker & Docker Compose (for proxy setup)
-- Braiins Farm Proxy (for minimum difficulty and traffic routing)
+### Optional (for miner proxy usage):
+- Docker & Docker Compose
 
 ## Validator Requirements
 To run a TaoHash validator, you will need:
@@ -80,9 +77,9 @@ After completing the common setup, the easiest way to start mining is:
 ### Quick Start (Direct Mining)
 1. **Get Mining Pool Credentials**: Run the [`miner.py`](taohash/miner/miner.py) script to fetch your pool information:
    ```bash
-   python taohash/miner/miner.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY
+   python taohash/miner/miner.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY --btc.address BTC_ADDRESS
    ```
-   This will display your unique worker credentials and pool connection details.
+   This script will ensure your BTC_ADRESS is committed for rewards accumulation and will display your unique worker credentials and pool connection details.
 
 2. **Configure Your Miners**: Point your mining hardware directly to the subnet pool using the credentials from step 1.
 
