@@ -7,6 +7,8 @@ import argparse
 import os
 import traceback
 import time
+import json
+from datetime import datetime, timezone
 
 from tabulate import tabulate
 
@@ -61,7 +63,7 @@ class TaohashProxyValidator(BaseValidator):
     def add_args(self, parser: argparse.ArgumentParser):
         """Add validator arguments to the parser."""
         super().add_args(parser)
-        
+
         ProxyPoolConfig.add_args(parser)
         ProxyPoolAPIConfig.add_args(parser)
 
@@ -70,23 +72,26 @@ class TaohashProxyValidator(BaseValidator):
         Extend base setup with pool configuration and publishing.
         """
         super().setup_bittensor_objects()
-        
+
         owner_hotkey = self.get_owner_hotkey()
-        self.is_subnet_owner = (owner_hotkey == self.wallet.hotkey.ss58_address)
-        
+        self.is_subnet_owner = owner_hotkey == self.wallet.hotkey.ss58_address
+
         if self.is_subnet_owner:
             logging.info("SN owner detected - setting up pool configuration")
+            logging.info("Share value logging enabled for daily payout tracking")
             try:
                 self.pool_config = ProxyPoolConfig.from_args(self.config)
                 self.api_config = ProxyPoolAPIConfig.from_args(self.config)
                 self.pool = Pool(
                     pool_info=self.pool_config.to_pool_info(), config=self.api_config
                 )
-                
+
                 self.publish_pool_info(
                     self.subtensor, self.config.netuid, self.wallet, self.pool
                 )
-                logging.info(f"Pool configured with domain/IP: {self.pool.get_pool_info().domain}")
+                logging.info(
+                    f"Pool configured with domain/IP: {self.pool.get_pool_info().domain}"
+                )
             except Exception as e:
                 logging.error(
                     f"Subnet owner must provide pool configuration via command line "
@@ -98,12 +103,16 @@ class TaohashProxyValidator(BaseValidator):
             # Other validators need proxy API credentials
             proxy_url = os.getenv("SUBNET_PROXY_API_URL")
             api_token = os.getenv("SUBNET_PROXY_API_TOKEN")
-            
+
             if not proxy_url:
-                raise ValueError("SUBNET_PROXY_API_URL environment variable must be set")
+                raise ValueError(
+                    "SUBNET_PROXY_API_URL environment variable must be set"
+                )
             if not api_token:
-                raise ValueError("SUBNET_PROXY_API_TOKEN environment variable must be set")
-            
+                raise ValueError(
+                    "SUBNET_PROXY_API_TOKEN environment variable must be set"
+                )
+
             api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
             self.pool = ProxyPool(pool_info=None, api=api)
 
@@ -139,6 +148,87 @@ class TaohashProxyValidator(BaseValidator):
             exit(1)
         else:
             logging.success("Pool info published successfully")
+
+    def _get_share_value_filename(self) -> str:
+        """Get the filename for today's share value log (UTC date)."""
+        today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        log_dir = os.path.join(os.path.dirname(__file__), "daily_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        return os.path.join(log_dir, f"share_values_{today_utc}.json")
+
+    def _log_share_value_to_json(
+        self,
+        processed_metrics: list,
+        start_time: int,
+        end_time: int,
+        btc_price: float,
+        btc_difficulty: float,
+    ) -> None:
+        """
+        Log share values to daily JSON file with running totals and global percentages (subnet pool only).
+
+        Args:
+            processed_metrics: List of dicts with miner metrics
+            start_time: Unix timestamp for evaluation start
+            end_time: Unix timestamp for evaluation end
+            btc_price: Current BTC price
+            btc_difficulty: Current BTC network difficulty
+        """
+        if not self.is_subnet_owner:
+            return
+
+        filename = self._get_share_value_filename()
+        current_time = datetime.now(timezone.utc)
+
+        try:
+            if os.path.exists(filename):
+                with open(filename, "r") as f:
+                    data = json.load(f)
+            else:
+                data = {"global_share_value": 0.0}
+
+            for metric in processed_metrics:
+                hotkey = metric["hotkey"]
+
+                if hotkey not in data:
+                    data[hotkey] = {
+                        "total_share_value": 0.0,
+                        "global_share_percentage": 0.0,
+                        "data": [],
+                    }
+
+                entry = {
+                    "timestamp": current_time.isoformat(),
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "share_value": metric["share_value"],
+                    "shares": metric["shares"],
+                    "hashrate": metric["hashrate"],
+                    "hash_rate_unit": metric["hash_rate_unit"],
+                    "btc_price": btc_price,
+                    "btc_difficulty": btc_difficulty,
+                }
+
+                data[hotkey]["total_share_value"] += metric["share_value"]
+                data[hotkey]["data"].append(entry)
+
+                data["global_share_value"] += metric["share_value"]
+
+            global_total = data["global_share_value"]
+            if global_total > 0:
+                for hk in data:
+                    if isinstance(data[hk], dict):
+                        data[hk]["global_share_percentage"] = (
+                            data[hk]["total_share_value"] / global_total
+                        )
+
+            with open(filename, "w") as f:
+                json.dump(data, f, indent=2)
+
+            logging.debug(f"Logged {len(processed_metrics)} share values to {filename}")
+
+        except Exception as e:
+            logging.error(f"Failed to write share values to JSON: {e}")
 
     def evaluate_miner_share_value(self) -> None:
         """
@@ -185,21 +275,34 @@ class TaohashProxyValidator(BaseValidator):
 
                 btc_price = self.price_api.get_price(coin)
                 btc_difficulty = get_current_difficulty()
+                processed_metrics = []
 
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
                         continue
 
                     uid = hotkey_to_uid[metric.hotkey]
-                    share_value = metric.get_share_value(btc_price, btc_difficulty)
+                    share_value = metric.get_share_value_fiat(btc_price, btc_difficulty)
 
                     if share_value > 0:
                         logging.info(
                             f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
                         )
+                        processed_metrics.append(
+                            {
+                                "hotkey": metric.hotkey,
+                                "share_value": share_value,
+                                "shares": metric.shares,
+                                "hashrate": metric.hashrate,
+                                "hash_rate_unit": metric.hash_rate_unit,
+                            }
+                        )
 
                     self.scores[uid] += share_value
 
+                self._log_share_value_to_json(
+                    processed_metrics, start_time, end_time, btc_price, btc_difficulty
+                )
                 self._log_share_value_scores(coin, f"{end_time - start_time}s")
 
             self.last_evaluation_timestamp = current_time
