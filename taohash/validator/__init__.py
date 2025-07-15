@@ -40,7 +40,6 @@ class BaseValidator:
         self.last_update = 0
         self.current_block = 0
         self.scores = []
-        self.moving_avg_scores = []
         self.hotkeys = []
         self.block_at_registration = []
 
@@ -159,14 +158,12 @@ class BaseValidator:
         self.hotkeys = self.metagraph.hotkeys
         self.block_at_registration = self.metagraph.block_at_registration
         self.scores = [0.0] * len(self.metagraph.total_stake)
-        self.moving_avg_scores = [0.0] * len(self.metagraph.total_stake)
         self.tempo = self.subtensor.tempo(self.config.netuid)
 
     def save_state(self) -> None:
         """Save the current validator state to storage."""
         state = {
             "scores": self.scores,
-            "moving_avg_scores": self.moving_avg_scores,
             "hotkeys": self.hotkeys,
             "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
@@ -206,7 +203,6 @@ class BaseValidator:
                 )
                 # Reset scores for replaced hotkeys
                 self.scores[uid] = 0.0
-                self.moving_avg_scores[uid] = 0.0
 
         # 2. Handle new registrations
         if len(previous_hotkeys) < len(self.metagraph.hotkeys):
@@ -215,15 +211,12 @@ class BaseValidator:
             logging.info(f"Metagraph size increased from {old_size} to {new_size}")
 
             new_scores = [0.0] * new_size
-            new_moving_avg = [0.0] * new_size
 
             # Copy existing scores to the new arrays
             for i in range(min(old_size, len(self.scores))):
                 new_scores[i] = self.scores[i]
-                new_moving_avg[i] = self.moving_avg_scores[i]
 
             self.scores = new_scores
-            self.moving_avg_scores = new_moving_avg
 
             # Log new registrations
             for uid in range(old_size, new_size):
@@ -297,9 +290,9 @@ class BaseValidator:
             self.subtensor.wait_for_block(target_block)
 
     def _log_weights_and_scores(self, weights: list[float]) -> None:
-        """Log weights and moving average scores in a tabular format."""
+        """Log weights and scores in a tabular format."""
         rows = []
-        headers = ["UID", "Hotkey", "Moving Avg", "Weight", "Normalized (%)"]
+        headers = ["UID", "Hotkey", "Weight", "Normalized (%)"]
 
         # Sort by weight (highest first)
         sorted_indices = sorted(
@@ -307,13 +300,12 @@ class BaseValidator:
         )
 
         for i in sorted_indices:
-            if weights[i] > 0 or self.moving_avg_scores[i] > 0:
+            if weights[i] > 0:
                 hotkey = self.metagraph.hotkeys[i]
                 rows.append(
                     [
                         i,
                         f"{hotkey}",
-                        f"{self.moving_avg_scores[i]:.8f}",
                         f"{weights[i]:.8f}",
                         f"{weights[i] * 100:.2f}%",
                     ]
@@ -332,7 +324,7 @@ class BaseValidator:
     def _log_scores(self, coin: str, hash_price: float) -> None:
         """Log current scores in a tabular format with hotkeys."""
         rows = []
-        headers = ["UID", "Hotkey", "Score", "Moving Avg"]
+        headers = ["UID", "Hotkey", "Score"]
 
         # Sort by score (highest first)
         sorted_indices = sorted(
@@ -340,14 +332,13 @@ class BaseValidator:
         )
 
         for i in sorted_indices:
-            if self.scores[i] > 0 or self.moving_avg_scores[i] > 0:
+            if self.scores[i] > 0:
                 hotkey = self.metagraph.hotkeys[i]
                 rows.append(
                     [
                         i,
                         f"{hotkey}",
                         f"{self.scores[i]:.8f}",
-                        f"{self.moving_avg_scores[i]:.8f}",
                     ]
                 )
 
