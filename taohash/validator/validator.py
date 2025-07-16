@@ -7,8 +7,6 @@ import argparse
 import os
 import traceback
 import time
-import json
-from datetime import datetime, timezone
 
 from tabulate import tabulate
 
@@ -85,7 +83,6 @@ class TaohashProxyValidator(BaseValidator):
 
         if self.is_subnet_owner:
             logging.info("SN owner detected - setting up pool configuration")
-            logging.info("Share value logging enabled for daily payout tracking")
             try:
                 self.pool_config = ProxyPoolConfig.from_args(self.config)
                 self.api_config = ProxyPoolAPIConfig.from_args(self.config)
@@ -156,87 +153,6 @@ class TaohashProxyValidator(BaseValidator):
         else:
             logging.success("Pool info published successfully")
 
-    def _get_share_value_filename(self) -> str:
-        """Get the filename for today's share value log (UTC date)."""
-        today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        log_dir = os.path.join(os.path.dirname(__file__), "daily_logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return os.path.join(log_dir, f"share_values_{today_utc}.json")
-
-    def _log_share_value_to_json(
-        self,
-        processed_metrics: list,
-        start_time: int,
-        end_time: int,
-        btc_price: float,
-        btc_difficulty: float,
-    ) -> None:
-        """
-        Log share values to daily JSON file with running totals and global percentages (subnet pool only).
-
-        Args:
-            processed_metrics: List of dicts with miner metrics
-            start_time: Unix timestamp for evaluation start
-            end_time: Unix timestamp for evaluation end
-            btc_price: Current BTC price
-            btc_difficulty: Current BTC network difficulty
-        """
-        if not self.is_subnet_owner:
-            return
-
-        filename = self._get_share_value_filename()
-        current_time = datetime.now(timezone.utc)
-
-        try:
-            if os.path.exists(filename):
-                with open(filename, "r") as f:
-                    data = json.load(f)
-            else:
-                data = {"global_share_value": 0.0}
-
-            for metric in processed_metrics:
-                hotkey = metric["hotkey"]
-
-                if hotkey not in data:
-                    data[hotkey] = {
-                        "total_share_value": 0.0,
-                        "global_share_percentage": 0.0,
-                        "data": [],
-                    }
-
-                entry = {
-                    "timestamp": current_time.isoformat(),
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "share_value": metric["share_value"],
-                    "shares": metric["shares"],
-                    "hashrate": metric["hashrate"],
-                    "hash_rate_unit": metric["hash_rate_unit"],
-                    "btc_price": btc_price,
-                    "btc_difficulty": btc_difficulty,
-                }
-
-                data[hotkey]["total_share_value"] += metric["share_value"]
-                data[hotkey]["data"].append(entry)
-
-                data["global_share_value"] += metric["share_value"]
-
-            global_total = data["global_share_value"]
-            if global_total > 0:
-                for hk in data:
-                    if isinstance(data[hk], dict):
-                        data[hk]["global_share_percentage"] = (
-                            data[hk]["total_share_value"] / global_total
-                        )
-
-            with open(filename, "w") as f:
-                json.dump(data, f, indent=2)
-
-            logging.debug(f"Logged {len(processed_metrics)} share values to {filename}")
-
-        except Exception as e:
-            logging.error(f"Failed to write share values to JSON: {e}")
-
     def evaluate_miner_share_value(self) -> None:
         """
         Evaluate value provided by miners based on share values for a time range.
@@ -282,7 +198,6 @@ class TaohashProxyValidator(BaseValidator):
 
                 btc_price = self.price_api.get_price(coin)
                 btc_difficulty = get_current_difficulty()
-                processed_metrics = []
 
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
@@ -295,21 +210,8 @@ class TaohashProxyValidator(BaseValidator):
                         logging.info(
                             f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
                         )
-                        processed_metrics.append(
-                            {
-                                "hotkey": metric.hotkey,
-                                "share_value": share_value,
-                                "shares": metric.shares,
-                                "hashrate": metric.hashrate,
-                                "hash_rate_unit": metric.hash_rate_unit,
-                            }
-                        )
-
                     self.scores[uid] += share_value
 
-                self._log_share_value_to_json(
-                    processed_metrics, start_time, end_time, btc_price, btc_difficulty
-                )
                 self._log_share_value_scores(coin, f"{end_time - start_time}s")
 
             self.last_evaluation_timestamp = current_time
