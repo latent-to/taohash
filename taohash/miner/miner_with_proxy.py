@@ -6,12 +6,6 @@ from bittensor import logging
 from dotenv import load_dotenv
 
 from taohash.core.chain_data.pool_info import PoolInfo
-from taohash.core.chain_data.miner_info import (
-    publish_miner_info,
-    get_miner_info,
-    encode_miner_info,
-    MinerInfo,
-)
 from taohash.core.pool import PoolIndex
 from taohash.miner import BaseMiner
 from taohash.miner.proxy import (
@@ -39,12 +33,17 @@ class BraiinsMiner(BaseMiner):
         Process:
             1. Perform base miner initialization
             2. Set up Braiins-specific proxy manager if enabled
-            3. Check and publish BTC address commitment
         """
         # Base miner initialization
         super().__init__()
-        
-        self.publish_miner_info()
+
+        if not self.config.btc_address:
+            logging.error("BTC address is mandatory. Please set BTC_ADDRESS in .env or use --btc_address")
+            exit(1)
+
+        if not self.config.btc_address.startswith(('1', '3', 'bc1')):
+            logging.error(f"Invalid BTC address format: {self.config.btc_address}")
+            exit(1)
 
         self.proxy_manager = None
         if self.config.use_proxy:
@@ -102,59 +101,12 @@ class BraiinsMiner(BaseMiner):
             )
             return {}
 
-        # Add worker-specific username
         subnet_pool_info.extra_data["full_username"] = (
-            f"{subnet_pool_info.username}.{self.worker_id}"
+            f"{self.config.btc_address}.{self.worker_id}"
         )
 
         return {self.pool_hotkey: subnet_pool_info.to_json()}
 
-    def publish_miner_info(self) -> None:
-        """
-        Publish the miner's BTC address to Bittensor.
-        Process:
-            1. Check if BTC address is provided in config (mandatory)
-            2. Try to retrieve and decode existing commitment
-            3. If decode fails or doesn't exist, publish new commitment
-            4. If exists but differs, update the commitment
-        """
-        btc_address = self.config.btc_address
-        if not btc_address:
-            logging.error("BTC address is mandatory for miners. Please set BTC_ADDRESS in .env or use --btc_address")
-            exit(1)
-
-        if not btc_address.startswith(('1', '3', 'bc1')):
-            logging.error(f"Invalid BTC address format: {btc_address}")
-            exit(1)
-
-        published_miner_info = get_miner_info(
-            self.subtensor, self.config.netuid, self.wallet.hotkey.ss58_address
-        )
-        
-        if published_miner_info is not None:
-            if published_miner_info.btc_address == btc_address:
-                logging.success(f"BTC address already published: {btc_address}")
-                return
-            else:
-                logging.info(
-                    f"BTC address changed. Current: {published_miner_info.btc_address}, "
-                    f"New: {btc_address}"
-                )
-        else:
-            logging.info("No miner commitment found for this miner")
-
-        logging.info("Publishing BTC address to the chain...")
-        miner_info = MinerInfo.from_btc_address(btc_address)
-        miner_info_bytes = encode_miner_info(miner_info)
-        
-        success = publish_miner_info(
-            self.subtensor, self.config.netuid, self.wallet, miner_info_bytes
-        )
-        if not success:
-            logging.error("Failed to publish BTC address to chain")
-            exit(1)
-        else:
-            logging.success(f"BTC address published successfully: {btc_address}")
 
     def sync_and_refresh(self) -> None:
         """
