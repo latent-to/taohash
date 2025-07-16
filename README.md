@@ -77,9 +77,9 @@ After completing the common setup, the easiest way to start mining is:
 ### Quick Start (Direct Mining)
 1. **Get Mining Pool Credentials**: Run the [`miner.py`](taohash/miner/miner.py) script to fetch your pool information:
    ```bash
-   python taohash/miner/miner.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY --btc.address BTC_ADDRESS
+   python taohash/miner/miner.py --subtensor.network finney --wallet.name WALLET_NAME --wallet.hotkey WALLET_HOTKEY --btc_address YOUR_BTC_ADDRESS
    ```
-   This script will ensure your BTC_ADRESS is committed for rewards accumulation and will display your unique worker credentials and pool connection details.
+   This script will display your unique worker credentials and pool connection details. The username format will be `YOUR_BTC_ADDRESS.WORKER_SUFFIX`.
 
 2. **Configure Your Miners**: Point your mining hardware directly to the subnet pool using the credentials from step 1.
 

@@ -45,7 +45,8 @@ pip install -e .
 python taohash/miner/miner.py \
     --wallet.name YOUR_WALLET \
     --wallet.hotkey YOUR_HOTKEY \
-    --subtensor.network finney
+    --subtensor.network finney \
+    --btc_address YOUR_BTC_ADDRESS
 ```
 
 This outputs your pool configuration:
@@ -54,12 +55,12 @@ This outputs your pool configuration:
 
 Normal Pool:
   URL: 178.156.163.146:3331
-  Worker: latent-to.5EX7d4Eu
+  Worker: YOUR_BTC_ADDRESS.5EX7d4Eu
   Password: x
 
 High Difficulty Pool:
   URL: 178.156.163.146:3332
-  Worker: latent-to.5EX7d4Eu
+  Worker: YOUR_BTC_ADDRESS.5EX7d4Eu
   Password: x
 ```
 
@@ -99,7 +100,8 @@ The `miner_with_proxy.py` script is still supported and automatically mines to t
 python taohash/miner/miner_with_proxy.py \
     --wallet.name YOUR_WALLET \
     --wallet.hotkey YOUR_HOTKEY \
-    --subtensor.network finney
+    --subtensor.network finney \
+    --btc_address YOUR_BTC_ADDRESS
 ```
 
 ## Troubleshooting
