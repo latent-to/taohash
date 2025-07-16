@@ -80,7 +80,8 @@ class TaohashProxyValidator(BaseValidator):
         super().setup_bittensor_objects()
 
         self.burn_uid = self.get_burn_uid()
-        self.is_subnet_owner = self.burn_uid == self.wallet.hotkey.ss58_address
+        self.burn_hotkey = self.get_burn_hotkey()
+        self.is_subnet_owner = self.burn_hotkey == self.wallet.hotkey.ss58_address
 
         if self.is_subnet_owner:
             logging.info("SN owner detected - setting up pool configuration")
