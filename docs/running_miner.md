@@ -7,7 +7,7 @@ Miners are reward in Alpha token in Bittensor, which can be swapped to TAO or ke
 
 ### What is share value? 
 Share value is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets. 
-In general, the higher the hashpower, the higher the share values are submitted. 
+In general, the higher the hashpower, the higher the share value submitted. 
 
 ## Prerequisites
 - Bitcoin mining hardware (ASICs)
