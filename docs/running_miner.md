@@ -3,7 +3,7 @@ Complete guide for mining on the TAOHash subnet - Bittensor's Bitcoin mining poo
 
 ## Overview
 TaoHash enables Bitcoin miners to contribute hashpower to the subnet's mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
-Miners are reward in Alpha token in Bittensor, which can be swapped to the mother token, TAO. 
+Miners are reward in Alpha token in Bittensor, which can be swapped to TAO or kept as a representation of pool ownership. 
 
 ### What is share value? 
 Share value is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets. 
