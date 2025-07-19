@@ -41,7 +41,7 @@ To run a TaoHash miner, you will need:
 ## Validator Requirements
 To run a TaoHash validator, you will need:
 - A Bittensor wallet
-- Subnet proxy credentials (provided by subnet staff)
+- Subnet proxy credentials (provided by subnet maintainers)
 - Python 3.9 or higher environment
 
 # Installation
