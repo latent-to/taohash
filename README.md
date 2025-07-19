@@ -23,7 +23,7 @@ The architecture is designed to be extensible to other mineable projects with si
 ---
 
 # Incentive Design
-The core incentive mechanism aligns miners through a market where BTC hashrate is exchanged for BTC and on-chain rewards (Alpha). All miners contribute hashrate to a unified subnet pool, and validators evaluate miners based on the share value they generate rather than raw hashrate.
+The core incentive mechanism aligns miners through a market where BTC hashrate is exchanged for BTC and on-chain rewards (Alpha). All miners contribute hashrate to a unified subnet pool, and validators evaluate miners based on the share value they generate.
 
 ![TAO Hash Diagram](docs/images/incentive-design.png)
 
