@@ -4,6 +4,7 @@
 # Licensed under MIT
 
 import argparse
+import os
 import traceback
 import time
 
@@ -18,9 +19,16 @@ from taohash.core.chain_data.pool_info import (
     get_pool_info,
     encode_pool_info,
 )
-from taohash.core.constants import VERSION_KEY, U16_MAX
+from taohash.core.constants import (
+    VERSION_KEY,
+    U16_MAX,
+    OWNER_TAKE,
+    SPLIT_WITH_MINERS,
+    PAYOUT_FACTOR,
+)
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
+from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
 from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
 from taohash.core.pricing.network_stats import get_current_difficulty
@@ -42,34 +50,75 @@ class TaohashProxyValidator(BaseValidator):
     def __init__(self):
         super().__init__()
 
-        self.pool_config = ProxyPoolConfig.from_args(self.config)
-        self.api_config = ProxyPoolAPIConfig.from_args(self.config)
-        self.pool = Pool(
-            pool_info=self.pool_config.to_pool_info(), config=self.api_config
-        )
+        self.is_subnet_owner = False
+        self.pool = None
+        self.pool_config = None
+        self.api_config = None
+
         self.setup_bittensor_objects()
         self.price_api = CoinPriceAPI("coingecko", None)
 
         self.alpha = 0.8
-        self.weights_interval = self.tempo * 2
+        self.weights_interval = self.tempo
         self.config.coins = [COIN]
 
         self.last_evaluation_timestamp = None
 
     def add_args(self, parser: argparse.ArgumentParser):
-        """Add proxy-specific arguments to the parser."""
+        """Add validator arguments to the parser."""
         super().add_args(parser)
+
         ProxyPoolConfig.add_args(parser)
         ProxyPoolAPIConfig.add_args(parser)
 
     def setup_bittensor_objects(self):
         """
-        Extend base setup with proxy-specific setup.
+        Extend base setup with pool configuration and publishing.
         """
         super().setup_bittensor_objects()
-        self.publish_pool_info(
-            self.subtensor, self.config.netuid, self.wallet, self.pool
-        )
+
+        self.burn_uid = self.get_burn_uid()
+        self.burn_hotkey = self.get_burn_hotkey()
+        self.is_subnet_owner = self.burn_hotkey == self.wallet.hotkey.ss58_address
+
+        if self.is_subnet_owner:
+            logging.info("SN owner detected - setting up pool configuration")
+            try:
+                self.pool_config = ProxyPoolConfig.from_args(self.config)
+                self.api_config = ProxyPoolAPIConfig.from_args(self.config)
+                self.pool = Pool(
+                    pool_info=self.pool_config.to_pool_info(), config=self.api_config
+                )
+
+                self.publish_pool_info(
+                    self.subtensor, self.config.netuid, self.wallet, self.pool
+                )
+                logging.info(
+                    f"Pool configured with domain/IP: {self.pool.get_pool_info().domain}"
+                )
+            except Exception as e:
+                logging.error(
+                    f"Subnet owner must provide pool configuration via command line "
+                    f"(--pool.domain, --pool.port) or environment variables "
+                    f"(PROXY_DOMAIN, PROXY_PORT). Error: {e}"
+                )
+                exit(1)
+        else:
+            # Other validators need proxy API credentials
+            proxy_url = os.getenv("SUBNET_PROXY_API_URL")
+            api_token = os.getenv("SUBNET_PROXY_API_TOKEN")
+
+            if not proxy_url:
+                raise ValueError(
+                    "SUBNET_PROXY_API_URL environment variable must be set"
+                )
+            if not api_token:
+                raise ValueError(
+                    "SUBNET_PROXY_API_TOKEN environment variable must be set"
+                )
+
+            api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
+            self.pool = ProxyPool(pool_info=None, api=api)
 
     def publish_pool_info(
         self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
@@ -155,13 +204,12 @@ class TaohashProxyValidator(BaseValidator):
                         continue
 
                     uid = hotkey_to_uid[metric.hotkey]
-                    share_value = metric.get_share_value(btc_price, btc_difficulty)
+                    share_value = metric.get_share_value_fiat(btc_price, btc_difficulty)
 
                     if share_value > 0:
                         logging.info(
                             f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
                         )
-
                     self.scores[uid] += share_value
 
                 self._log_share_value_scores(coin, f"{end_time - start_time}s")
@@ -178,21 +226,20 @@ class TaohashProxyValidator(BaseValidator):
     def _log_share_value_scores(self, coin: str, timeframe: str) -> None:
         """Log current scores based on share values."""
         rows = []
-        headers = ["UID", "Hotkey", "Score", "Moving Avg"]
+        headers = ["UID", "Hotkey", "Score"]
 
         sorted_indices = sorted(
             range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
         )
 
         for i in sorted_indices:
-            if self.scores[i] > 0 or self.moving_avg_scores[i] > 0:
+            if self.scores[i] > 0:
                 hotkey = self.metagraph.hotkeys[i]
                 rows.append(
                     [
                         i,
                         f"{hotkey}",
                         f"{self.scores[i]:.8f}",
-                        f"{self.moving_avg_scores[i]:.8f}",
                     ]
                 )
 
@@ -214,7 +261,6 @@ class TaohashProxyValidator(BaseValidator):
         """Save the current validator state to storage, including timestamp."""
         state = {
             "scores": self.scores,
-            "moving_avg_scores": self.moving_avg_scores,
             "hotkeys": self.hotkeys,
             "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
@@ -251,7 +297,6 @@ class TaohashProxyValidator(BaseValidator):
         # Restore state
         total_hotkeys = len(state.get("hotkeys", []))
         self.scores = state.get("scores", [0.0] * total_hotkeys)
-        self.moving_avg_scores = state.get("moving_avg_scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
         self.last_evaluation_timestamp = state.get("last_evaluation_timestamp", None)
@@ -259,9 +304,9 @@ class TaohashProxyValidator(BaseValidator):
         self.resync_metagraph()
 
         for idx in range(len(self.hotkeys)):
-            # If the coldkey is a bad one, set the moving avg score to 0
+            # If the coldkey is a bad one, set the score to 0
             if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
-                self.moving_avg_scores[idx] = 0.0
+                self.scores[idx] = 0.0
 
         logging.warning(f"Validator was down for {blocks_down} blocks.")
         self.evaluate_miner_share_value()
@@ -269,6 +314,36 @@ class TaohashProxyValidator(BaseValidator):
         logging.success(
             f"Successfully restored validator state with last evaluation timestamp: {self.last_evaluation_timestamp}"
         )
+
+    def calculate_weights_distribution(self, total_value: float) -> list[float]:
+        weights = [0.0] * len(self.hotkeys)
+        tao_price = self.price_api.get_price("bittensor")
+        subnet_price = self.subtensor.subnet(self.config.netuid).price.tao
+        alpha_price = subnet_price * tao_price
+
+        own_stake_weight = self.metagraph.total_stake[self.uid].tao
+        total_stake = sum(self.metagraph.total_stake).tao
+
+        blocks_to_set_for = self.current_block - self.last_update
+        alpha_to_dist = (
+            blocks_to_set_for
+            * (1 - OWNER_TAKE)
+            * SPLIT_WITH_MINERS
+            * (own_stake_weight / total_stake)
+        )
+        value_to_dist = alpha_to_dist * alpha_price
+        scaled_total_value = total_value * PAYOUT_FACTOR
+
+        if scaled_total_value > value_to_dist:
+            weights = [score / scaled_total_value for score in self.scores]
+        else:
+            weights_to_dist = scaled_total_value / value_to_dist
+            weights = [(score / total_value) * weights_to_dist for score in self.scores]
+
+        remaining = max(0.0, 1.0 - sum(weights))
+        if remaining > 0:
+            weights[self.burn_uid] += remaining
+        return weights
 
     def set_weights(self) -> tuple[bool, str]:
         """Set weights for all miners.
@@ -279,30 +354,18 @@ class TaohashProxyValidator(BaseValidator):
                 - str: Error message if weights were not set successfully, empty string otherwise
 
         Evaluation:
-            1. Update moving_avg_scores from base scores.
+            1. Set weights using current scores.
             2. Ensure miners are still active - otherwise burn the alpha.
-            3. Set weights using moving_avg_scores.
-            4. Reset scores for next evaluation.
+            3. Reset scores for next evaluation.
         """
-        # Update moving_avg_scores from base scores.
-        for i, current_score in enumerate(self.scores):
-            self.moving_avg_scores[i] = (1 - self.alpha) * self.moving_avg_scores[
-                i
-            ] + self.alpha * current_score
-
         # Calculate weights
-        total = sum(self.moving_avg_scores)
-        if total == 0:
+        total_value = sum(self.scores)
+        if total_value == 0:
             logging.info("No miners are mining, we should burn the alpha")
-            owner_uid = self.get_burn_uid()
-            if owner_uid is not None:
-                weights = [0.0] * len(self.hotkeys)
-                weights[owner_uid] = 1.0
-            else:
-                logging.error("No owner found for subnet. Skipping weight update.")
-                return False, "No owner found for the subnet"
+            weights = [0.0] * len(self.hotkeys)
+            weights[self.burn_uid] = 1.0
         else:
-            weights = [score / total for score in self.moving_avg_scores]
+            weights = self.calculate_weights_distribution(total_value)
 
         logging.info("Setting weights")
 
