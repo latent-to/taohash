@@ -1,5 +1,5 @@
-# TaoHash Mining Guide
-Complete guide for mining on the TaoHash subnet - Bittensor's Bitcoin mining network.
+# TAOHash Mining Guide
+Complete guide for mining on the TAOHash subnet - Bittensor's Bitcoin mining pool.
 
 ## Overview
 TaoHash enables Bitcoin miners to contribute hashpower to the subnet's mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
