@@ -3,7 +3,6 @@ import os
 import socket
 import requests
 import toml
-from typing import Any
 
 import bittensor as bt
 from bittensor.utils.btlogging import logging
@@ -127,19 +126,20 @@ class TaohashProxyManager(BaseProxyManager):
 
         return True, "All required files present and both proxy ports open"
 
-    def update_config(self, slot_data: Any) -> bool:
+    def update_config(self, pool_info: dict) -> bool:
         """
-        Called when a new slot's pool targets arrive.
-        Writes them to config.toml and triggers the proxy to reload.
+        Update proxy configuration with pool information.
+        Writes to config.toml and triggers the proxy to reload.
         Uses high_diff_port field if available.
         """
         try:
+            if self.verify_config_matches_pool(pool_info):
+                logging.info("Proxy config already matches expected pool - no update needed")
+                return True
+                
             config = {"pools": {}}
 
-            if slot_data.pool_targets:
-                target = slot_data.pool_targets[0]
-                pool_info = target.pool_info
-
+            if pool_info:
                 host, port = pool_info["pool_url"].split(":")
                 username = pool_info["extra_data"]["full_username"]
                 password = pool_info.get("password", "x")
@@ -196,4 +196,69 @@ class TaohashProxyManager(BaseProxyManager):
 
         except Exception as e:
             logging.error(f"Failed to update proxy config: {e}")
+            return False
+
+    def verify_config_matches_pool(self, pool_info: dict) -> bool:
+        """
+        Verify that the current TOML configuration matches the expected pool info.
+
+        Args:
+            pool_info: Pool information dictionary
+
+        Returns:
+            bool: True if config matches, False otherwise
+        """
+        try:
+            if not os.path.exists(self.config_path):
+                logging.debug("Config file does not exist")
+                return False
+
+            current_config = toml.load(self.config_path)
+
+            if "pools" not in current_config:
+                logging.debug("No pools section in config")
+                return False
+
+            if not pool_info:
+                logging.debug("No pool info provided")
+                return False
+
+            expected_host = pool_info.get("domain") or pool_info.get("ip")
+            expected_port = pool_info.get("port")
+            expected_user = pool_info.get("extra_data", {}).get("full_username", "")
+
+            # Normal pool
+            normal_pool = current_config.get("pools", {}).get("normal", {})
+            if (
+                normal_pool.get("host") != expected_host
+                or normal_pool.get("port") != expected_port
+                or normal_pool.get("user") != expected_user
+            ):
+                logging.debug(
+                    f"Normal pool mismatch - Expected: {expected_user}@{expected_host}:{expected_port}, "
+                    f"Found: {normal_pool.get('user')}@{normal_pool.get('host')}:{normal_pool.get('port')}"
+                )
+                return False
+
+            # High diff pool
+            high_diff_pool = current_config.get("pools", {}).get("high_diff", {})
+            expected_high_port = pool_info.get("high_diff_port", expected_port)
+            if (
+                high_diff_pool.get("host") != expected_host
+                or high_diff_pool.get("port") != expected_high_port
+                or high_diff_pool.get("user") != expected_user
+            ):
+                logging.debug(
+                    f"High diff pool mismatch - Expected: {expected_user}@{expected_host}:{expected_high_port}, "
+                    f"Found: {high_diff_pool.get('user')}@{high_diff_pool.get('host')}:{high_diff_pool.get('port')}"
+                )
+                return False
+
+            logging.debug(
+                "Config verification passed - TOML matches expected pool data"
+            )
+            return True
+
+        except Exception as e:
+            logging.debug(f"Error verifying config: {e}")
             return False
