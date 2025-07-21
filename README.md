@@ -8,7 +8,8 @@
 
 ## Introduction
 
-Bittensor is a decentralized platform that incentivizes production of best-in-class digital commodities. TAOHash is Bittensor subnet designed around production of proof-of-work (PoW) BTC mining hashrate, rental and exchange.
+Bittensor is a decentralized platform that incentivizes production of best-in-class digital commodities. TAOHash is a Bittensor subnet designed around production of proof-of-work (PoW) BTC mining hashrate.
+<!-- I was unclear what the 'rental and exchange' part referred to in the old doc.  -->
 
 It is possible to contribute as a **miner** or a **validator**.
 
@@ -36,7 +37,7 @@ By design, this architecture is extensible to other mining projects where miner 
 
 # Incentive Design
 
-TAOhash's incentive mechanism aligns the collective interests of a pool of miners.  All miners are rewarded fairly for the hashrate they contribute, validators are rewarded for checking the miners' work, and all paritipants (both miners and validators) benefit from the contributions of more total hashrate to the subnet's unified pool.
+TAOhash's incentive mechanism aligns the collective interests of a pool of miners.  All miners are rewarded fairly for the hashrate they contribute, validators are rewarded for checking the miners' work, and all participants (both miners and validators) benefit from the contributions of more total hashrate to the subnet's unified pool.
 
 ![TAOHash Diagram](docs/images/incentive-design.png)
 
@@ -52,19 +53,25 @@ To run a TaoHash miner, you will need:
 - The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/)
 - (Optional, for miner proxy usage): Docker & Docker Compose
 
+See: [TAOHash miner guide](/docs/running_miner.md)
+
 **Related Bittensor Documentation**:
 
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
 - [Miner registration](./miners/index.md#miner-registration)
 
-
 ## Validator Requirements
+
 To run a TaoHash validator, you will need:
+
 - A Bittensor wallet with coldkey and hotkey
 - Subnet proxy credentials (provided by subnet maintainers)
 - Python 3.9 or higher environment
 - The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/)
 
+See: [TAOHash validator guide](/docs/running_validator.md)
+
+**Related Bittensor Documentation**:
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
 - [Validator registration](./validators/index.md#validator-registration)
 

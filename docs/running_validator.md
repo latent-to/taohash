@@ -2,9 +2,19 @@
 
 This guide will walk you through setting up and running a TaoHash validator on the Bittensor network.
 
-See:
-- [Introduction to TAOHash](./README.md)
+TaoHash enables Bitcoin miners to contribute hashpower to a collective mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
+
+Validators are rewarded in TAOHash's subnet-specific (alpha) token on the Bittensor blockchain, which represents *stake* in the subnet. This alpha stake can be exited from the subnet by unstaking it to TAO (Bittensor's primary currency).
+<!-- Is the above true? Or do they also get BTC or what? -->
+
+**Share value** is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets during *emissions*, the process by which Bittensor periodically distributes tokens to participants based on the Yuma Consensus algorithm. In general, the higher the hashpower, the higher the share value submitted.
+
+See also:
+
+- [Introduction to TAOHash](../README.md)
 - [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
+- [Yuma Consensus](https://docs.learnbittensor.org/yuma-consensus/)
+- [Emissions](https://docs.learnbittensor.org/emissions/)
 
 ## Prerequisites
 
