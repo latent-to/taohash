@@ -1,16 +1,28 @@
 <div align="center">
 
-# **TAO Hash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
+# **TAOHash** ![Subnet 14](https://img.shields.io/badge/Subnet-14_%CE%BE-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/latent-to/taohash)
 
 </div>
 
-TAO Hash is a Bittensor Subnet for incentivizing and decentralizing the production of proof-of-work (PoW) BTC mining hashrate, rental and exchange. Validators evaluate miners by issuing weights based on the share-value produced, while miners contribute hashrate and speculate on hashrate, hashprice and Alpha emissions. Effectively, Alpha is swapped for BTC hashrate automatically.
+## Introduction
 
-The architecture is designed to be extensible to other mineable projects with similar capabilities for verifying miner performance presicely and efficiently.
+Bittensor is a decentralized platform that incentivizes production of best-in-class digital commodities. TAOHash is Bittensor subnet designed around production of proof-of-work (PoW) BTC mining hashrate, rental and exchange.
 
----
+It is possible to contribute as a **miner** or a **validator**.
+
+**Miners** contribute BTC mining hashrate, and speculate on hashrate, hashprice and emissions in TAOHash's subnet-specific (alpha) token. **Validators** evaluate miners, ranking (weighting) them by the share-value they've produced over each period of time. Effectively, miners automatically exchange BTC hashrate for TAOhash's alpha token.
+
+By design, this architecture is extensible to other mining projects where miner performance can be precisely and efficiently verified.
+
+**Related Bittensor Documentation**:
+
+- [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
+- [Mining in Bittensor](https://docs-git-permissions-list-bittensor.vercel.app/miners/)
+- [Frequently asked questions (FAQ)](https://docs-git-permissions-list-bittensor.vercel.app/questions-and-answers)
+
+**Page Contents**:
 - [Incentive Design](#incentive-design)
 - [Requirements](#requirements)
   - [Miner Requirements](#miner-requirements)
@@ -23,26 +35,38 @@ The architecture is designed to be extensible to other mineable projects with si
 ---
 
 # Incentive Design
-The core incentive mechanism aligns miners through a market where BTC hashrate is exchanged for BTC and on-chain rewards (Alpha). All miners contribute hashrate to a unified subnet pool, and validators evaluate miners based on the share value they generate.
 
-![TAO Hash Diagram](docs/images/incentive-design.png)
+TAOhash's incentive mechanism aligns the collective interests of a pool of miners.  All miners are rewarded fairly for the hashrate they contribute, validators are rewarded for checking the miners' work, and all paritipants (both miners and validators) benefit from the contributions of more total hashrate to the subnet's unified pool.
+
+![TAOHash Diagram](docs/images/incentive-design.png)
 
 # Requirements
 
 ## Miner Requirements
+
 To run a TaoHash miner, you will need:
-- A Bittensor wallet
+
+- A Bittensor wallet with coldkey and hotkey
 - Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate (NiceHash, MiningRigRentals)
 - Python 3.9 or higher
+- The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/)
+- (Optional, for miner proxy usage): Docker & Docker Compose
 
-### Optional (for miner proxy usage):
-- Docker & Docker Compose
+**Related Bittensor Documentation**:
+
+- [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
+- [Miner registration](./miners/index.md#miner-registration)
+
 
 ## Validator Requirements
 To run a TaoHash validator, you will need:
-- A Bittensor wallet
+- A Bittensor wallet with coldkey and hotkey
 - Subnet proxy credentials (provided by subnet maintainers)
 - Python 3.9 or higher environment
+- The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/)
+
+- [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
+- [Validator registration](./validators/index.md#validator-registration)
 
 # Installation
 

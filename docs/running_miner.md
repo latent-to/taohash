@@ -1,33 +1,93 @@
 # TAOHash Mining Guide
-Complete guide for mining on the TAOHash subnet - Bittensor's Bitcoin mining pool.
 
-## Overview
+This guide will walk you through setting up and running a TaoHash miner on the Bittensor network.
+
 TaoHash enables Bitcoin miners to contribute hashpower to the subnet's mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
-Miners are reward in Alpha token in Bittensor, which can be swapped to TAO or kept as a representation of pool ownership. 
+
+Miners are rewarded in TAOHash's subnet-specific (alpha) token on the Bittensor blockchain, which represents *stake* in the subnet. This alpha stake can be exited from the subnet by unstaking it to TAO (Bittensor's primary currency).
+
+See:
+
+- [Introduction to TAOHash](./README.md)
+- [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
 
 ### What is share value? 
-Share value is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets. 
+
+**Share value** is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets during *emissions*, the process by which Bittensor periodically distributes tokens to participants based on the Yuma Consensus algorithm.
+
 In general, the higher the hashpower, the higher the share value submitted. 
 
+Bittensor Docs:
+
+[Yuma Consensus](https://docs.learnbittensor.org/yuma-consensus/)
+[Emissions](https://docs.learnbittensor.org/emissions/)
+
+
 ## Prerequisites
-- Bitcoin mining hardware (ASICs)
-- Python 3.10 or higher
-- Bittensor wallet
+
+To run a TaoHash miner, you will need:
+
+- A Bittensor wallet with coldkey and hotkey
+- Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate (NiceHash, MiningRigRentals)
+- Python 3.9 or higher
+- The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/)
+- (Optional, for miner proxy usage): Docker & Docker Compose
+
+Bittensor Docs:
+
+- [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
+- [Miner registration](./miners/index.md#miner-registration)
 
 ## Quick Start
 
-### Step 1: Wallet Setup
-Create and register a Bittensor wallet on subnet 14:
+### Wallet Setup
+
+Check your wallet, or create one if you have not already.
+
+Bittensor Documentation: [Creating/Importing a Bittensor Wallet
+](https://docs.learnbittensor.org/working-with-keys)
 
 ```bash
-# Install Bittensor CLI
-pip install bittensor-cli
+btcli wallet list
+```
+```console
+Wallets
+├── Coldkey YourColdkey  ss58_address 5F...
+│   ├── Hotkey YourHotkey  ss58_address
+│   │   5E...
+```
 
-# Create a new wallet
-btcli wallet create
+btcli wallet balance \
+--wallet.name <your wallet name> \
+--network finney
+```
 
-# Register on subnet 14 (mainnet)
-btcli subnet register --netuid 14 --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --network finney
+```console
+                             Wallet Coldkey Balance
+                                  Network: finney
+
+    Walle…   Coldkey Address                             Free…   Stake…   Total…
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    realm…   5DvSxCaMW9tCPBS4TURmw4hDzXx5Bif51jq4baC6…   …       …        …
+
+
+
+    Total…                                               …       …        …
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Register on subnet 14 (mainnet)
+
+#### Check registration status across subnets
+
+```
+btcli wallet overview btcli wallet overview --netuid 14
+```
+
+#### Register
+
+```bash
+btcli subnet register --netuid 14 --wallet.name <YOUR_WALLET> --wallet.hotkey <YOUR_HOTKEY> --network finney
 ```
 
 ### Step 2: Get Pool Information
@@ -43,10 +103,10 @@ pip install -e .
 
 # Get your mining configuration
 python taohash/miner/miner.py \
-    --wallet.name YOUR_WALLET \
-    --wallet.hotkey YOUR_HOTKEY \
+    --wallet.name <YOUR_WALLET> \
+    --wallet.hotkey <YOUR_HOTKEY> \
     --subtensor.network finney \
-    --btc_address YOUR_BTC_ADDRESS
+    --btc_address <YOUR_BTC_ADDRESS>
 ```
 
 This outputs your pool configuration:
@@ -55,16 +115,16 @@ This outputs your pool configuration:
 
 Normal Pool:
   URL: 178.156.163.146:3331
-  Worker: YOUR_BTC_ADDRESS.5EX7d4Eu
+  Worker: <YOUR_BTC_ADDRESS>.5EX7d4Eu
   Password: x
 
 High Difficulty Pool:
   URL: 178.156.163.146:3332
-  Worker: YOUR_BTC_ADDRESS.5EX7d4Eu
+  Worker: <YOUR_BTC_ADDRESS>.5EX7d4Eu
   Password: x
 ```
 
-### Step 3: Configure Your Miners
+### Configure Your Miners
 Use the pool information to configure your ASIC miners:
 - **Stratum URL**: Use the pool URL from Step 2
 - **Worker Name**: Use the exact worker name provided
@@ -72,7 +132,8 @@ Use the pool information to configure your ASIC miners:
 
 Once entering the pool information, the Subnet's proxy will automatically register your contributions against your hotkey and you will start accumulating alpha. 
 
-### Step 4: Monitor Performance
+### Monitor Performance
+
 Track your mining performance at: **https://taohash.com/leaderboard**
 
 The leaderboard shows:
@@ -98,19 +159,19 @@ The `miner_with_proxy.py` script is still supported and automatically mines to t
 
 ```bash
 python taohash/miner/miner_with_proxy.py \
-    --wallet.name YOUR_WALLET \
-    --wallet.hotkey YOUR_HOTKEY \
+    --wallet.name <YOUR_WALLET> \
+    --wallet.hotkey <YOUR_HOTKEY> \
     --subtensor.network finney \
-    --btc_address YOUR_BTC_ADDRESS
+    --btc_address <YOUR_BTC_ADDRESS>
 ```
 
 ## Troubleshooting
 
 **Cannot connect to pool**
 - Verify pool information using `miner.py`
+<!-- how? -->
 - Check firewall settings
 - Ensure wallet is registered on subnet 14
-
 **High rejection rate**
 - Check network latency
 - Update miner firmware
@@ -120,8 +181,6 @@ python taohash/miner/miner_with_proxy.py \
 - Allow 30 minutes for statistics
 - Verify shares are being accepted
 
----
-
 ## Advanced: Proxy Setup
 
 You can use the miner proxy in-cases where you want all the hashpower from your miners to be directed at one point.
@@ -129,6 +188,7 @@ From that point, it can communicate with the subnet's proxy.
 This approach works well and has been in the works at the subnet level in the past. 
 
 ### Benefits:
+
 - Real-time dashboard with statistics
 - No manual worker configuration
 

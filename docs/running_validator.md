@@ -2,31 +2,82 @@
 
 This guide will walk you through setting up and running a TaoHash validator on the Bittensor network.
 
+See:
+- [Introduction to TAOHash](./README.md)
+- [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
+
 ## Prerequisites
 
-1. A Bittensor wallet
-2. Subnet proxy credentials (provided by subnet owner)
-3. Python 3.9 or higher
+- A Bittensor wallet with coldkey and hotkey, registered on TAOHash, with sufficient stake weight.
+- Subnet proxy credentials (provided by subnet maintainers)
+- Python 3.9 or higher environment
+- The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/) and the Bittensor CLI, [BTCLI](https://pypi.org/project/bittensor-cli/)
+
+Bittensor Docs:
+
+- [Requirements for Validation](https://docs.learnbittensor.org/validators/#requirements-for-validation)
+- [Validator registration](./validators/index.md#validator-registration)
+- [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
 
 ## Setup Steps
 
-### 1. Get Subnet Proxy Credentials
+### Get Subnet Proxy Credentials
 
+<!-- How do they contact the subnet owner? Email? Discord? -->
 Contact the subnet owner to receive:
+
 - **Proxy API URL**: The endpoint for retrieving miner statistics
 - **API Token**: Authentication token for the proxy API
 
 These credentials allow your validator to evaluate miners based on their mining contributions.
 
-### 2. Bittensor Wallet Setup
+### Bittensor Wallet Setup
 
-Ensure you have created a Bittensor wallet:
+Check your wallet, or create one if you have not already.
+
+Bittensor Documentation: [Creating/Importing a Bittensor Wallet
+](https://docs.learnbittensor.org/working-with-keys)
+
+### List wallet
 ```bash
-pip install bittensor-cli
-btcli wallet create
+btcli wallet list
+```
+```console
+Wallets
+├── Coldkey YourColdkey  ss58_address 5F...
+│   ├── Hotkey YourHotkey  ss58_address
+│   │   5E...
 ```
 
-### 3. Clone Repository and Install
+### Check your wallet's balance
+
+```bash
+btcli wallet balance \
+--wallet.name <your wallet name> \
+--network finney
+```
+
+```console
+                             Wallet Coldkey Balance
+                                  Network: finney
+
+    Walle…   Coldkey Address                             Free…   Stake…   Total…
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    realm…   5DvSxCaMW9tCPBS4TURmw4hDzXx5Bif51jq4baC6…   …       …        …
+
+
+
+    Total…                                               …       …        …
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Register on TAOHash, subnet 14 on Bittensor mainnet ("finney")
+
+```bash
+btcli subnet register --netuid 14 --wallet.name YOUR_WALLET --wallet.hotkey YOUR_HOTKEY --network finney
+```
+
+### Clone Repository and Install
 
 ```bash
 # Clone the repository
@@ -41,7 +92,7 @@ source venv/bin/activate
 pip install -e .
 ```
 
-### 4. Configuration
+### Configuration
 
 Create a `.env` file in the validator directory:
 
@@ -68,7 +119,7 @@ RECOVERY_FILE_PATH=~/.bittensor/data/taohash/validator
 RECOVERY_FILE_NAME=validator_state.json
 ```
 
-### 5. Running the Validator
+### Running the Validator
 
 #### Using PM2 (Recommended)
 
@@ -143,17 +194,21 @@ pm2 set pm2-logrotate:retain 7
 ## Troubleshooting
 
 **Cannot connect to subnet proxy**
-- Verify the SUBNET_PROXY_API_URL is correct
+- Verify the `SUBNET_PROXY_API_URL` is correct
 - Check that your API token is valid
 - Ensure network connectivity to the proxy
 
 **No miner data received**
 - Confirm miners are actively mining
+<!-- How? What are the various links in the chain? -->
 - Check proxy logs for any issues
+<!-- What do I look for? What do I do if I see it? -->
 - Verify time synchronization
+<!-- What do I look for? What do I do if I see it? -->
 
 **Wallet issues**
 - Ensure wallet is properly created and registered
+<!--  -->
 - Check that wallet path is correct
 - Verify you're using the correct network
 
