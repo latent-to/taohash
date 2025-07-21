@@ -1,11 +1,12 @@
 import argparse
 import os
+from typing import Optional
 
 from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.miner.allocation import BaseAllocation
 from taohash.miner.storage import get_miner_storage, BaseJsonStorage, BaseRedisStorage
+from taohash.core.chain_data.pool_info import get_pool_info, PoolInfo
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -19,6 +20,7 @@ class BaseMiner:
         self.wallet = None
         self.metagraph = None
         self.uid = None
+        self.pool_hotkey = None
 
         self.subtensor = self.setup_bittensor_objects()
         self.storage = get_miner_storage(
@@ -28,9 +30,6 @@ class BaseMiner:
         self.tempo = self.subtensor.tempo(self.config.netuid)
         self.current_block = 0
         self.blocks_per_sync = self.tempo // self.config.sync_frequency
-
-        self._first_sync = True
-        self._recover_schedule = self.config.recover_schedule
 
     def get_config(self):
         """Create and parse configuration."""
@@ -54,37 +53,14 @@ class BaseMiner:
             help=f"Number of times to sync and update pool info per epoch (1-359). Default is {DEFAULT_SYNC_FREQUENCY} times per epoch.",
         )
         parser.add_argument(
-            "--no-recover_schedule",
-            action="store_false",
-            dest="recover_schedule",
-            default=os.getenv("RECOVER_SCHEDULE", "true").lower() == "true",
-            help="Disable schedule recovery between restarts.",
-        )
-        parser.add_argument(
-            "--blacklist",
-            type=str,
-            nargs="+",
-            default=os.getenv("BLACKLIST", "").split(",")
-            if os.getenv("BLACKLIST")
-            else [],
-            help="List of validator hotkeys to exclude from mining",
-        )
-        parser.add_argument(
             "--storage",
             type=str,
             choices=["json", "redis"],
             default=os.getenv("STORAGE_TYPE", "json"),
             help="Storage type to use (json or redis)",
         )
-        parser.add_argument(
-            "--blocks_per_window",
-            type=int,
-            default=int(os.getenv("BLOCKS_PER_WINDOW")) if os.getenv("BLOCKS_PER_WINDOW") else None,
-            help="Number of blocks per mining window (default: tempo * 2, env: BLOCKS_PER_WINDOW)",
-        )
 
         # Add other base arguments
-        BaseAllocation.add_args(parser)
         BaseRedisStorage.add_args(parser)
         BaseJsonStorage.add_args(parser)
         Subtensor.add_args(parser)
@@ -142,3 +118,44 @@ class BaseMiner:
         """Get number of blocks until new tempo starts"""
         blocks = self.subtensor.subnet(self.config.netuid).blocks_since_last_step
         return self.tempo - blocks
+
+    def get_owner_hotkey(self) -> Optional[int]:
+        """Get the hotkey of the subnet owner."""
+        try:
+            sn_owner_hotkey = self.subtensor.query_subtensor(
+                "SubnetOwnerHotkey",
+                params=[self.config.netuid],
+            )
+            return sn_owner_hotkey
+        except Exception as e:
+            logging.error(f"Error getting subnet owner hotkey: {e}")
+            return None
+
+    def get_subnet_pool(self) -> Optional[PoolInfo]:
+        """Get the subnet's pool info."""
+        if not self.pool_hotkey:
+            self.pool_hotkey = self.get_owner_hotkey()
+
+        if self.pool_hotkey is None:
+            logging.error("Cannot get subnet pool - pool hotkey not found")
+            return None
+
+        try:
+            pool_info = get_pool_info(self.subtensor, self.config.netuid, self.pool_hotkey)
+
+            if pool_info:
+                logging.info(
+                    f"Retrieved subnet's pool info: "
+                    f"pool_index={pool_info.pool_index}, "
+                    f"domain={pool_info.domain}, "
+                    f"port={pool_info.port}"
+                )
+            else:
+                logging.warning(
+                    f"No pool info found for subnet (hotkey: {self.pool_hotkey})"
+                )
+
+            return pool_info
+        except Exception as e:
+            logging.error(f"Error getting subnet's pool info: {e}")
+            return None
