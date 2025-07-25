@@ -10,7 +10,9 @@
 
 Bittensor is a decentralized platform that incentivizes production of best-in-class digital commodities. TAOHash is a Bittensor subnet designed around production of proof-of-work (PoW) BTC mining hashrate.
 
-The long-term vision for TAOHash includes developing into a comprehensive hashrate rental and exchange platform. You can learn more about our roadmap and future plans at [taohash.com/roadmap](https://taohash.com/roadmap).
+The long-term vision for TAOHash includes developing into a public marketplace for hashrate, backed by smart contracts.
+
+You can learn more about our roadmap and future plans at [taohash.com/roadmap](https://taohash.com/roadmap).
 
 It is possible to contribute as a **miner** or a **validator**.
 
