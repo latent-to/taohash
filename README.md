@@ -24,7 +24,7 @@ By design, this architecture is extensible to other mining projects where miner 
 
 - [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
 - [TAOHash Subnet Information](https://learnbittensor.org/subnets/14)
-- [Mining in Bittensor](https://docs-git-permissions-list-bittensor.vercel.app/miners/)
+- [Mining in Bittensor](https://docs.learnbittensor.org/miners/)
 - [Frequently asked questions (FAQ)](https://docs-git-permissions-list-bittensor.vercel.app/questions-and-answers)
 
 **TAOHash Resources**:
@@ -53,7 +53,7 @@ TAOhash's incentive mechanism aligns the collective interests of a pool of miner
 
 ## Miner Requirements
 
-To run a TaoHash miner, you will need:
+To run a TAOHash miner, you will need:
 
 - A Bittensor wallet with coldkey and hotkey
 - Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate (NiceHash, MiningRigRentals)
@@ -70,7 +70,7 @@ See: [TAOHash miner guide](/docs/running_miner.md)
 
 ## Validator Requirements
 
-To run a TaoHash validator, you will need:
+To run a TAOHash validator, you will need:
 
 - A Bittensor wallet with coldkey and hotkey
 - Subnet proxy credentials (provided by subnet maintainers)
@@ -90,7 +90,7 @@ These steps apply to both miners and validators:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/latent-to/taohash.git](https://github.com/latent-to/taohash.git)
+    git clone https://github.com/latent-to/taohash.git
     cd taohash
     ```
 
@@ -105,7 +105,7 @@ These steps apply to both miners and validators:
     pip install --upgrade pip
     ```
 
-4.  **Install the TaoHash package:**
+4.  **Install the TAOHash package:**
     ```bash
     pip install -e .
     ```
@@ -129,7 +129,7 @@ For features like minimum difficulty settings and advanced monitoring:
 * [Set up Taohash Proxy](docs/running_miner.md#optional-proxy-setup)
 * [Run the miner script for pool management](docs/running_miner.md#legacy-miner-script)
 
-For complete details, see the [TaoHash Miner Setup Guide](docs/running_miner.md).
+For complete details, see the [TAOHash Miner Setup Guide](docs/running_miner.md).
 
 ## Validator Specific Setup
 After completing the common setup, follow the detailed steps in the Validator Guide:
@@ -138,7 +138,7 @@ After completing the common setup, follow the detailed steps in the Validator Gu
 * [Configure your validator (`.env` file)](docs/running_validator.md#4-configuration)
 * [Run the validator (using PM2 recommended)](docs/running_validator.md#5-running-the-validator)
 
-For the complete, step-by-step instructions for setting up and running your validator, please refer to the [TaoHash Validator Setup](docs/running_validator.md).
+For the complete, step-by-step instructions for setting up and running your validator, please refer to the [TAOHash Validator Setup](docs/running_validator.md).
 
 # Get Involved
 
@@ -148,5 +148,5 @@ For the complete, step-by-step instructions for setting up and running your vali
 
 ---
 **Full Guides:**
-- [TaoHash Miner Setup Guide](docs/running_miner.md)
+- [TAOHash Miner Setup Guide](docs/running_miner.md)
 - [TaoHash Validator Setup](docs/running_validator.md) 
