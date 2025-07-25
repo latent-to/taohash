@@ -90,7 +90,7 @@ These steps apply to both miners and validators:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/latent-to/taohash.git](https://github.com/latent-to/taohash.git)
+    git clone https://github.com/latent-to/taohash.git
     cd taohash
     ```
 
