@@ -9,7 +9,8 @@
 ## Introduction
 
 Bittensor is a decentralized platform that incentivizes production of best-in-class digital commodities. TAOHash is a Bittensor subnet designed around production of proof-of-work (PoW) BTC mining hashrate.
-<!-- I was unclear what the 'rental and exchange' part referred to in the old doc.  -->
+
+The long-term vision for TAOHash includes developing into a comprehensive hashrate rental and exchange platform. You can learn more about our roadmap and future plans at [taohash.com/roadmap](https://taohash.com/roadmap).
 
 It is possible to contribute as a **miner** or a **validator**.
 
@@ -20,8 +21,13 @@ By design, this architecture is extensible to other mining projects where miner 
 **Related Bittensor Documentation**:
 
 - [Introduction to Bittensor](https://docs.learnbittensor.org/learn/introduction)
+- [TAOHash Subnet Information](https://learnbittensor.org/subnets/14)
 - [Mining in Bittensor](https://docs-git-permissions-list-bittensor.vercel.app/miners/)
 - [Frequently asked questions (FAQ)](https://docs-git-permissions-list-bittensor.vercel.app/questions-and-answers)
+
+**TAOHash Resources**:
+- [About TAOHash](https://taohash.com/about)
+- [TAOHash Roadmap](https://taohash.com/roadmap)
 
 **Page Contents**:
 - [Incentive Design](#incentive-design)

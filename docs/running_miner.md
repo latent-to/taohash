@@ -162,8 +162,7 @@ python taohash/miner/miner_with_proxy.py \
 ## Troubleshooting
 
 **Cannot connect to pool**
-- Verify pool information using `miner.py`
-<!-- how? -->
+- Verify pool information using `miner.py` - run the miner script to get your correct pool configuration and worker credentials, then verify these match exactly what you've entered in your mining configuration
 - Check firewall settings
 - Ensure wallet is registered on subnet 14
 **High rejection rate**

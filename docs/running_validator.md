@@ -5,7 +5,6 @@ This guide will walk you through setting up and running a TaoHash validator on t
 TaoHash enables Bitcoin miners to contribute hashpower to a collective mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
 
 Validators are rewarded in TAOHash's subnet-specific (alpha) token on the Bittensor blockchain, which represents *stake* in the subnet. This alpha stake can be exited from the subnet by unstaking it to TAO (Bittensor's primary currency).
-<!-- Is the above true? Or do they also get BTC or what? -->
 
 **Share value** is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets during *emissions*, the process by which Bittensor periodically distributes tokens to participants based on the Yuma Consensus algorithm. In general, the higher the hashpower, the higher the share value submitted.
 
@@ -33,8 +32,7 @@ Bittensor Docs:
 
 ### Get Subnet Proxy Credentials
 
-<!-- How do they contact the subnet owner? Email? Discord? -->
-Contact the subnet owner to receive:
+Contact the subnet owner via the [TAOHash Discord channel](https://discord.gg/sz9MDMm5sb) to receive:
 
 - **Proxy API URL**: The endpoint for retrieving miner statistics
 - **API Token**: Authentication token for the proxy API
@@ -209,16 +207,12 @@ pm2 set pm2-logrotate:retain 7
 - Ensure network connectivity to the proxy
 
 **No miner data received**
-- Confirm miners are actively mining
-<!-- How? What are the various links in the chain? -->
-- Check proxy logs for any issues
-<!-- What do I look for? What do I do if I see it? -->
-- Verify time synchronization
-<!-- What do I look for? What do I do if I see it? -->
+- Confirm miners are actively mining by checking the [TAOHash leaderboard](https://taohash.com/leaderboard)
+- Check proxy logs for any issues with data collection
+- Verify network connectivity between validators and the subnet proxy
 
 **Wallet issues**
-- Ensure wallet is properly created and registered
-<!--  -->
+- Ensure wallet is properly created and registered (see [Bittensor Wallet Setup](#bittensor-wallet-setup) above or [Bittensor wallet documentation](https://docs.learnbittensor.org/working-with-keys/))
 - Check that wallet path is correct
 - Verify you're using the correct network
 
