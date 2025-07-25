@@ -1,8 +1,8 @@
-# TaoHash Validator Setup
+# TAOHash Validator Setup
 
-This guide will walk you through setting up and running a TaoHash validator on the Bittensor network.
+This guide will walk you through setting up and running a TAOHash validator on the Bittensor network.
 
-TaoHash enables Bitcoin miners to contribute hashpower to a collective mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
+TAOHash enables Bitcoin miners to contribute hashpower to a collective mining pool. All miners direct their hashpower to a single subnet pool, where validators evaluate and rank miners based on the share value they generate.
 
 Validators are rewarded in TAOHash's subnet-specific (alpha) token on the Bittensor blockchain, which represents *stake* in the subnet. This alpha stake can be exited from the subnet by unstaking it to TAO (Bittensor's primary currency).
 
@@ -163,7 +163,7 @@ python3 taohash/validator/validator.py run \
 
 ## Important Parameters
 
-- `netuid`: Set to 14 for TaoHash subnet
+- `netuid`: Set to 14 for TAOHash subnet
 - `subtensor.network`: Set to `finney` for mainnet
 - `wallet.name`: Your Bittensor wallet name
 - `wallet.hotkey`: Your wallet's hotkey
