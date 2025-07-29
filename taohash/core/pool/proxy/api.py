@@ -1,3 +1,4 @@
+import base64
 import httpx
 from typing import Optional, Any
 from backoff import on_exception, expo
@@ -41,11 +42,11 @@ class ProxyPoolAPI(PoolAPI):
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
-        splits = worker_name.split(".", maxsplit=1)
+        splits = worker_name.split(".")
         if len(splits) == 1:  # no period
             return splits[0]
         else:
-            return splits[1]
+            return splits[-1]  # Take the worker_id after the last dot
 
     @on_exception(
         expo,
@@ -181,6 +182,20 @@ class ProxyPoolAPI(PoolAPI):
         """
         # Proxy doesn't provide FPPS directly
         return 0.0
+
+    @staticmethod
+    def encode_lightning_address(ln_addr: str) -> str:
+        """
+        Encode a Lightning address into URL-safe Base64.
+        """
+        return base64.urlsafe_b64encode(ln_addr.encode("utf-8")).decode("utf-8")
+
+    @staticmethod
+    def decode_lightning_address(encoded: str) -> str:
+        """
+        Decode a URL-safe Base64 string back into the original Lightning address.
+        """
+        return base64.urlsafe_b64decode(encoded.encode("utf-8")).decode("utf-8")
 
     def test_connection(self) -> bool:
         """Test API connection and authentication by hitting the /health endpoint"""
