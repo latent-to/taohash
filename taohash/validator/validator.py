@@ -24,13 +24,17 @@ from taohash.core.constants import (
     U16_MAX,
     OWNER_TAKE,
     SPLIT_WITH_MINERS,
-    PAYOUT_FACTOR,
+    FLOOR_PH,
+    FLOOR_PERCENTAGE,
+    CEILING_PH,
+    CEILING_PERCENTAGE,
 )
 from taohash.core.pool import Pool, PoolBase
 from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
 from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
 from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
+from taohash.core.pricing.hash_price import BraiinsHashPriceAPI
 from taohash.core.pricing.network_stats import get_current_difficulty
 from taohash.validator import BaseValidator
 
@@ -57,6 +61,7 @@ class TaohashProxyValidator(BaseValidator):
 
         self.setup_bittensor_objects()
         self.price_api = CoinPriceAPI("coingecko", None)
+        self.hash_price_api = BraiinsHashPriceAPI()
 
         self.alpha = 0.8
         self.weights_interval = self.tempo
@@ -315,11 +320,64 @@ class TaohashProxyValidator(BaseValidator):
             f"Successfully restored validator state with last evaluation timestamp: {self.last_evaluation_timestamp}"
         )
 
-    def calculate_weights_distribution(self, total_value: float) -> list[float]:
+    def calculate_payout_percentage(
+        self,
+        share_value: float,
+        time_seconds: int,
+        hash_value_btc: float,
+        btc_price: float,
+    ) -> float:
+        """Calculate percentage (0.5-3.0) based on miner's share value using S-curve.
+
+        Args:
+            share_value: Miner's share value in USD
+            time_seconds: Time period in seconds
+            hash_value_btc: BTC/TH/day
+            btc_price: Current BTC price in USD
+
+        Returns:
+            Percentage multiplier (0.5 to 3.0)
+        """
+        btc_price = self.price_api.get_price("bitcoin")
+        hash_value_btc = self.hash_price_api.get_hash_value()
+        btc_per_ph_per_second = (hash_value_btc * 1000) / 86400
+
+        min_btc_value = FLOOR_PH * btc_per_ph_per_second * time_seconds
+        max_btc_value = CEILING_PH * btc_per_ph_per_second * time_seconds
+
+        min_share_value = min_btc_value * btc_price
+        max_share_value = max_btc_value * btc_price
+
+        # Apply S-curve
+        if share_value < min_share_value:
+            return FLOOR_PERCENTAGE
+        elif share_value > max_share_value:
+            return CEILING_PERCENTAGE
+        else:
+            # Progress (Linear Interpolation)
+            # progress = (x - x_min) / (x_max - x_min)
+            progress = (share_value - min_share_value) / (
+                max_share_value - min_share_value
+            )
+
+            # Smooth Progress (S-Curve/Smoothstep)
+            # smooth_progress = 3t² - 2t³ where t = progress
+            smooth_progress = 3 * progress**2 - 2 * progress**3
+
+            # output = y_min + (y_max - y_min) × S(t)
+            return (
+                FLOOR_PERCENTAGE
+                + (CEILING_PERCENTAGE - FLOOR_PERCENTAGE) * smooth_progress
+            )
+
+    def calculate_weights_distribution(self, blocks_since: int) -> list[float]:
         weights = [0.0] * len(self.hotkeys)
         tao_price = self.price_api.get_price("bittensor")
         subnet_price = self.subtensor.subnet(self.config.netuid).price.tao
         alpha_price = subnet_price * tao_price
+
+        _time_seconds = blocks_since * 12 if blocks_since else self.eval_interval * 12
+        time_seconds = min(_time_seconds, self.eval_interval * 12)
 
         own_stake_weight = self.metagraph.total_stake[self.uid].tao
         total_stake = sum(self.metagraph.total_stake).tao
@@ -332,20 +390,33 @@ class TaohashProxyValidator(BaseValidator):
             * (own_stake_weight / total_stake)
         )
         value_to_dist = alpha_to_dist * alpha_price
-        scaled_total_value = total_value * PAYOUT_FACTOR
+
+        scaled_scores = []
+        for share_value in self.scores:
+            if share_value > 0:
+                miner_percentage = (
+                    self.calculate_payout_percentage(share_value, time_seconds) / 100
+                )
+                scaled_scores.append(share_value * miner_percentage)
+            else:
+                scaled_scores.append(0.0)
+        scaled_total_value = sum(scaled_scores)
 
         if scaled_total_value > value_to_dist:
-            weights = [score / scaled_total_value for score in self.scores]
+            weights = [score / scaled_total_value for score in scaled_scores]
         else:
             weights_to_dist = scaled_total_value / value_to_dist
-            weights = [(score / total_value) * weights_to_dist for score in self.scores]
+            weights = [
+                (score / scaled_total_value) * weights_to_dist
+                for score in scaled_scores
+            ]
 
         remaining = max(0.0, 1.0 - sum(weights))
         if remaining > 0:
             weights[self.burn_uid] += remaining
         return weights
 
-    def set_weights(self) -> tuple[bool, str]:
+    def set_weights(self, blocks_since: int) -> tuple[bool, str]:
         """Set weights for all miners.
 
         Returns:
@@ -359,13 +430,12 @@ class TaohashProxyValidator(BaseValidator):
             3. Reset scores for next evaluation.
         """
         # Calculate weights
-        total_value = sum(self.scores)
-        if total_value == 0:
+        if sum(self.scores) == 0:
             logging.info("No miners are mining, we should burn the alpha")
             weights = [0.0] * len(self.hotkeys)
             weights[self.burn_uid] = 1.0
         else:
-            weights = self.calculate_weights_distribution(total_value)
+            weights = self.calculate_weights_distribution(blocks_since)
 
         logging.info("Setting weights")
 
@@ -420,7 +490,7 @@ class TaohashProxyValidator(BaseValidator):
                         self.config.netuid, self.uid
                     )
                     if blocks_since_last_weights >= self.weights_interval:
-                        success, err_msg = self.set_weights()
+                        success, err_msg = self.set_weights(blocks_since_last_weights)
                         if not success:
                             logging.error(f"Failed to set weights: {err_msg}")
                             continue
