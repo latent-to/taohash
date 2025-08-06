@@ -36,6 +36,7 @@ class BraiinsHashPriceAPI(HashPriceAPIBase):
             headers={
                 "accept": "application/json",
             },
+            timeout=20,
         )
 
         if response.status_code != 200:
@@ -58,4 +59,19 @@ class BraiinsHashPriceAPI(HashPriceAPIBase):
             return float(stats["hash_price"])
         except Exception as e:
             print(f"Error fetching hash price from Braiins: {e}")
+            return None
+
+    @cachetools.cached(cache=_hash_price_cache)
+    def get_hash_value(self) -> Optional[float]:
+        """
+        Get the current hash value in BTC/TH/day from Braiins Pool insights
+
+        Returns:
+            float: Current hash value in BTC/TH/day or None if unavailable
+        """
+        try:
+            stats = self.get_hashrate_stats()
+            return float(stats.get("hash_value"))
+        except Exception as e:
+            print(f"Error fetching hash value from Braiins: {e}")
             return None
