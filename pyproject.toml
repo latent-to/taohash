@@ -13,7 +13,7 @@ authors = [
     {name = "Latent Holdings", email = "taohash@latent.to"}
 ]
 dependencies = [
-    "bittensor>=9.10.1,<10.0.0",
+    "bittensor>=9.9.0,<10.0.0",
     "ratelimit==2.2.1",
     "cachetools==5.3.1",
     "tabulate~=0.9.0",
