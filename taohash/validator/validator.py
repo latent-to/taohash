@@ -63,6 +63,7 @@ class TaohashProxyValidator(BaseValidator):
         self.config.coins = [COIN]
 
         self.last_evaluation_timestamp = None
+        self.payout_factor = PAYOUT_FACTOR
 
     def add_args(self, parser: argparse.ArgumentParser):
         """Add validator arguments to the parser."""
@@ -187,13 +188,20 @@ class TaohashProxyValidator(BaseValidator):
 
         try:
             for coin in self.config.coins:
-                miner_metrics: list[ProxyMetrics] = get_metrics_timerange(
+                timerange_result = get_metrics_timerange(
                     self.pool,
                     self.hotkeys,
                     self.block_at_registration,
                     start_time,
                     end_time,
                     coin,
+                )
+
+                miner_metrics: list[ProxyMetrics] = timerange_result["metrics"]
+                payout_factor = timerange_result["payout_factor"]
+
+                self.payout_factor = (
+                    payout_factor if payout_factor <= 1 else self.payout_factor
                 )
 
                 btc_price = self.price_api.get_price(coin)
@@ -332,7 +340,7 @@ class TaohashProxyValidator(BaseValidator):
             * (own_stake_weight / total_stake)
         )
         value_to_dist = alpha_to_dist * alpha_price
-        scaled_total_value = total_value * PAYOUT_FACTOR
+        scaled_total_value = total_value * self.payout_factor
 
         if scaled_total_value > value_to_dist:
             weights = [score / scaled_total_value for score in self.scores]
