@@ -5,6 +5,7 @@ Proxy pool metrics implementation for time-based queries.
 from dataclasses import dataclass
 
 from taohash.core.pool.proxy.pool import ProxyPool
+from taohash.core.constants import PAYOUT_FACTOR
 from .base import BaseMetrics
 
 
@@ -43,7 +44,7 @@ def get_metrics_timerange(
     start_time: int,
     end_time: int,
     coin: str = "bitcoin",
-) -> list[ProxyMetrics]:
+) -> dict[str, any]:
     """
     Retrieves mining metrics for all miners for a specific time range.
 
@@ -56,10 +57,13 @@ def get_metrics_timerange(
         coin: The coin type (default: "bitcoin")
 
     Returns:
-        List of ProxyMetrics for each hotkey
+        Dict containing list of ProxyMetrics and payout factor
     """
     metrics = []
-    all_workers = pool.get_miner_contributions_timerange(start_time, end_time, coin)
+    timerange_data = pool.get_miner_contributions_timerange(start_time, end_time, coin)
+
+    all_workers = timerange_data.get("workers", {})
+    payout_factor = timerange_data.get("payout_factor", PAYOUT_FACTOR)
 
     hotkeys_to_workers = {}
     worker_ids_to_hotkey_idx = {}
@@ -101,4 +105,4 @@ def get_metrics_timerange(
             )
         )
 
-    return metrics
+    return {"metrics": metrics, "payout_factor": payout_factor}
