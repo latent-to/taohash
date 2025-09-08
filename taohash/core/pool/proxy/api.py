@@ -7,6 +7,7 @@ from ratelimit import limits, RateLimitException
 from bittensor import logging
 
 from taohash.core.pool.pool import PoolAPI
+from taohash.core.constants import PAYOUT_FACTOR
 
 
 class ProxyPoolConnectionError(Exception):
@@ -144,7 +145,7 @@ class ProxyPoolAPI(PoolAPI):
     @limits(calls=1, period=2)
     def get_workers_timerange(
         self, start_time: int, end_time: int, coin: str = "bitcoin"
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
         Get worker data for a specific time range.
 
@@ -154,7 +155,7 @@ class ProxyPoolAPI(PoolAPI):
             coin: The coin type (default: "bitcoin")
 
         Returns:
-            Dict mapping worker_id to worker timerange data
+            Dict containing workers data and payout factor
         """
         url = f"{self.proxy_url}/api/workers/timerange"
         params = {"start_time": start_time, "end_time": end_time}
@@ -164,14 +165,15 @@ class ProxyPoolAPI(PoolAPI):
             response.raise_for_status()
 
             data = response.json()
+            payout_factor = data.get("worker_percentage", PAYOUT_FACTOR)
 
             workers = data.get("btc", {}).get("workers", {})
 
-            result = {}
+            worker_result = {}
             for worker_id, worker_data in workers.items():
-                result[self._worker_name_to_worker_id(worker_id)] = worker_data
+                worker_result[self._worker_name_to_worker_id(worker_id)] = worker_data
 
-            return result
+            return {"workers": worker_result, "payout_factor": payout_factor}
 
     def get_fpps(self, coin: str = "bitcoin") -> float:
         """
