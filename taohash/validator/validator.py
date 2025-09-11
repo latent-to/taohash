@@ -199,12 +199,10 @@ class TaohashProxyValidator(BaseValidator):
 
                 miner_metrics: list[ProxyMetrics] = timerange_result["metrics"]
                 payout_factor = timerange_result["payout_factor"]
-                logging.info(f"Timerange result for payout factor: {timerange_result['payout_factor']}")
 
                 self.payout_factor = (
                     payout_factor if payout_factor <= 1 else self.payout_factor
                 )
-                logging.info(f"Payout factor set to: {self.payout_factor}")
 
                 btc_price = self.price_api.get_price(coin)
                 btc_difficulty = get_current_difficulty()
