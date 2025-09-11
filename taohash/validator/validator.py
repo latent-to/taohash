@@ -342,6 +342,8 @@ class TaohashProxyValidator(BaseValidator):
         value_to_dist = alpha_to_dist * alpha_price
         scaled_total_value = total_value * self.payout_factor
 
+        logging.info(f"Payout factor: {self.payout_factor}")
+
         if scaled_total_value > value_to_dist:
             weights = [score / scaled_total_value for score in self.scores]
         else:
