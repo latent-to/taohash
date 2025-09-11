@@ -165,7 +165,7 @@ class ProxyPoolAPI(PoolAPI):
             response.raise_for_status()
 
             data = response.json()
-            payout_factor = data.get("worker_percentage", PAYOUT_FACTOR)
+            payout_factor = data.get("btc", {}).get("worker_percentage", PAYOUT_FACTOR)
 
             workers = data.get("btc", {}).get("workers", {})
 
