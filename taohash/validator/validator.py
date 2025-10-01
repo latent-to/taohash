@@ -330,11 +330,7 @@ class TaohashProxyValidator(BaseValidator):
         alpha_price = subnet_price * tao_price
 
         blocks_to_set_for = self.current_block - self.last_update
-        alpha_to_dist = (
-            blocks_to_set_for
-            * (1 - OWNER_TAKE)
-            * SPLIT_WITH_MINERS
-        )
+        alpha_to_dist = blocks_to_set_for * (1 - OWNER_TAKE) * SPLIT_WITH_MINERS
         value_to_dist = alpha_to_dist * alpha_price
         scaled_total_value = total_value * self.payout_factor
 
@@ -346,9 +342,12 @@ class TaohashProxyValidator(BaseValidator):
             weights_to_dist = scaled_total_value / value_to_dist
             weights = [(score / total_value) * weights_to_dist for score in self.scores]
 
-        remaining = max(0.0, 1.0 - sum(weights))
+        sum_weights = sum(weights)
+        remaining = max(0.0, 1.0 - sum_weights)
         if remaining > 0:
             weights[self.burn_uid] += remaining
+        elif sum_weights > 1.0:
+            weights = [w / sum_weights for w in weights]
         return weights
 
     def set_weights(self) -> tuple[bool, str]:
