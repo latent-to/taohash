@@ -329,15 +329,11 @@ class TaohashProxyValidator(BaseValidator):
         subnet_price = self.subtensor.subnet(self.config.netuid).price.tao
         alpha_price = subnet_price * tao_price
 
-        own_stake_weight = self.metagraph.total_stake[self.uid].tao
-        total_stake = sum(self.metagraph.total_stake).tao
-
         blocks_to_set_for = self.current_block - self.last_update
         alpha_to_dist = (
             blocks_to_set_for
             * (1 - OWNER_TAKE)
             * SPLIT_WITH_MINERS
-            * (own_stake_weight / total_stake)
         )
         value_to_dist = alpha_to_dist * alpha_price
         scaled_total_value = total_value * self.payout_factor
