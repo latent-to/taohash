@@ -1,0 +1,13 @@
+services:
+  taohash-validator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: taohash-validator:local
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env:ro
+      - ~/.bittensor/wallets:/root/.bittensor/wallets:ro
+      - ~/.bittensor/taohash:/root/.bittensor/taohash
+    restart: unless-stopped
