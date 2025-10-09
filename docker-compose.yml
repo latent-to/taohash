@@ -1,0 +1,22 @@
+services:
+  taohash-validator:
+    build:
+      context: .
+    image: ghcr.io/clementblaise/taohash:latest
+    container_name: taohash-validator
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env:ro
+      - ~/.bittensor/wallets:/root/.bittensor/wallets:ro
+      - ~/.bittensor/taohash:/root/.bittensor/taohash
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: taohash-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 10 taohash-validator
+    restart: unless-stopped
