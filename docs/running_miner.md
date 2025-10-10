@@ -6,7 +6,41 @@ TaoHash enables Bitcoin miners to contribute hashpower to a collective mining po
 
 TAOHash miners earn from **two independent reward systems**, both designed to fairly and transparently compensate you for your computational contributions.
 
-**Share value** is the difficulty at which the miner solved a blockhash. The higher the difficulty solved, the more incentive a miner gets during *emissions*, the process by which Bittensor periodically distributes tokens to participants based on the Yuma Consensus algorithm. In general, the higher the hashpower, the higher the share value submitted.
+### 1. TIDES BTC Rewards (All Miners)
+
+The **TIDES protocol** provides direct Bitcoin payouts to **all** miners connected to TAOHash — no Bittensor registration required.
+
+- **Open Access:** Anyone can mine and earn BTC instantly.  
+- **Calculation:** Rewards are determined using a *sliding window* equal to `network_difficulty × 8`, roughly covering the last eight blocks of work.  
+- **Proportional Distribution:** Your share of the window determines your share of BTC rewards.  
+- **Direct Payment:** BTC is automatically sent to your configured address (on-chain or Lightning).  
+- **Regular Disbursements:** Based on real pool block discoveries — typically multiple per day.  
+
+#### How It Works
+TIDES tracks every valid share in a global log.  
+When a block is found:
+1. The window is filled with the most recent shares until the total difficulty ≈ 8× the network difficulty.  
+2. Each miner’s proportional share difficulty in that window determines their cut of the BTC reward.  
+3. The window slides forward, and the process repeats for the next block.  
+
+This ensures fairness, smooths variance, and prevents “pool-hopping” — your consistent hashrate always earns consistent rewards.
+
+---
+
+### 2. Alpha Token Rewards (Bittensor Registered Miners)
+
+Bittensor’s **Subnet 14** adds a second layer of incentives for miners who register their wallet and hotkey.
+
+- **+5% Value Back:** Earn Alpha tokens worth 5% of your contributed hashpower’s value.  
+- **Value Basis:** Calculated using real-time **hashprice index** and BTC/TAO exchange rates.  
+- **Eligibility:** Requires registration on **Bittensor Subnet 14**.  
+- **Continuous Accumulation:** Tokens accrue automatically as you mine.  
+- **Convertibility:** Alpha tokens can be unstaked or swapped to TAO for liquidity.  
+
+This mechanism ties your physical mining to the decentralized compute economy of Bittensor — rewarding both immediate work (BTC) and long-term network participation (Alpha).
+Alpha rewards are disbursed through Bittensor's incentive mechanism every tempo (~72 minutes). These rewards are irrespective whether the pool found a block or not. 
+
+---
 
 See also:
 
