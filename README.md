@@ -16,7 +16,11 @@ You can learn more about our roadmap and future plans at [taohash.com/roadmap](h
 
 It is possible to contribute as a **miner** or a **validator**.
 
-**Miners** contribute BTC mining hashrate, and speculate on hashrate, hashprice and emissions in TAOHash's subnet-specific (alpha) token. **Validators** evaluate miners, ranking (weighting) them by the share-value they've produced over each period of time. Effectively, miners automatically exchange BTC hashrate for TAOhash's alpha token.
+**Miners** contribute BTC mining hashrate, and earn rewards through two independent systems:
+1. **TIDES**: Direct BTC earnings for all miners (no Bittensor registration required). Rewards are based on the proportion of work done inside the TIDES window when a block is found. On average, max blocks are found ~4 times a day with a minimum of 1.
+2. **Alpha tokens**: Subnet-specific tokens for Bittensor-registered miners, worth 5% of the hashpower value they provide. 
+
+**Validators** evaluate miners, ranking (weighting) them by the share-value they've produced over each period of time. This creates a pool where miners can earn immediate BTC rewards while miners who are also Bittensor participants also accumulate alpha tokens representing additional value.
 
 By design, this architecture is extensible to other mining projects where miner performance can be precisely and efficiently verified.
 
@@ -30,9 +34,11 @@ By design, this architecture is extensible to other mining projects where miner 
 **TAOHash Resources**:
 - [About TAOHash](https://taohash.com/about)
 - [TAOHash Roadmap](https://taohash.com/roadmap)
+- [TIDES FAQ - BTC Rewards System](docs/tides_faq.md)
 
 **Page Contents**:
 - [Incentive Design](#incentive-design)
+- [Reward System](#reward-system)
 - [Requirements](#requirements)
   - [Miner Requirements](#miner-requirements)
   - [Validator Requirements](#validator-requirements)
@@ -49,11 +55,32 @@ TAOhash's incentive mechanism aligns the collective interests of a pool of miner
 
 ![TAOHash Diagram](docs/images/incentive-design.png)
 
+# Reward System
+
+TAOHash operates two distinct reward mechanisms:
+
+## 1. TIDES Protocol (All Miners)
+TIDES (Time-based Incentivized Distribution of Earnings System) is a reward protocol that distributes BTC to miners contributing hashpower:
+- **No Registration Required**: Any miner can earn TIDES rewards without joining Bittensor. You just have to enter a valid BTC/Lightning address in your username
+- **Direct BTC Earnings**: Rewards paid directly in Bitcoin to your configured address
+- **Fair Distribution**: BTC distributed proportionally based on share value contributions in the TIDES window
+- **Window size**: Uses `network difficulty × 8` for creating the TIDES window. 
+- **Performance-Based**: Higher hashrate = high difficulty shares = larger BTC rewards
+
+## 2. Alpha Token Rewards (Bittensor Participants)
+Subnet 14 incentivizes miners with additional alpha token rewards:
+- **5% Value Back**: Alpha tokens worth 5% of the hashpower value you provide
+- **Value Calculation**: Based on hashprice index and current exchange rates
+- **Requires Registration**: Only available to miners registered on Bittensor subnet 14
+- **Subnet Stake**: Alpha tokens represent stake in the TAOHash subnet
+- **Convertible to TAO**: Can be unstaked to TAO (Bittensor's primary currency)
+
+
 # Requirements
 
 ## Miner Requirements
 
-To run a TAOHash miner, you will need:
+To run a miner with TAOHash rewards, you will need:
 
 - A Bittensor wallet with coldkey and hotkey
 - Bitcoin mining hardware (ASICs, GPUs, etc.) OR access to remote hashrate (NiceHash, MiningRigRentals)
@@ -123,11 +150,6 @@ After completing the common setup, the easiest way to start mining is:
 2. **Configure Your Miners**: Point your mining hardware directly to the subnet pool using the credentials from step 1.
 
 3. **Monitor Your Performance**: Check your statistics at [https://taohash.com/leaderboard](https://taohash.com/leaderboard)
-
-### Advanced Setup (Optional)
-For features like minimum difficulty settings and advanced monitoring:
-* [Set up Taohash Proxy](docs/running_miner.md#optional-proxy-setup)
-* [Run the miner script for pool management](docs/running_miner.md#legacy-miner-script)
 
 For complete details, see the [TAOHash Miner Setup Guide](docs/running_miner.md).
 
