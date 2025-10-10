@@ -22,7 +22,6 @@ class BaseValidator:
     def __init__(self):
         """Base initialization for all validator instances."""
         self.config = self.get_config()
-        self.setup_logging_path()
         self.setup_logging()
         self.storage = get_validator_storage(
             storage_type=self.config.storage, config=self.config

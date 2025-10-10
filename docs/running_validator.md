@@ -15,12 +15,13 @@ See also:
 - [Yuma Consensus](https://docs.learnbittensor.org/yuma-consensus/)
 - [Emissions](https://docs.learnbittensor.org/emissions/)
 
+> **Deployment note:** We have now shifted to Docker + Watchtower stack for validators. This will ensure that the validator code is always up-to date whenever a new update rolls out. 
+
 ## Prerequisites
 
 - A Bittensor wallet with coldkey and hotkey, registered on TAOHash, with sufficient stake weight.
 - Subnet proxy credentials (provided by subnet maintainers)
-- Python 3.9 or higher environment
-- The most recent release of [Bittensor SDK](https://pypi.org/project/bittensor/) and the Bittensor CLI, [BTCLI](https://pypi.org/project/bittensor-cli/)
+- Docker Engine 24+ and Docker Compose
 
 Bittensor Docs:
 
@@ -102,10 +103,10 @@ pip install -e .
 
 ### Configuration
 
-Create a `.env` file in the validator directory:
+Create a `.env` file in the root directory:
 
 ```bash
-cd taohash/validator
+cd taohash
 cp .env.validator.example .env
 nano .env
 ```
@@ -117,49 +118,30 @@ NETUID=14
 SUBTENSOR_NETWORK=finney
 BT_WALLET_NAME="your_wallet_name"
 BT_WALLET_HOTKEY="your_hotkey_name"
+BT_LOGGING_INFO=1
 
 # Subnet Proxy Configuration (from subnet owner)
-SUBNET_PROXY_API_URL="http://proxy.example.com:8888"
+SUBNET_PROXY_API_URL="http://btc.taohash.com:8888"
 SUBNET_PROXY_API_TOKEN="your-api-token-here"
-
-# Recovery Configuration
-RECOVERY_FILE_PATH=~/.bittensor/data/taohash/validator
-RECOVERY_FILE_NAME=validator_state.json
 ```
 
 ### Running the Validator
 
-#### Using PM2 (Recommended)
+### Using Docker (Recommended)
 
-1. Install PM2:
+1. Ensure you have Docker and Docker Compose installed in your operating system. 
+You can get more details here: https://docs.docker.com/engine/install/
+
+2. Ensure you have correctly set-up the environment variables in the root directory (the previous section).
+
+3. Start the validator
 ```bash
-# Ubuntu/Debian
-sudo apt update && sudo apt install nodejs npm -y
-sudo npm install pm2@latest -g
-
-# macOS
-brew install node
-npm install pm2@latest -g
+docker compose down && docker compose pull && docker compose up -d && docker compose logs -f 
 ```
 
-2. Start the validator:
-```bash
-pm2 start python3 --name "taohash-validator" -- taohash/validator/validator.py run \
-    --subtensor.network finney \
-    --logging.info
+4. The validator should start and you should see all the info logs. 
+Verify it started to correctly score miners. 
 
-# Save PM2 configuration
-pm2 save
-pm2 startup
-```
-
-#### Direct Execution
-
-```bash
-python3 taohash/validator/validator.py run \
-    --subtensor.network finney \
-    --logging.info
-```
 
 ## Important Parameters
 
@@ -174,30 +156,6 @@ python3 taohash/validator/validator.py run \
 2. They calculate share values based on miner contributions
 3. Weights are set every `tempo` blocks (every epoch) based on moving averages
 4. All validators use the same proxy endpoint for consistent evaluation
-
-## PM2 Management
-
-```bash
-# View processes
-pm2 list
-
-# Monitor in real-time
-pm2 monit
-
-# View logs
-pm2 logs taohash-validator
-pm2 logs taohash-validator --lines 100
-
-# Control validator
-pm2 stop taohash-validator
-pm2 restart taohash-validator
-pm2 delete taohash-validator
-
-# Log rotation
-pm2 install pm2-logrotate
-pm2 set pm2-logrotate:max_size 10M
-pm2 set pm2-logrotate:retain 7
-```
 
 ## Troubleshooting
 
