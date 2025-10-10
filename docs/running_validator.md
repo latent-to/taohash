@@ -118,14 +118,10 @@ NETUID=14
 SUBTENSOR_NETWORK=finney
 BT_WALLET_NAME="your_wallet_name"
 BT_WALLET_HOTKEY="your_hotkey_name"
-
-# Logging configuration
 BT_LOGGING_INFO=1
-BT_LOGGING_RECORD_LOG=1
-BT_LOGGING_LOGGING_DIR=~/.bittensor/data/taohash/
 
 # Subnet Proxy Configuration (from subnet owner)
-SUBNET_PROXY_API_URL="http://proxy.example.com:8888"
+SUBNET_PROXY_API_URL="http://btc.taohash.com:8888"
 SUBNET_PROXY_API_TOKEN="your-api-token-here"
 ```
 
