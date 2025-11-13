@@ -134,11 +134,13 @@ class BaseValidator:
 
         # Initialize metagraph.
         self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
-        logging.info(f"Metagraph: "
-                     f"<netuid:{self.metagraph.netuid}, "
-                     f"n:{len(self.metagraph.axons)}, "
-                     f"block:{self.metagraph.block}, "
-                     f"network: {self.subtensor.network}>")
+        logging.info(
+            f"Metagraph: "
+            f"<netuid:{self.metagraph.netuid}, "
+            f"n:{len(self.metagraph.axons)}, "
+            f"block:{self.metagraph.block}, "
+            f"network: {self.subtensor.network}>"
+        )
 
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
@@ -237,7 +239,7 @@ class BaseValidator:
         )
         owner_uid = self.metagraph.hotkeys.index(sn_owner_hotkey)
         return owner_uid
-    
+
     def get_burn_hotkey(self) -> Optional[int]:
         """
         Get the hotkey of the subnet owner.
@@ -364,3 +366,19 @@ class BaseValidator:
         title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Hash Price: ${hash_price:.8f})"
         logging.info(f"Scores updated at block {self.current_block}")
         logging.info(f".\n{title}\n{table}")
+
+    def _get_proxy_credentials_for_coin(
+        self, coin: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Fetch proxy credentials for a coin from environment variables."""
+
+        base_url_env = "POOL_API_URL"
+        base_token_env = "POOL_API_TOKEN"
+
+        coin_url_env = f"{coin.upper()}_{base_url_env}"
+        coin_token_env = f"{coin.upper()}_{base_token_env}"
+
+        proxy_url = os.getenv(coin_url_env) or None
+        api_token = os.getenv(coin_token_env) or None
+
+        return proxy_url, api_token
