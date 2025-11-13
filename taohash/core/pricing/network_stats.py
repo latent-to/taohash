@@ -1,59 +1,95 @@
 """
-Bitcoin network statistics fetcher with caching.
+Cryptocurrency network statistics fetcher with caching.
 
-Provides methods to fetch current Bitcoin network statistics
-such as difficulty, with built-in caching to minimize API calls.
+Provides methods to fetch current network statistics (difficulty)
+for various coins, with caching to minimize API calls.
 """
 
-import logging
 import requests
-import cachetools
+from bittensor import logging
 from cachetools import TTLCache
+from typing import Any
 
-logger = logging.getLogger(__name__)
 
-DIFFICULTY_TTL = 12 * 60 * 60  # 12 hours
-_difficulty_cache = TTLCache(maxsize=1, ttl=DIFFICULTY_TTL)
+DIFFICULTY_TTL = 1 * 60 * 60  # 1 hour
+_difficulty_cache = TTLCache(maxsize=10, ttl=DIFFICULTY_TTL)
 
-FALLBACK_DIFFICULTY = 121_660_000_000_000  # ~121.66T fallback
 API_TIMEOUT = 10  # seconds
 
+DIFFICULTY_APIS: dict[str, dict[str, Any]] = {
+    "btc": {
+        "url": "https://blockchain.info/q/getdifficulty",
+        "response_type": "text",
+        "fallback": 152_000_000_000_000,  # ~152T (as of Nov 2024)
+    },
+    "bch": {
+        "url": "https://api.fullstack.cash/v5/blockchain/getDifficulty",
+        "response_type": "json",
+        "fallback": 740_000_000_000,  # ~740B (as of Nov 2024)
+    },
+}
 
-def _fetch_difficulty() -> float:
+
+def _fetch_difficulty(coin: str = "btc") -> float:
     """
-    Fetch current Bitcoin difficulty from blockchain.info API.
+    Fetch current difficulty for specified cryptocurrency.
+
+    Args:
+        coin: Cryptocurrency identifier (e.g., "btc", "bch")
 
     Returns:
         float: Current network difficulty
 
     Raises:
-        Exception: If API call fails
+        Exception: If API call fails or coin not supported
     """
-    response = requests.get(
-        "https://blockchain.info/q/getdifficulty", timeout=API_TIMEOUT
-    )
+    if coin not in DIFFICULTY_APIS:
+        raise ValueError(f"Unsupported coin: {coin}")
+
+    config = DIFFICULTY_APIS[coin]
+
+    response = requests.get(config["url"], timeout=API_TIMEOUT)
     if response.status_code == 200:
-        difficulty = float(response.text.strip())
-        logger.info(f"Fetched Bitcoin difficulty: {difficulty:,.0f}")
+        if config["response_type"] == "text":
+            difficulty = float(response.text.strip())
+        elif config["response_type"] == "json":
+            difficulty = float(response.json())
+        else:
+            raise ValueError(f"Unknown response type: {config['response_type']}")
+
+        logging.info(f"Fetched {coin.upper()} difficulty: {difficulty:,.0f}")
         return difficulty
     else:
         raise Exception(f"API returned status {response.status_code}")
 
 
-@cachetools.cached(cache=_difficulty_cache)
-def get_current_difficulty() -> float:
+def get_current_difficulty(coin: str = "btc") -> float:
     """
-    Get current Bitcoin network difficulty with caching.
+    Get current network difficulty with caching for specified cryptocurrency.
+
+    Args:
+        coin: Cryptocurrency identifier (e.g., "btc", "bch"). Defaults to "btc".
 
     Returns:
         float: Current network difficulty, or fallback value if fetch fails
     """
-    try:
-        return _fetch_difficulty()
-    except requests.Timeout:
-        logger.warning(f"Timeout fetching difficulty after {API_TIMEOUT}s")
-    except Exception as e:
-        logger.error(f"Error fetching difficulty: {e}")
+    cache_key = f"difficulty_{coin}"
 
-    logger.warning(f"Using fallback difficulty: {FALLBACK_DIFFICULTY:,.0f}")
-    return FALLBACK_DIFFICULTY
+    if cache_key in _difficulty_cache:
+        return _difficulty_cache[cache_key]
+
+    try:
+        difficulty = _fetch_difficulty(coin)
+        _difficulty_cache[cache_key] = difficulty
+        return difficulty
+
+    except requests.Timeout:
+        logging.warning(
+            f"Timeout fetching {coin.upper()} difficulty after {API_TIMEOUT}s"
+        )
+    except Exception as e:
+        logging.error(f"Error fetching {coin.upper()} difficulty: {e}")
+
+    fallback = DIFFICULTY_APIS.get(coin).get("fallback")
+    logging.warning(f"Using fallback {coin.upper()} difficulty: {fallback:,.0f}")
+    return fallback
