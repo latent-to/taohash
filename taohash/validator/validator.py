@@ -34,7 +34,7 @@ from taohash.core.pricing import CoinPriceAPI
 from taohash.core.pricing.network_stats import get_current_difficulty
 from taohash.validator import BaseValidator
 
-COIN = "bitcoin"
+SUPPORTED_COINS = ["btc", "bch"]
 
 BAD_COLDKEYS = ["5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"]
 
@@ -51,16 +51,14 @@ class TaohashProxyValidator(BaseValidator):
         super().__init__()
 
         self.is_subnet_owner = False
-        self.pool = None
-        self.pool_config = None
-        self.api_config = None
-
+        self.pools: dict[str, PoolBase] = {}
+        self.config.coins = SUPPORTED_COINS
         self.setup_bittensor_objects()
+        self.setup_remote_pool_access()
         self.price_api = CoinPriceAPI("coingecko", None)
 
         self.alpha = 0.8
         self.weights_interval = self.tempo
-        self.config.coins = [COIN]
 
         self.last_evaluation_timestamp = None
         self.payout_factor = PAYOUT_FACTOR
@@ -82,44 +80,25 @@ class TaohashProxyValidator(BaseValidator):
         self.burn_hotkey = self.get_burn_hotkey()
         self.is_subnet_owner = self.burn_hotkey == self.wallet.hotkey.ss58_address
 
-        if self.is_subnet_owner:
-            logging.info("SN owner detected - setting up pool configuration")
-            try:
-                self.pool_config = ProxyPoolConfig.from_args(self.config)
-                self.api_config = ProxyPoolAPIConfig.from_args(self.config)
-                self.pool = Pool(
-                    pool_info=self.pool_config.to_pool_info(), config=self.api_config
-                )
-
-                self.publish_pool_info(
-                    self.subtensor, self.config.netuid, self.wallet, self.pool
-                )
-                logging.info(
-                    f"Pool configured with domain/IP: {self.pool.get_pool_info().domain}"
-                )
-            except Exception as e:
-                logging.error(
-                    f"Subnet owner must provide pool configuration via command line "
-                    f"(--pool.domain, --pool.port) or environment variables "
-                    f"(PROXY_DOMAIN, PROXY_PORT). Error: {e}"
-                )
-                exit(1)
-        else:
-            # Other validators need proxy API credentials
-            proxy_url = os.getenv("SUBNET_PROXY_API_URL")
-            api_token = os.getenv("SUBNET_PROXY_API_TOKEN")
-
+    def setup_remote_pool_access(self) -> None:
+        """Create ProxyPool instances for each configured coin using env-provided credentials."""
+        for coin in SUPPORTED_COINS:
+            proxy_url, api_token = self._get_proxy_credentials_for_coin(coin)
             if not proxy_url:
                 raise ValueError(
-                    "SUBNET_PROXY_API_URL environment variable must be set"
+                    f"{coin.upper()}_POOL_API_URL environment variable must be set for coin '{coin}'"
                 )
             if not api_token:
                 raise ValueError(
-                    "SUBNET_PROXY_API_TOKEN environment variable must be set"
+                    f"{coin.upper()}_POOL_API_TOKEN environment variable must be set for coin '{coin}'"
                 )
 
             api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
-            self.pool = ProxyPool(pool_info=None, api=api)
+            self.pools[coin] = ProxyPool(pool_info=None, api=api)
+
+            logging.success(
+                f"Connected to proxy API for {coin.upper()} at {proxy_url.rstrip('/')}"
+            )
 
     def publish_pool_info(
         self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
@@ -188,8 +167,15 @@ class TaohashProxyValidator(BaseValidator):
 
         try:
             for coin in self.config.coins:
+                pool = self.pools[coin]
+                if pool is None:
+                    logging.warning(
+                        f"No proxy pool configured for {coin}. Skipping evaluation."
+                    )
+                    continue
+
                 timerange_result = get_metrics_timerange(
-                    self.pool,
+                    pool,
                     self.hotkeys,
                     self.block_at_registration,
                     start_time,
