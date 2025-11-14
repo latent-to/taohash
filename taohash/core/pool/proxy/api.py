@@ -23,7 +23,7 @@ class ProxyPoolAPI(PoolAPI):
     The proxy provides worker statistics via REST API with Bearer token authentication.
     """
 
-    def __init__(self, proxy_url: str, api_token: str):
+    def __init__(self, proxy_url: str, api_token: str, coin: str = "btc"):
         self.proxy_url = proxy_url.rstrip("/")
         self.api_token = api_token
         self.headers = {
@@ -33,13 +33,13 @@ class ProxyPoolAPI(PoolAPI):
 
         if not self.test_connection():
             logging.error(
-                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
+                f"Failed to connect to {coin.upper()} Pool API. Please check your proxy URL and API token."
             )
             raise ProxyPoolConnectionError(
-                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
+                f"Failed to connect to {coin.upper()} Pool API. Please check your proxy URL and API token."
             )
         else:
-            logging.success("Successfully connected to Proxy Pool API.")
+            logging.success(f"Health check passed for {coin.upper()} Pool API.")
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
