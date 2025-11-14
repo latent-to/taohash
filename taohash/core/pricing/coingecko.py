@@ -13,6 +13,10 @@ class CoinGeckoAPI(NetworkedCoinPriceAPI):
 
     def __init__(self, api_key: Optional[str]) -> None:
         self.is_pro = api_key is not None
+        self.coin_map = {
+            "btc": "bitcoin",
+            "bch": "bitcoin-cash",
+        }
         super().__init__(api_key)
 
     def _get_price(self, coin: str, vs: str = "usd") -> float:
@@ -29,8 +33,9 @@ class CoinGeckoAPI(NetworkedCoinPriceAPI):
         Raises:
             ValueError: If the API request fails
         """
-        prices = self._get_prices([coin], vs)
-        return prices[coin]
+        coin_slug = self.coin_map.get(coin, coin)
+        prices = self._get_prices([coin_slug], vs)
+        return prices[coin_slug]
 
     def _get_prices(self, coins: list[str], vs: str = "usd") -> dict[str, float]:
         """
