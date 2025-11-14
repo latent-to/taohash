@@ -41,7 +41,7 @@ class ProxyPool(PoolBase):
         return all_workers
 
     def get_miner_contributions_timerange(
-        self, start_time: int, end_time: int, coin: str = "bitcoin"
+        self, start_time: int, end_time: int, coin: str = "btc"
     ) -> dict[str, dict[str, Any]]:
         """
         Get mining contributions for all miners in the pool for a specific time range.
@@ -49,13 +49,14 @@ class ProxyPool(PoolBase):
         Args:
             start_time: Start time as unix timestamp (required)
             end_time: End time as unix timestamp (required)
+            coin: The coin type (default: "btc")
 
         Returns:
             Dictionary mapping hotkeys to their contribution metrics for the time range
         """
         all_workers = self.api.get_workers_timerange(start_time, end_time, coin)
         logging.info(
-            f"Retrieved timerange data for {len(all_workers)} workers from proxy"
+            f"Retrieved timerange data for {len(all_workers)} workers from {coin.upper()} pool"
         )
         return all_workers
 
