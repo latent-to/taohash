@@ -93,7 +93,7 @@ class TaohashProxyValidator(BaseValidator):
                     f"{coin.upper()}_POOL_API_TOKEN environment variable must be set for coin '{coin}'"
                 )
 
-            api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token)
+            api = ProxyPoolAPI(proxy_url=proxy_url, api_token=api_token, coin=coin)
             self.pools[coin] = ProxyPool(pool_info=None, api=api)
 
             logging.success(
@@ -192,21 +192,32 @@ class TaohashProxyValidator(BaseValidator):
 
                 coin_price = self.price_api.get_price(coin)
                 coin_difficulty = get_current_difficulty(coin)
+
+                share_rows = []
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
                         continue
 
                     uid = hotkey_to_uid[metric.hotkey]
-                    share_value = metric.get_share_value_fiat(coin_price, coin_difficulty, coin)
+                    share_value = metric.get_share_value_fiat(
+                        coin_price, coin_difficulty, coin
+                    )
 
-                    if share_value > 0:
-                        logging.info(
-                            f"Share value: {share_value}, hotkey: {metric.hotkey}, uid: {uid}"
-                        )
                     self.scores[uid] += share_value
+                    if share_value > 0:
+                        share_rows.append(
+                            [
+                                uid,
+                                metric.hotkey,
+                                f"{share_value:.8f}",
+                            ]
+                        )
 
-                self._log_share_value_scores(coin, f"{end_time - start_time}s")
+                self._log_coin_share_table(
+                    coin, share_rows, timeframe_seconds=end_time - start_time
+                )
 
+            self._log_share_value_scores(coin, f"{end_time - start_time}s")
             self.last_evaluation_timestamp = current_time
             logging.info(f"Updated last_evaluation_timestamp to {current_time}")
 
@@ -246,9 +257,30 @@ class TaohashProxyValidator(BaseValidator):
             rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
         )
 
-        title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Timeframe: {timeframe})"
+        title = f"Current Mining Scores - Block {self.current_block} - All Coins - (Timeframe: {timeframe})"
         logging.info(f"Scores updated at block {self.current_block}")
         logging.info(f".\n{title}\n{table}")
+
+    def _log_coin_share_table(
+        self, coin: str, share_rows: list[list[str]], timeframe_seconds: int
+    ) -> None:
+        """Print per-coin share value contributions for the current evaluation cycle."""
+        if not share_rows:
+            logging.info(
+                f"No valid share values for {coin.upper()} during timeframe {timeframe_seconds}s "
+                f"at block {self.current_block}"
+            )
+            return
+
+        share_table = tabulate(
+            share_rows,
+            headers=["UID", "Hotkey", f"{coin.upper()} Share Value"],
+            tablefmt="outline",
+            numalign="right",
+            stralign="left",
+        )
+        title = f"Share value summary - {coin.upper()} (Timeframe: {timeframe_seconds}s) - Block {self.current_block}"
+        logging.info(f".\n{title}\n{share_table}")
 
     def save_state(self) -> None:
         """Save the current validator state to storage, including timestamp."""
