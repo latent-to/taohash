@@ -144,7 +144,7 @@ class ProxyPoolAPI(PoolAPI):
     )
     @limits(calls=1, period=2)
     def get_workers_timerange(
-        self, start_time: int, end_time: int, coin: str = "bitcoin"
+        self, start_time: int, end_time: int, coin: str = "btc"
     ) -> dict[str, Any]:
         """
         Get worker data for a specific time range.
@@ -152,7 +152,7 @@ class ProxyPoolAPI(PoolAPI):
         Args:
             start_time: Start time as unix timestamp (required)
             end_time: End time as unix timestamp (required)
-            coin: The coin type (default: "bitcoin")
+            coin: The coin type (default: "btc")
 
         Returns:
             Dict containing workers data and payout factor
@@ -165,9 +165,9 @@ class ProxyPoolAPI(PoolAPI):
             response.raise_for_status()
 
             data = response.json()
-            payout_factor = data.get("btc", {}).get("worker_percentage", PAYOUT_FACTOR)
+            payout_factor = data.get(coin, {}).get("worker_percentage", PAYOUT_FACTOR)
 
-            workers = data.get("btc", {}).get("workers", {})
+            workers = data.get(coin, {}).get("workers", {})
 
             worker_result = {}
             for worker_id, worker_data in workers.items():
