@@ -33,12 +33,13 @@ Bittensor Docs:
 
 ### Get Subnet Proxy Credentials
 
-Contact the subnet owner via the [TAOHash Discord channel](https://discord.gg/sz9MDMm5sb) to receive:
+Contact the subnet owner via the [TAOHash Discord channel](https://discord.gg/sz9MDMm5sb) to receive **credentials for all active pools**. 
+Currently, you will receive two pairs of URL/token values:
 
-- **Proxy API URL**: The endpoint for retrieving miner statistics
-- **API Token**: Authentication token for the proxy API
+- **BTC Proxy API URL / Token** – used to fetch Bitcoin share values
+- **BCH Proxy API URL / Token** – used to fetch Bitcoin Cash share values
 
-These credentials allow your validator to evaluate miners based on their mining contributions.
+These credentials allow your validator to evaluate miners based on their mining contributions for both pools.
 
 ### Bittensor Wallet Setup
 
@@ -121,8 +122,12 @@ BT_WALLET_HOTKEY="your_hotkey_name"
 BT_LOGGING_INFO=1
 
 # Subnet Proxy Configuration (from subnet owner)
-SUBNET_PROXY_API_URL="http://btc.taohash.com:8888"
-SUBNET_PROXY_API_TOKEN="your-api-token-here"
+# One set per supported coin (currently BTC and BCH)
+BTC_POOL_API_URL="http://proxy.taohash.com:8888"
+BTC_POOL_API_TOKEN="your-api-token-here"
+
+BCH_POOL_API_URL="http://proxy.taohash-bch.com:8888"
+BCH_POOL_API_TOKEN="your-api-token-here"
 ```
 
 ### Running the Validator
@@ -152,22 +157,22 @@ Verify it started to correctly score miners.
 
 ## Validator Evaluation Process
 
-1. Validators fetch miner statistics from the subnet proxy every 5 minutes (25 blocks)
-2. They calculate share values based on miner contributions
+1. Validators fetch miner statistics from **each configured coin pool** every 5 minutes (25 blocks)
+2. They calculate share values per coin, aggregate them, and update miner scores
 3. Weights are set every `tempo` blocks (every epoch) based on moving averages
 4. All validators use the same proxy endpoint for consistent evaluation
 
 ## Troubleshooting
 
 **Cannot connect to subnet proxy**
-- Verify the `SUBNET_PROXY_API_URL` is correct
-- Check that your API token is valid
-- Ensure network connectivity to the proxy
+- Verify the `<COIN>_POOL_API_URL` and `<COIN>_POOL_API_TOKEN` values are correct for *each* coin (BTC, BCH)
+- Check that the provided API token hasn’t expired or been revoked
+- Ensure network connectivity to the proxy host/port in your environment
 
 **No miner data received**
 - Confirm miners are actively mining by checking the [TAOHash leaderboard](https://taohash.com/leaderboard)
-- Check proxy logs for any issues with data collection
-- Verify network connectivity between validators and the subnet proxy
+- Check BTC and BCH proxy logs independently for issues with data collection
+- Verify network connectivity between your validator and every proxy endpoint
 
 **Wallet issues**
 - Ensure wallet is properly created and registered (see [Bittensor Wallet Setup](#bittensor-wallet-setup) above or [Bittensor wallet documentation](https://docs.learnbittensor.org/working-with-keys/))
