@@ -190,15 +190,14 @@ class TaohashProxyValidator(BaseValidator):
                     payout_factor if payout_factor <= 1 else self.payout_factor
                 )
 
-                btc_price = self.price_api.get_price(coin)
-                btc_difficulty = get_current_difficulty()
-
+                coin_price = self.price_api.get_price(coin)
+                coin_difficulty = get_current_difficulty(coin)
                 for metric in miner_metrics:
                     if metric.hotkey not in hotkey_to_uid:
                         continue
 
                     uid = hotkey_to_uid[metric.hotkey]
-                    share_value = metric.get_share_value_fiat(btc_price, btc_difficulty)
+                    share_value = metric.get_share_value_fiat(coin_price, coin_difficulty, coin)
 
                     if share_value > 0:
                         logging.info(
