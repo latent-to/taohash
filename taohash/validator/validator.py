@@ -27,7 +27,7 @@ from taohash.core.constants import (
     PAYOUT_FACTOR,
 )
 from taohash.core.pool import Pool, PoolBase
-from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange
+from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange, EvaluationMetrics
 from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
 from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
@@ -60,8 +60,8 @@ class TaohashProxyValidator(BaseValidator):
         self.alpha = 0.8
         self.weights_interval = self.tempo
 
-        self.last_evaluation_timestamps = {}
-        self.payout_factor = PAYOUT_FACTOR
+        self.evaluation_metrics = {}  # Per-coin evaluation metrics: {'btc': EvaluationMetrics, 'bch': EvaluationMetrics}
+        self.scores = []  # Initialize to empty list to prevent AttributeError
 
     def add_args(self, parser: argparse.ArgumentParser):
         """Add validator arguments to the parser."""
@@ -154,7 +154,12 @@ class TaohashProxyValidator(BaseValidator):
                 )
                 continue
 
-            coin_last_eval = self.last_evaluation_timestamps.get(coin)
+            # Get or create evaluation metrics for this coin
+            if coin not in self.evaluation_metrics:
+                self.evaluation_metrics[coin] = EvaluationMetrics(coin, len(self.hotkeys))
+
+            evaluation_metrics = self.evaluation_metrics[coin]
+            coin_last_eval = evaluation_metrics.last_evaluation_timestamp
             if coin_last_eval:
                 start_time = coin_last_eval
                 end_time = current_time
@@ -186,8 +191,9 @@ class TaohashProxyValidator(BaseValidator):
                 miner_metrics: list[ProxyMetrics] = timerange_result["metrics"]
                 payout_factor = timerange_result["payout_factor"]
 
-                self.payout_factor = (
-                    payout_factor if payout_factor <= 1 else self.payout_factor
+                # Update payout factor for this coin
+                evaluation_metrics.payout_factor = (
+                    payout_factor if payout_factor <= 1 else evaluation_metrics.payout_factor
                 )
 
                 coin_price = self.price_api.get_price(coin)
@@ -203,7 +209,8 @@ class TaohashProxyValidator(BaseValidator):
                         coin_price, coin_difficulty, coin
                     )
 
-                    self.scores[uid] += share_value
+                    # Accumulate raw score for this coin (without payout factor)
+                    evaluation_metrics.add_score(uid, share_value)
                     if share_value > 0:
                         share_rows.append(
                             [
@@ -217,18 +224,15 @@ class TaohashProxyValidator(BaseValidator):
                     coin, share_rows, timeframe_seconds=end_time - start_time
                 )
 
-                self.last_evaluation_timestamps[coin] = current_time
-                logging.info(
-                    f"Updated {coin.upper()} evaluation timestamp to {current_time}"
-                )
+                # Update timestamp only for successful evaluation
+                evaluation_metrics.last_evaluation_timestamp = current_time
+                logging.info(f"Updated {coin.upper()} evaluation timestamp to {current_time}")
 
             except Exception as e:
                 logging.error(
                     f"Failed to retrieve {coin.upper()} miner metrics for time range {start_time} to {end_time}: {e}. "
                     f"Keeping {coin.upper()} timestamp at {coin_last_eval}"
                 )
-
-        self._log_share_value_scores()
 
     def _log_share_value_scores(self) -> None:
         """Log current scores based on share values from evaluated coins."""
@@ -286,18 +290,21 @@ class TaohashProxyValidator(BaseValidator):
         logging.info(f".\n{title}\n{share_table}")
 
     def save_state(self) -> None:
-        """Save the current validator state to storage, including per-coin timestamps."""
+        """Save the current validator state to storage."""
+        # Convert evaluation metrics to dict for saving
+        evaluation_metrics_data = {
+            coin: metrics.to_dict()
+            for coin, metrics in self.evaluation_metrics.items()
+        }
+
         state = {
-            "scores": self.scores,
+            "evaluation_metrics": evaluation_metrics_data,
             "hotkeys": self.hotkeys,
             "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
-            "last_evaluation_timestamps": self.last_evaluation_timestamps,
         }
         self.storage.save_state(state)
-        logging.info(
-            f"Saved validator state at block {self.current_block} with timestamps: {self.last_evaluation_timestamps}"
-        )
+        logging.info(f"Saved validator state at block {self.current_block}")
 
     def restore_state_and_evaluate(self) -> None:
         """
@@ -324,24 +331,29 @@ class TaohashProxyValidator(BaseValidator):
 
         # Restore state
         total_hotkeys = len(state.get("hotkeys", []))
-        self.scores = state.get("scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
-        self.last_evaluation_timestamps = state.get("last_evaluation_timestamps", {})
+
+        # Restore evaluation metrics
+        self.evaluation_metrics = {}
+        if "evaluation_metrics" in state:
+            for coin, data in state["evaluation_metrics"].items():
+                self.evaluation_metrics[coin] = EvaluationMetrics.from_dict(
+                    coin, data, total_hotkeys
+                )
 
         self.resync_metagraph()
 
         for idx in range(len(self.hotkeys)):
-            # If the coldkey is a bad one, set the score to 0
+            # If the coldkey is a bad one, reset scores to 0 for all coins
             if self.metagraph.coldkeys[idx] in BAD_COLDKEYS:
-                self.scores[idx] = 0.0
+                for metrics in self.evaluation_metrics.values():
+                    metrics.scores[idx] = 0.0
 
         logging.warning(f"Validator was down for {blocks_down} blocks.")
         self.evaluate_miner_share_value()
 
-        logging.success(
-            f"Successfully restored validator state with evaluation timestamps: {self.last_evaluation_timestamps}"
-        )
+        logging.success("Successfully restored validator state")
 
     def calculate_weights_distribution(self, total_value: float) -> list[float]:
         weights = [0.0] * len(self.hotkeys)
@@ -352,9 +364,16 @@ class TaohashProxyValidator(BaseValidator):
         blocks_to_set_for = self.current_block - self.last_update
         alpha_to_dist = blocks_to_set_for * (1 - OWNER_TAKE) * SPLIT_WITH_MINERS
         value_to_dist = alpha_to_dist * alpha_price
-        scaled_total_value = total_value * self.payout_factor
+        # Note: payout factors are already applied when merging coin scores
+        scaled_total_value = total_value
 
-        logging.info(f"Payout factor: {self.payout_factor}")
+        # Log per-coin payout factors from evaluation metrics
+        if self.evaluation_metrics:
+            payout_factors = {
+                coin: metrics.payout_factor
+                for coin, metrics in self.evaluation_metrics.items()
+            }
+            logging.info(f"Payout factors: {payout_factors}")
 
         if scaled_total_value > value_to_dist:
             weights = [score / scaled_total_value for score in self.scores]
@@ -379,10 +398,21 @@ class TaohashProxyValidator(BaseValidator):
                 - str: Error message if weights were not set successfully, empty string otherwise
 
         Evaluation:
-            1. Set weights using current scores.
-            2. Ensure miners are still active - otherwise burn the alpha.
-            3. Reset scores for next evaluation.
+            1. Merge coin scores with payout factors.
+            2. Set weights using merged scores.
+            3. Ensure miners are still active - otherwise burn the alpha.
+            4. Reset scores for next evaluation.
         """
+        # Merge evaluation metrics scores with their payout factors
+        self.scores = [0.0] * len(self.hotkeys)
+        for metrics in self.evaluation_metrics.values():
+            weighted_scores = metrics.get_weighted_scores()
+            for uid in range(len(self.hotkeys)):
+                self.scores[uid] += weighted_scores[uid]
+
+        # Log the merged scores before calculating weights
+        self._log_share_value_scores()
+
         # Calculate weights
         total_value = sum(self.scores)
         if total_value == 0:
@@ -405,8 +435,9 @@ class TaohashProxyValidator(BaseValidator):
         if success:
             self._log_weights_and_scores(weights)
             self.last_update = self.current_block
-            # Reset base scores for next evaluation
-            self.scores = [0.0] * len(self.hotkeys)
+            # Reset evaluation metrics for next evaluation
+            for metrics in self.evaluation_metrics.values():
+                metrics.reset_scores(len(self.hotkeys))
             return True, err_msg
         return False, err_msg
 
