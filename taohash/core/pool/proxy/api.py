@@ -26,20 +26,18 @@ class ProxyPoolAPI(PoolAPI):
     def __init__(self, proxy_url: str, api_token: str, coin: str = "btc"):
         self.proxy_url = proxy_url.rstrip("/")
         self.api_token = api_token
+        self.coin = coin
         self.headers = {
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
 
-        if not self.test_connection():
-            logging.error(
-                f"Failed to connect to {coin.upper()} Pool API. Please check your proxy URL and API token."
-            )
-            raise ProxyPoolConnectionError(
-                f"Failed to connect to {coin.upper()} Pool API. Please check your proxy URL and API token."
-            )
-        else:
+        if self.test_connection():
             logging.success(f"Health check passed for {coin.upper()} Pool API.")
+        else:
+            logging.warning(
+                f"Could not connect to {coin.upper()} Pool API initially. Will retry during API calls."
+            )
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
