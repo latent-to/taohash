@@ -60,7 +60,7 @@ class TaohashProxyValidator(BaseValidator):
         self.alpha = 0.8
         self.weights_interval = self.tempo
 
-        self.last_evaluation_timestamp = None
+        self.last_evaluation_timestamps = {}
         self.payout_factor = PAYOUT_FACTOR
 
     def add_args(self, parser: argparse.ArgumentParser):
@@ -138,7 +138,7 @@ class TaohashProxyValidator(BaseValidator):
         Evaluate value provided by miners based on share values for a time range.
 
         Evaluation:
-            1. Determine time range (last 10 minutes for first run, or since last evaluation)
+            1. Determine time range per coin (last 10 minutes for first run, or since last evaluation)
             2. Fetch miner contributions from proxy for that time range
             3. Update scores for each miner based on share values
         """
@@ -146,34 +146,34 @@ class TaohashProxyValidator(BaseValidator):
 
         current_time = int(time.time())
 
-        if self.last_evaluation_timestamp:
-            start_time = self.last_evaluation_timestamp
-            end_time = current_time
+        for coin in self.config.coins:
+            pool = self.pools.get(coin)
+            if pool is None:
+                logging.warning(
+                    f"No proxy pool configured for {coin}. Skipping evaluation."
+                )
+                continue
 
-            max_range = 24 * 60 * 60
-            if end_time - start_time > max_range:
-                start_time = end_time - max_range
+            coin_last_eval = self.last_evaluation_timestamps.get(coin)
+            if coin_last_eval:
+                start_time = coin_last_eval
+                end_time = current_time
 
-            logging.info(
-                f"Evaluating miners for time range: {start_time} to {end_time} ({end_time - start_time} seconds)"
-            )
-        else:
-            # First evaluation - use last 10 minutes
-            end_time = current_time
-            start_time = end_time - (10 * 60)
-            logging.info(
-                f"First evaluation - using last 10 minutes: {start_time} to {end_time}"
-            )
+                max_range = 24 * 60 * 60
+                if end_time - start_time > max_range:
+                    start_time = end_time - max_range
 
-        try:
-            for coin in self.config.coins:
-                pool = self.pools[coin]
-                if pool is None:
-                    logging.warning(
-                        f"No proxy pool configured for {coin}. Skipping evaluation."
-                    )
-                    continue
+                logging.info(
+                    f"Evaluating {coin.upper()} miners for time range: {start_time} to {end_time} ({end_time - start_time} seconds)"
+                )
+            else:
+                end_time = current_time
+                start_time = end_time - (10 * 60)
+                logging.info(
+                    f"First evaluation for {coin.upper()} - using last 10 minutes: {start_time} to {end_time}"
+                )
 
+            try:
                 timerange_result = get_metrics_timerange(
                     pool,
                     self.hotkeys,
@@ -217,18 +217,21 @@ class TaohashProxyValidator(BaseValidator):
                     coin, share_rows, timeframe_seconds=end_time - start_time
                 )
 
-            self._log_share_value_scores(coin, f"{end_time - start_time}s")
-            self.last_evaluation_timestamp = current_time
-            logging.info(f"Updated last_evaluation_timestamp to {current_time}")
+                self.last_evaluation_timestamps[coin] = current_time
+                logging.info(
+                    f"Updated {coin.upper()} evaluation timestamp to {current_time}"
+                )
 
-        except Exception as e:
-            logging.error(
-                f"Failed to retrieve miner metrics for time range {start_time} to {end_time}: {e}. "
-                f"Keeping last_evaluation_timestamp at {self.last_evaluation_timestamp}"
-            )
+            except Exception as e:
+                logging.error(
+                    f"Failed to retrieve {coin.upper()} miner metrics for time range {start_time} to {end_time}: {e}. "
+                    f"Keeping {coin.upper()} timestamp at {coin_last_eval}"
+                )
 
-    def _log_share_value_scores(self, coin: str, timeframe: str) -> None:
-        """Log current scores based on share values."""
+        self._log_share_value_scores()
+
+    def _log_share_value_scores(self) -> None:
+        """Log current scores based on share values from evaluated coins."""
         rows = []
         headers = ["UID", "Hotkey", "Score"]
 
@@ -249,7 +252,7 @@ class TaohashProxyValidator(BaseValidator):
 
         if not rows:
             logging.info(
-                f"No active miners for {coin} (timeframe: {timeframe}) at Block {self.current_block}"
+                f"No active miners for {self.config.coins} at Block {self.current_block}"
             )
             return
 
@@ -257,7 +260,7 @@ class TaohashProxyValidator(BaseValidator):
             rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
         )
 
-        title = f"Current Mining Scores - Block {self.current_block} - All Coins - (Timeframe: {timeframe})"
+        title = f"Current Mining Scores - Block {self.current_block} - Coins: {self.config.coins}"
         logging.info(f"Scores updated at block {self.current_block}")
         logging.info(f".\n{title}\n{table}")
 
@@ -283,17 +286,17 @@ class TaohashProxyValidator(BaseValidator):
         logging.info(f".\n{title}\n{share_table}")
 
     def save_state(self) -> None:
-        """Save the current validator state to storage, including timestamp."""
+        """Save the current validator state to storage, including per-coin timestamps."""
         state = {
             "scores": self.scores,
             "hotkeys": self.hotkeys,
             "block_at_registration": self.block_at_registration,
             "current_block": self.current_block,
-            "last_evaluation_timestamp": self.last_evaluation_timestamp,
+            "last_evaluation_timestamps": self.last_evaluation_timestamps,
         }
         self.storage.save_state(state)
         logging.info(
-            f"Saved validator state at block {self.current_block} with timestamp {self.last_evaluation_timestamp}"
+            f"Saved validator state at block {self.current_block} with timestamps: {self.last_evaluation_timestamps}"
         )
 
     def restore_state_and_evaluate(self) -> None:
@@ -324,7 +327,7 @@ class TaohashProxyValidator(BaseValidator):
         self.scores = state.get("scores", [0.0] * total_hotkeys)
         self.hotkeys = state.get("hotkeys", [])
         self.block_at_registration = state.get("block_at_registration", [])
-        self.last_evaluation_timestamp = state.get("last_evaluation_timestamp", None)
+        self.last_evaluation_timestamps = state.get("last_evaluation_timestamps", {})
 
         self.resync_metagraph()
 
@@ -337,7 +340,7 @@ class TaohashProxyValidator(BaseValidator):
         self.evaluate_miner_share_value()
 
         logging.success(
-            f"Successfully restored validator state with last evaluation timestamp: {self.last_evaluation_timestamp}"
+            f"Successfully restored validator state with evaluation timestamps: {self.last_evaluation_timestamps}"
         )
 
     def calculate_weights_distribution(self, total_value: float) -> list[float]:
