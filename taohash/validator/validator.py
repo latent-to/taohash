@@ -24,10 +24,13 @@ from taohash.core.constants import (
     U16_MAX,
     OWNER_TAKE,
     SPLIT_WITH_MINERS,
-    PAYOUT_FACTOR,
 )
 from taohash.core.pool import Pool, PoolBase
-from taohash.core.pool.metrics import ProxyMetrics, get_metrics_timerange, EvaluationMetrics
+from taohash.core.pool.metrics import (
+    ProxyMetrics,
+    get_metrics_timerange,
+    EvaluationMetrics,
+)
 from taohash.core.pool.proxy import ProxyPool, ProxyPoolAPI
 from taohash.core.pool.proxy.config import ProxyPoolAPIConfig, ProxyPoolConfig
 from taohash.core.pricing import CoinPriceAPI
@@ -59,9 +62,6 @@ class TaohashProxyValidator(BaseValidator):
 
         self.alpha = 0.8
         self.weights_interval = self.tempo
-
-        self.evaluation_metrics = {}  # Per-coin evaluation metrics: {'btc': EvaluationMetrics, 'bch': EvaluationMetrics}
-        self.scores = []  # Initialize to empty list to prevent AttributeError
 
     def add_args(self, parser: argparse.ArgumentParser):
         """Add validator arguments to the parser."""
@@ -156,7 +156,9 @@ class TaohashProxyValidator(BaseValidator):
 
             # Get or create evaluation metrics for this coin
             if coin not in self.evaluation_metrics:
-                self.evaluation_metrics[coin] = EvaluationMetrics(coin, len(self.hotkeys))
+                self.evaluation_metrics[coin] = EvaluationMetrics(
+                    coin, len(self.hotkeys)
+                )
 
             evaluation_metrics = self.evaluation_metrics[coin]
             coin_last_eval = evaluation_metrics.last_evaluation_timestamp
@@ -193,7 +195,9 @@ class TaohashProxyValidator(BaseValidator):
 
                 # Update payout factor for this coin
                 evaluation_metrics.payout_factor = (
-                    payout_factor if payout_factor <= 1 else evaluation_metrics.payout_factor
+                    payout_factor
+                    if payout_factor <= 1
+                    else evaluation_metrics.payout_factor
                 )
 
                 coin_price = self.price_api.get_price(coin)
@@ -226,12 +230,14 @@ class TaohashProxyValidator(BaseValidator):
 
                 # Update timestamp only for successful evaluation
                 evaluation_metrics.last_evaluation_timestamp = current_time
-                logging.info(f"Updated {coin.upper()} evaluation timestamp to {current_time}")
+                logging.info(
+                    f"Updated {coin.upper()} evaluation timestamp to {current_time}"
+                )
 
             except Exception as e:
                 logging.error(
                     f"Failed to retrieve {coin.upper()} miner metrics for time range {start_time} to {end_time}: {e}. "
-                    f"Keeping {coin.upper()} timestamp at {coin_last_eval}"
+                    f"Keeping {coin.upper()} timestamp {coin_last_eval if coin_last_eval else ''}"
                 )
 
     def _log_share_value_scores(self) -> None:
@@ -293,8 +299,7 @@ class TaohashProxyValidator(BaseValidator):
         """Save the current validator state to storage."""
         # Convert evaluation metrics to dict for saving
         evaluation_metrics_data = {
-            coin: metrics.to_dict()
-            for coin, metrics in self.evaluation_metrics.items()
+            coin: metrics.to_dict() for coin, metrics in self.evaluation_metrics.items()
         }
 
         state = {
