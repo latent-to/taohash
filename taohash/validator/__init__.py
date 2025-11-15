@@ -159,6 +159,7 @@ class BaseValidator:
         self.hotkeys = self.metagraph.hotkeys
         self.block_at_registration = self.metagraph.block_at_registration
         self.scores = [0.0] * len(self.metagraph.total_stake)
+        self.evaluation_metrics = {}
         self.tempo = self.subtensor.tempo(self.config.netuid)
 
     def save_state(self) -> None:
@@ -204,6 +205,9 @@ class BaseValidator:
                 )
                 # Reset scores for replaced hotkeys
                 self.scores[uid] = 0.0
+                for metrics in self.evaluation_metrics.values():
+                    if uid < len(metrics.scores):
+                        metrics.scores[uid] = 0.0
 
         # 2. Handle new registrations
         if len(previous_hotkeys) < len(self.metagraph.hotkeys):
@@ -218,6 +222,10 @@ class BaseValidator:
                 new_scores[i] = self.scores[i]
 
             self.scores = new_scores
+            for metrics in self.evaluation_metrics.values():
+                current_len = len(metrics.scores)
+                if current_len < new_size:
+                    metrics.scores.extend([0.0] * (new_size - current_len))
 
             # Log new registrations
             for uid in range(old_size, new_size):
