@@ -11,7 +11,7 @@ def extract_block_number(file: Path) -> int:
 
 
 def check_key(key):
-    """Checks if the key is a string convertable."""
+    """Checks if the key is a string convertible."""
     try:
         return str(key)
     except TypeError:
