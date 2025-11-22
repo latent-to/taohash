@@ -4,7 +4,7 @@ BLOCK_TIME = 12  # Seconds per block
 
 MAIN_PATH = Path("~", ".bittensor", "taohash").expanduser()
 
-VERSION_KEY = 34  # For validators
+VERSION_KEY = 35  # For validators
 U16_MAX = 65535
 
 OWNER_TAKE = 0.18
