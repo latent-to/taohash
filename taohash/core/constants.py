@@ -11,3 +11,8 @@ OWNER_TAKE = 0.18
 SPLIT_WITH_MINERS = 0.5
 
 PAYOUT_FACTOR = 0.015
+
+BLOCK_REWARDS = {
+    "btc": 3.125,
+    "bch": 3.125,
+}

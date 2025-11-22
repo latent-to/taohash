@@ -38,7 +38,6 @@ class BaseValidator:
 
         self.last_update = 0
         self.current_block = 0
-        self.scores = []
         self.hotkeys = []
         self.block_at_registration = []
 
@@ -134,11 +133,13 @@ class BaseValidator:
 
         # Initialize metagraph.
         self.metagraph = self.subtensor.get_metagraph_info(self.config.netuid)
-        logging.info(f"Metagraph: "
-                     f"<netuid:{self.metagraph.netuid}, "
-                     f"n:{len(self.metagraph.axons)}, "
-                     f"block:{self.metagraph.block}, "
-                     f"network: {self.subtensor.network}>")
+        logging.info(
+            f"Metagraph: "
+            f"<netuid:{self.metagraph.netuid}, "
+            f"n:{len(self.metagraph.axons)}, "
+            f"block:{self.metagraph.block}, "
+            f"network: {self.subtensor.network}>"
+        )
 
         # Connect the validator to the network.
         if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
@@ -156,19 +157,8 @@ class BaseValidator:
         self.current_block = self.metagraph.block
         self.hotkeys = self.metagraph.hotkeys
         self.block_at_registration = self.metagraph.block_at_registration
-        self.scores = [0.0] * len(self.metagraph.total_stake)
+        self.evaluation_metrics = {}
         self.tempo = self.subtensor.tempo(self.config.netuid)
-
-    def save_state(self) -> None:
-        """Save the current validator state to storage."""
-        state = {
-            "scores": self.scores,
-            "hotkeys": self.hotkeys,
-            "block_at_registration": self.block_at_registration,
-            "current_block": self.current_block,
-        }
-        self.storage.save_state(state)
-        logging.info(f"Saved validator state at block {self.current_block}")
 
     def resync_metagraph(self) -> None:
         """
@@ -201,7 +191,8 @@ class BaseValidator:
                     f"Hotkey replaced at uid {uid}: {hotkey} -> {self.metagraph.hotkeys[uid]}"
                 )
                 # Reset scores for replaced hotkeys
-                self.scores[uid] = 0.0
+                for metrics in self.evaluation_metrics.values():
+                    metrics.scores[uid] = 0.0
 
         # 2. Handle new registrations
         if len(previous_hotkeys) < len(self.metagraph.hotkeys):
@@ -209,13 +200,8 @@ class BaseValidator:
             new_size = len(self.metagraph.hotkeys)
             logging.info(f"Metagraph size increased from {old_size} to {new_size}")
 
-            new_scores = [0.0] * new_size
-
-            # Copy existing scores to the new arrays
-            for i in range(min(old_size, len(self.scores))):
-                new_scores[i] = self.scores[i]
-
-            self.scores = new_scores
+            for metrics in self.evaluation_metrics.values():
+                metrics.scores.extend([0.0] * (new_size - old_size))
 
             # Log new registrations
             for uid in range(old_size, new_size):
@@ -237,7 +223,7 @@ class BaseValidator:
         )
         owner_uid = self.metagraph.hotkeys.index(sn_owner_hotkey)
         return owner_uid
-    
+
     def get_burn_hotkey(self) -> Optional[int]:
         """
         Get the hotkey of the subnet owner.
@@ -330,37 +316,39 @@ class BaseValidator:
         title = f"Weights set at Block: {self.current_block}"
         logging.info(f"{title}\n{table}")
 
-    def _log_scores(self, coin: str, hash_price: float) -> None:
-        """Log current scores in a tabular format with hotkeys."""
-        rows = []
-        headers = ["UID", "Hotkey", "Score"]
+    def _get_proxy_credentials_for_coin(
+        self, coin: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Fetch proxy credentials for a coin from environment variables."""
 
-        # Sort by score (highest first)
-        sorted_indices = sorted(
-            range(len(self.scores)), key=lambda s: self.scores[s], reverse=True
-        )
+        base_url_env = "POOL_API_URL"
+        base_token_env = "POOL_API_TOKEN"
 
-        for i in sorted_indices:
-            if self.scores[i] > 0:
-                hotkey = self.metagraph.hotkeys[i]
-                rows.append(
-                    [
-                        i,
-                        f"{hotkey}",
-                        f"{self.scores[i]:.8f}",
-                    ]
-                )
+        coin_url_env = f"{coin.upper()}_{base_url_env}"
+        coin_token_env = f"{coin.upper()}_{base_token_env}"
 
+        proxy_url = os.getenv(coin_url_env) or None
+        api_token = os.getenv(coin_token_env) or None
+
+        return proxy_url, api_token
+
+    def _log_evaluation_for_coin(
+        self, coin: str, rows: list[list[str]], timeframe_seconds: int
+    ) -> None:
+        """Print per-coin share value contributions for the current evaluation cycle."""
         if not rows:
             logging.info(
-                f"No active miners for {coin} (hash price: ${hash_price:.8f}) at Block {self.current_block}"
+                f"No valid share values for {coin.upper()} during timeframe {timeframe_seconds}s "
+                f"at block {self.current_block}"
             )
             return
 
         table = tabulate(
-            rows, headers=headers, tablefmt="grid", numalign="right", stralign="left"
+            rows,
+            headers=["UID", "Hotkey", f"{coin.upper()} Share Value"],
+            tablefmt="outline",
+            numalign="right",
+            stralign="left",
         )
-
-        title = f"Current Mining Scores - Block {self.current_block} - {coin.upper()} (Hash Price: ${hash_price:.8f})"
-        logging.info(f"Scores updated at block {self.current_block}")
+        title = f"Evaluation summary - {coin.upper()} (Timeframe: {timeframe_seconds}s) - Block {self.current_block}"
         logging.info(f".\n{title}\n{table}")
