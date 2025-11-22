@@ -5,7 +5,7 @@ Proxy pool metrics implementation for time-based queries.
 from dataclasses import dataclass
 
 from taohash.core.pool.proxy.pool import ProxyPool
-from taohash.core.constants import PAYOUT_FACTOR
+from taohash.core.constants import PAYOUT_FACTOR, BLOCK_REWARDS
 from .base import BaseMetrics
 
 
@@ -19,21 +19,30 @@ class ProxyMetrics(BaseMetrics):
     hashrate: float = 0.0
     shares: int = 0
     share_value: float = 0.0
+    coin: str = "btc"
 
-    def get_share_value_fiat(self, btc_price: float, btc_difficulty: float) -> float:
+    def get_share_value_fiat(
+        self, coin_price: float, coin_difficulty: float, coin: str = None
+    ) -> float:
         """
         Returns the share value for this time period.
         The share value is already calculated by the pool based on actual work done.
 
         Args:
-            btc_price: Current Bitcoin price in USD
-            btc_difficulty: Current Bitcoin network difficulty
+            coin_price: Current coin price in USD
+            coin_difficulty: Current network difficulty for the coin
+            coin: Coin identifier (e.g., "btc", "bch"). If None, uses self.coin
 
         Returns:
             float: Share value in USD
         """
+        if coin is None:
+            coin = self.coin
+
+        block_reward = BLOCK_REWARDS.get(coin, 3.125)
+
         if self.share_value:
-            return (self.share_value / btc_difficulty) * 3.125 * btc_price
+            return (self.share_value / coin_difficulty) * block_reward * coin_price
         return 0.0
 
 
@@ -90,7 +99,7 @@ def get_metrics_timerange(
         worker_id = hotkeys_to_workers.get(hotkey)
 
         if worker_id is None:
-            metrics.append(ProxyMetrics(hotkey=hotkey))
+            metrics.append(ProxyMetrics(hotkey=hotkey, coin=coin))
             continue
 
         worker_data = all_workers.get(worker_id, {})
@@ -102,6 +111,7 @@ def get_metrics_timerange(
                 shares=worker_data.get("shares", 0),
                 share_value=worker_data.get("share_value", 0.0),
                 hash_rate_unit=worker_data.get("hash_rate_unit", "Gh/s"),
+                coin=coin,
             )
         )
 

@@ -23,23 +23,21 @@ class ProxyPoolAPI(PoolAPI):
     The proxy provides worker statistics via REST API with Bearer token authentication.
     """
 
-    def __init__(self, proxy_url: str, api_token: str):
+    def __init__(self, proxy_url: str, api_token: str, coin: str = "btc"):
         self.proxy_url = proxy_url.rstrip("/")
         self.api_token = api_token
+        self.coin = coin
         self.headers = {
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
 
-        if not self.test_connection():
-            logging.error(
-                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
-            )
-            raise ProxyPoolConnectionError(
-                "Failed to connect to Proxy Pool API. Please check your proxy URL and API token."
-            )
+        if self.test_connection():
+            logging.success(f"Health check passed for {coin.upper()} Pool API.")
         else:
-            logging.success("Successfully connected to Proxy Pool API.")
+            logging.warning(
+                f"Could not connect to {coin.upper()} Pool API initially. Will retry during API calls."
+            )
 
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
@@ -144,7 +142,7 @@ class ProxyPoolAPI(PoolAPI):
     )
     @limits(calls=1, period=2)
     def get_workers_timerange(
-        self, start_time: int, end_time: int, coin: str = "bitcoin"
+        self, start_time: int, end_time: int, coin: str = "btc"
     ) -> dict[str, Any]:
         """
         Get worker data for a specific time range.
@@ -152,7 +150,7 @@ class ProxyPoolAPI(PoolAPI):
         Args:
             start_time: Start time as unix timestamp (required)
             end_time: End time as unix timestamp (required)
-            coin: The coin type (default: "bitcoin")
+            coin: The coin type (default: "btc")
 
         Returns:
             Dict containing workers data and payout factor
@@ -165,9 +163,9 @@ class ProxyPoolAPI(PoolAPI):
             response.raise_for_status()
 
             data = response.json()
-            payout_factor = data.get("btc", {}).get("worker_percentage", PAYOUT_FACTOR)
+            payout_factor = data.get(coin, {}).get("worker_percentage", PAYOUT_FACTOR)
 
-            workers = data.get("btc", {}).get("workers", {})
+            workers = data.get(coin, {}).get("workers", {})
 
             worker_result = {}
             for worker_id, worker_data in workers.items():
