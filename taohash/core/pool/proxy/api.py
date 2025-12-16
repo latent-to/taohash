@@ -169,7 +169,8 @@ class ProxyPoolAPI(PoolAPI):
 
             worker_result = {}
             for worker_id, worker_data in workers.items():
-                worker_result[self._worker_name_to_worker_id(worker_id)] = worker_data
+                key = self._worker_name_to_worker_id(worker_id)
+                worker_result[key] = self._merge_worker_data(worker_result.get(key), worker_data)
 
             return {"workers": worker_result, "payout_factor": payout_factor}
 
