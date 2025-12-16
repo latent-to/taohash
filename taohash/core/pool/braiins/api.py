@@ -54,7 +54,7 @@ class BraiinsPoolAPI(PoolAPI):
         if len(splits) == 1:  # no period
             return splits[0]
         else:
-            return splits[-1]  # Take the worker_id after the last dot
+            return splits[-1][:8]  # Take 8 chars of HK slug after period
 
     @on_exception(
         expo, (RateLimitException, RequestException, JSONDecodeError), max_tries=8
@@ -75,10 +75,10 @@ class BraiinsPoolAPI(PoolAPI):
 
         result = response.json()
         workers = result[coin_name]["workers"]
-        output = {
-            self._worker_name_to_worker_id(worker_name): {**worker_data}
-            for worker_name, worker_data in workers.items()
-        }
+        output = {}
+        for worker_name, worker_data in workers.items():
+            key = self._worker_name_to_worker_id(worker_name)
+            output[key] = self._merge_worker_data(output.get(key), worker_data)
 
         return output
 
