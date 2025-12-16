@@ -42,10 +42,8 @@ class ProxyPoolAPI(PoolAPI):
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
         splits = worker_name.split(".")
-        if len(splits) == 1:  # no period
-            return splits[0]
-        else:
-            return splits[-1]  # Take the worker_id after the last dot
+        hotkey_part = splits[-1] if len(splits) > 1 else splits[0]
+        return hotkey_part.split("-")[0]  # Strip worker ID suffix if present
 
     @on_exception(
         expo,
@@ -169,7 +167,8 @@ class ProxyPoolAPI(PoolAPI):
 
             worker_result = {}
             for worker_id, worker_data in workers.items():
-                worker_result[self._worker_name_to_worker_id(worker_id)] = worker_data
+                key = self._worker_name_to_worker_id(worker_id)
+                worker_result[key] = self._merge_worker_data(worker_result.get(key), worker_data)
 
             return {"workers": worker_result, "payout_factor": payout_factor}
 
