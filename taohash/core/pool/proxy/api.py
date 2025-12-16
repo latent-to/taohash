@@ -45,7 +45,7 @@ class ProxyPoolAPI(PoolAPI):
         if len(splits) == 1:  # no period
             return splits[0]
         else:
-            return splits[-1]  # Take the worker_id after the last dot
+            return splits[-1][:8]  # Take 8 chars of HK slug after period
 
     @on_exception(
         expo,
