@@ -42,10 +42,8 @@ class ProxyPoolAPI(PoolAPI):
     @staticmethod
     def _worker_name_to_worker_id(worker_name: str) -> str:
         splits = worker_name.split(".")
-        if len(splits) == 1:  # no period
-            return splits[0]
-        else:
-            return splits[-1][:8]  # Take 8 chars of HK slug after period
+        hotkey_part = splits[-1] if len(splits) > 1 else splits[0]
+        return hotkey_part.split("-")[0]  # Strip worker ID suffix if present
 
     @on_exception(
         expo,
