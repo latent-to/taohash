@@ -14,9 +14,9 @@ from bittensor_wallet.bittensor_wallet import Wallet
 from dotenv import load_dotenv
 
 from taohash.core.chain_data.pool_info import (
-    publish_pool_info,
-    get_pool_info,
-    encode_pool_info,
+    publish_pool_infos,
+    get_pool_infos,
+    encode_pool_infos,
 )
 from taohash.core.constants import (
     VERSION_KEY,
@@ -24,7 +24,7 @@ from taohash.core.constants import (
     OWNER_TAKE,
     SPLIT_WITH_MINERS,
 )
-from taohash.core.pool import PoolBase
+from taohash.core.pool import PoolBase, PoolIndex
 from taohash.core.pool.metrics import (
     ProxyMetrics,
     get_metrics_timerange,
@@ -36,7 +36,7 @@ from taohash.core.pricing import CoinPriceAPI
 from taohash.core.pricing.network_stats import get_current_difficulty
 from taohash.validator import BaseValidator
 
-SUPPORTED_COINS = ["btc", "bch"]
+SUPPORTED_COINS = ["btc", "bch", "kas"]
 
 BAD_COLDKEYS = ["5CS96ckqKnd2snQ4rQKAvUpMh2pikRmCHb4H7TDzEt2AM9ZB"]
 
@@ -106,8 +106,8 @@ class TaohashProxyValidator(BaseValidator):
                 f"Connected to proxy API for {coin.upper()} at {proxy_url.rstrip('/')}"
             )
 
-    def publish_pool_info(
-        self, subtensor: "Subtensor", netuid: int, wallet: "Wallet", pool: PoolBase
+    def publish_pool_infos(
+        self, subtensor: "Subtensor", netuid: int, wallet: "Wallet"
     ) -> None:
         """
         Publish the mining pool info to bittensor.
@@ -116,23 +116,41 @@ class TaohashProxyValidator(BaseValidator):
             2. If not, publish the pool info to the chain.
             3. Update the pool info if it is outdated.
         """
-        pool_info = pool.get_pool_info()
-        pool_info_bytes = encode_pool_info(pool_info)
+        if not self.is_subnet_owner:
+            return
 
-        published_pool_info = get_pool_info(
+        pool_infos = []
+        for coin in self.config.coins:
+            if coin not in self.pools:
+                continue
+            pool = self.pools[coin]
+            # Assumes pool.get_pool_info() returns the PoolInfo object for that pool
+            pool_info = pool.get_pool_info()
+            # Set the coin index
+            pool_info.pool_index = PoolIndex[coin.upper()].value
+            pool_infos.append(pool_info)
+
+        if not pool_infos:
+            logging.warning("No pool infos to publish.")
+            return
+
+        pool_infos_bytes = encode_pool_infos(pool_infos)
+
+        published_pool_infos = get_pool_infos(
             subtensor, netuid, wallet.hotkey.ss58_address
         )
-        if published_pool_info is not None:
+
+        if published_pool_infos is not None:
             logging.info("Pool info detected.")
-            published_pool_info_bytes = encode_pool_info(published_pool_info)
-            if published_pool_info_bytes == pool_info_bytes:
+            published_pool_infos_bytes = encode_pool_infos(published_pool_infos)
+            if published_pool_infos_bytes == pool_infos_bytes:
                 logging.success("Pool info is already published.")
                 return
             else:
                 logging.info("Pool info is outdated.")
 
         logging.info("Publishing pool info to the chain.")
-        success = publish_pool_info(subtensor, netuid, wallet, pool_info_bytes)
+        success = publish_pool_infos(subtensor, netuid, wallet, pool_infos)
         if not success:
             logging.error("Failed to publish pool info")
             exit(1)

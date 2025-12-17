@@ -38,6 +38,7 @@ Currently, you will receive two pairs of URL/token values:
 
 - **BTC Proxy API URL / Token** – used to fetch Bitcoin share values
 - **BCH Proxy API URL / Token** – used to fetch Bitcoin Cash share values
+- **KAS Proxy API URL / Token** – used to fetch Kaspa share values
 
 These credentials allow your validator to evaluate miners based on their mining contributions for both pools.
 
@@ -128,6 +129,9 @@ BTC_POOL_API_TOKEN="your-api-token-here"
 
 BCH_POOL_API_URL="http://proxy.taohash-bch.com:8888"
 BCH_POOL_API_TOKEN="your-api-token-here"
+
+KAS_POOL_API_URL="http://proxy.taohash-kas.com:8888"
+KAS_POOL_API_TOKEN="your-api-token-here"
 ```
 
 ### Running the Validator
@@ -165,7 +169,7 @@ Verify it started to correctly score miners.
 ## Troubleshooting
 
 **Cannot connect to subnet proxy**
-- Verify the `<COIN>_POOL_API_URL` and `<COIN>_POOL_API_TOKEN` values are correct for *each* coin (BTC, BCH)
+- Verify the `<COIN>_POOL_API_URL` and `<COIN>_POOL_API_TOKEN` values are correct for *each* coin (BTC, BCH, KAS)
 - Check that the provided API token hasn’t expired or been revoked
 - Ensure network connectivity to the proxy host/port in your environment
 

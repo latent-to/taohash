@@ -9,6 +9,7 @@ from bittensor_wallet.bittensor_wallet import Wallet
 from taohash.core.utils import ip_to_int
 
 
+
 @dataclass
 class PoolInfo:
     """
@@ -129,28 +130,29 @@ class PoolInfo:
             return f":{self.high_diff_port}"
 
 
-def publish_pool_info(
-    subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_info_bytes: bytes
+def publish_pool_infos(
+    subtensor: bt_subtensor, netuid: int, wallet: "Wallet", pool_infos: list[PoolInfo]
 ) -> bool:
     """
     Publish mining pool information to the blockchain as a validator commitment.
 
-    Validators call this function to publish their pool connection details,
-    making them available to miners in the subnet. Each validator can have
-    only one active commitment at a time.
+    Validators call this function to publish their pool connection details for multiple coins,
+    making them available to miners in the subnet.
 
     Args:
         subtensor: Subtensor instance
         netuid: Network UID of the subnet
         wallet: Validator's wallet with hotkey for signing
-        pool_info_bytes: Encoded pool information (max 128 bytes)
+        pool_infos: List of PoolInfo objects to encode (max 128 bytes total)
 
     Returns:
         Boolean indicating success of the transaction
 
     Raises:
-        ValueError: If pool_info_bytes exceeds 128 bytes
+        ValueError: If encoded bytes exceed 128 bytes
     """
+    pool_info_bytes = encode_pool_infos(pool_infos)
+
     if len(pool_info_bytes) > 128:
         raise ValueError("Pool info bytes must be at most 128 bytes")
 
@@ -219,9 +221,9 @@ def get_all_pool_info(
     return all_pool_info
 
 
-def get_pool_info(
+def get_pool_infos(
     subtensor: bt_subtensor, netuid: int, hotkey: str
-) -> Optional[PoolInfo]:
+) -> Optional[list[PoolInfo]]:
     """
     Retrieve pool information for a specific validator.
 
@@ -233,7 +235,7 @@ def get_pool_info(
         hotkey: Validator's hotkey SS58 address
 
     Returns:
-        PoolInfo object if found, None otherwise
+        List of PoolInfo objects if found, None otherwise
     """
     try:
         commit_data = subtensor.substrate.query(
@@ -241,23 +243,19 @@ def get_pool_info(
             storage_function="CommitmentOf",
             params=[netuid, hotkey],
         )
-        
         if not commit_data:
             return None
-        
         try:
             commitment = commit_data["info"]["fields"][0][0]
             bytes_key = next(iter(commitment.keys()))
             bytes_tuple = commitment[bytes_key][0]
             raw_bytes = bytes(bytes_tuple)
-            
-            return decode_pool_info(raw_bytes)
+            return decode_pool_infos(raw_bytes)
         except Exception as e:
-            logging.debug(f"Failed to decode pool info (might be miner commitment): {e}")
+            logging.debug(f"Failed to decode pool infos: {e}")
             return None
-            
     except Exception as e:
-        logging.debug(f"Error retrieving pool info: {e}")
+        logging.debug(f"Error retrieving pool infos: {e}")
         return None
 
 
@@ -319,3 +317,21 @@ def encode_pool_info(pool_info: PoolInfo) -> bytes:
     raw_data = pool_info.to_raw()
 
     return bt_decode.encode("PoolInfo", reg, raw_data)
+
+
+def encode_pool_infos(pool_infos: list[PoolInfo]) -> bytes:
+    types_path = os.path.join(os.path.dirname(__file__), "types.json")
+    with open(types_path, "r") as f:
+        types = f.read()
+    reg = bt_decode.PortableRegistry.from_json(types)
+    raw_datas = [p.to_raw() for p in pool_infos]
+    return bt_decode.encode("Vec<PoolInfo>", reg, raw_datas)
+
+
+def decode_pool_infos(pool_info_bytes: bytes) -> list[PoolInfo]:
+    types_path = os.path.join(os.path.dirname(__file__), "types.json")
+    with open(types_path, "r") as f:
+        types = f.read()
+    reg = bt_decode.PortableRegistry.from_json(types)
+    data = bt_decode.decode("Vec<PoolInfo>", reg, pool_info_bytes)
+    return [PoolInfo(**d) for d in data]

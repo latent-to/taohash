@@ -7,21 +7,9 @@ from taohash.core.pool.config import PoolAPIConfig
 
 
 class PoolIndex(IntEnum):
-    """
-    Enumeration of supported mining pool types.
-
-    Used to identify and differentiate between different pool implementations
-    and their connection methods.
-    """
-
-    # Invalid = 0 reserved for default value
-    Custom = 1  # uses the IP and Port
-    Braiins = 2
-    Proxy = 3  # uses the Taohash proxy
-
-    @classmethod
-    def has_value(cls, value):
-        return value in cls.__members__.values()
+    BTC = 0
+    BCH = 1
+    KAS = 2  # For Kaspa
 
 
 class PoolBase(metaclass=abc.ABCMeta):

@@ -8,9 +8,9 @@ from taohash.core.pool.config import PoolAPIConfig
 from taohash.core.pool.pool import PoolBase, PoolIndex
 
 POOL_URLS_FMT: dict[PoolIndex, Callable[[PoolInfo], str]] = {
-    PoolIndex.Braiins: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
-    PoolIndex.Custom: lambda pool_info: f"stratum+tcp://{pool_info.ip}:{pool_info.port}",
-    PoolIndex.Proxy: lambda pool_info: f"http://{pool_info.ip}:{pool_info.port}",
+    PoolIndex.BTC: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
+    PoolIndex.BCH: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
+    PoolIndex.KAS: lambda pool_info: f"stratum+tcp://{pool_info.domain}:{pool_info.port}",
 }
 
 
@@ -23,8 +23,9 @@ class Pool:
     """
 
     __CLASS_MAP: dict[int, PoolBase] = {
-        PoolIndex.Braiins: BraiinsPool,
-        PoolIndex.Proxy: ProxyPool,
+        PoolIndex.BTC: ProxyPool,
+        PoolIndex.BCH: ProxyPool,
+        PoolIndex.KAS: ProxyPool,
     }
 
     def __new__(cls, pool_info: PoolInfo, config: PoolAPIConfig) -> "PoolBase":

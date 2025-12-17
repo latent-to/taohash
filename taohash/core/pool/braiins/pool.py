@@ -6,7 +6,7 @@ from taohash.core.pool.pool import PoolBase, PoolIndex
 
 class BraiinsPool(PoolBase):
     api: BraiinsPoolAPI
-    index = PoolIndex.Braiins
+    index = PoolIndex.BTC
 
     def __init__(self, pool_info: PoolInfo, api: BraiinsPoolAPI) -> None:
         super().__init__(pool_info, api)

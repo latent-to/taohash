@@ -6,7 +6,7 @@ from bittensor import Subtensor, config, logging
 from bittensor_wallet.bittensor_wallet import Wallet
 
 from taohash.miner.storage import get_miner_storage, BaseJsonStorage, BaseRedisStorage
-from taohash.core.chain_data.pool_info import get_pool_info, PoolInfo
+from taohash.core.chain_data.pool_info import get_pool_infos, PoolInfo
 
 DEFAULT_SYNC_FREQUENCY = 6
 
@@ -131,8 +131,8 @@ class BaseMiner:
             logging.error(f"Error getting subnet owner hotkey: {e}")
             return None
 
-    def get_subnet_pool(self) -> Optional[PoolInfo]:
-        """Get the subnet's pool info."""
+    def get_subnet_pools(self) -> Optional[list[PoolInfo]]:
+        """Get the subnet's pool infos."""
         if not self.pool_hotkey:
             self.pool_hotkey = self.get_owner_hotkey()
 
@@ -141,21 +141,16 @@ class BaseMiner:
             return None
 
         try:
-            pool_info = get_pool_info(self.subtensor, self.config.netuid, self.pool_hotkey)
+            pool_infos = get_pool_infos(self.subtensor, self.config.netuid, self.pool_hotkey)
 
-            if pool_info:
-                logging.info(
-                    f"Retrieved subnet's pool info: "
-                    f"pool_index={pool_info.pool_index}, "
-                    f"domain={pool_info.domain}, "
-                    f"port={pool_info.port}"
-                )
+            if pool_infos:
+                logging.info(f"Retrieved {len(pool_infos)} subnet pools")
             else:
                 logging.warning(
                     f"No pool info found for subnet (hotkey: {self.pool_hotkey})"
                 )
 
-            return pool_info
+            return pool_infos
         except Exception as e:
             logging.error(f"Error getting subnet's pool info: {e}")
             return None
