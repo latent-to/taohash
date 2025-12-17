@@ -16,6 +16,7 @@ class CoinGeckoAPI(NetworkedCoinPriceAPI):
         self.coin_map = {
             "btc": "bitcoin",
             "bch": "bitcoin-cash",
+            "kas": "kaspa",
         }
         super().__init__(api_key)
 

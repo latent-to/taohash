@@ -3,7 +3,6 @@ import os
 
 from taohash.core.chain_data.pool_info import PoolInfo
 from taohash.core.pool.config import PoolAPIConfig
-from taohash.core.pool.pool import PoolIndex
 
 
 class ProxyPoolAPIConfig(PoolAPIConfig):
@@ -80,10 +79,10 @@ class ProxyPoolConfig:
         self.password = password
         self.high_diff_port = high_diff_port
 
-    def to_pool_info(self) -> PoolInfo:
+    def to_pool_info(self, pool_index: int = 0) -> PoolInfo:
         """Convert config to PoolInfo"""
         return PoolInfo(
-            pool_index=int(PoolIndex.Proxy),
+            pool_index=pool_index,
             ip=None,
             domain=self.domain,
             port=self.port,

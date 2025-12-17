@@ -19,7 +19,7 @@ import sys
 from bittensor import logging, Subtensor, config
 from bittensor_wallet.bittensor_wallet import Wallet
 
-from taohash.core.chain_data.pool_info import get_pool_info
+from taohash.core.chain_data.pool_info import get_pool_infos
 from taohash.core.pool import PoolIndex
 
 
@@ -48,11 +48,18 @@ def get_subnet_pool_info():
         help="Subtensor chain endpoint",
     )
     parser.add_argument(
-        "--btc_address",
+        "--coin",
         type=str,
-        default=os.getenv("BTC_ADDRESS"),
-        help="Bitcoin address for receiving mining rewards (REQUIRED)",
-        required=not os.getenv("BTC_ADDRESS"),
+        default="btc",
+        choices=["btc", "bch", "kas"],
+        help="Coin to mine (default: btc)",
+    )
+    parser.add_argument(
+        "--address",
+        type=str,
+        default=os.getenv("ADDRESS"),
+        help="Address for receiving mining rewards (REQUIRED)",
+        required=not os.getenv("ADDRESS"),
     )
 
     Wallet.add_args(parser)
@@ -84,16 +91,21 @@ def get_subnet_pool_info():
     uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
     logging.success(f"✓ Wallet registered on subnet with UID: {uid}")
 
-    btc_address = config_obj.btc_address
-    if not btc_address:
+    address = config_obj.address
+    if not address:
         logging.error(
-            "❌ BTC address is mandatory. Please set BTC_ADDRESS in .env or use --btc_address"
+            "❌ Address is mandatory. Please set ADDRESS in .env or use --address"
         )
         sys.exit(1)
 
-    if not btc_address.startswith(("1", "3", "bc1")):
-        logging.error(f"❌ Invalid BTC address format: {btc_address}")
-        sys.exit(1)
+    if config_obj.coin in ["btc", "bch"]:
+        if not address.startswith(("1", "3", "bc1", "bitcoincash:", "q", "p")):
+            logging.error(f"❌ Invalid {config_obj.coin.upper()} address format: {address}")
+            sys.exit(1)
+    elif config_obj.coin == "kas":
+        if not address.startswith("kaspa:"):
+            logging.error(f"❌ Invalid KAS address format (must start with 'kaspa:'): {address}")
+            sys.exit(1)
 
     try:
         logging.info("Fetching subnet information...")
@@ -112,17 +124,20 @@ def get_subnet_pool_info():
 
     try:
         logging.info("Fetching pool information...")
-        pool_info = get_pool_info(subtensor, config_obj.netuid, owner_hotkey)
+        pool_infos = get_pool_infos(subtensor, config_obj.netuid, owner_hotkey)
 
-        if not pool_info:
+        if not pool_infos:
             logging.error("No pool information found for subnet")
             sys.exit(1)
+        
+        logging.info(f"Retrieved {len(pool_infos)} pool configurations")
+        
+        pool_index = PoolIndex[config_obj.coin.upper()].value
+        pool_info = next((p for p in pool_infos if p.pool_index == pool_index), None)
 
-        if pool_info.pool_index != PoolIndex.Proxy:
-            logging.warning(
-                f"Pool type is not Proxy (found: {pool_info.pool_index}). "
-                f"This may not be a standard mining pool."
-            )
+        if not pool_info:
+            logging.error(f"No pool info found for {config_obj.coin.upper()}")
+            sys.exit(1)
 
     except Exception as e:
         logging.error(f"Error fetching pool info: {e}")
@@ -130,21 +145,21 @@ def get_subnet_pool_info():
 
     hotkey = wallet.hotkey.ss58_address
     worker_suffix = hotkey[:4] + hotkey[-4:]
-    worker_name = f"{btc_address}.{worker_suffix}"
+    worker_name = f"{address}.{worker_suffix}"
 
     # Display complete setup status
     print("\n" + "=" * 60)
     print("MINING SETUP STATUS")
     print("=" * 60)
     print(f"\n✓ Wallet registered on subnet {config_obj.netuid}")
-    print("✓ Pool information retrieved")
+    print(f"✓ Pool information retrieved for {config_obj.coin.upper()}")
 
     print("\n" + "=" * 60)
     print("SUBNET POOL CONFIGURATION")
     print("=" * 60)
 
     print("\nNormal Pool:")
-    print(f"  Stratum host: btc.taohash.com (or {pool_info.domain or pool_info.ip})")
+    print(f"  Stratum host: {config_obj.coin}.taohash.com (or {pool_info.domain or pool_info.ip})")
     print(f"  Stratum port: {pool_info.port}")
     print(f"  Stratum username: {worker_name}")
     print(f"  Stratum password: {pool_info.password or 'x'}")
@@ -152,7 +167,7 @@ def get_subnet_pool_info():
     if pool_info.high_diff_port:
         print("\nHigh Difficulty Pool:")
         print(
-            f"  Stratum host: btc.taohash.com (or {pool_info.domain or pool_info.ip})"
+            f"  Stratum host: {config_obj.coin}.taohash.com (or {pool_info.domain or pool_info.ip})"
         )
         print(f"  Stratum port: {pool_info.high_diff_port}")
         print(f"  Stratum username: {worker_name}")
@@ -172,7 +187,7 @@ def get_subnet_pool_info():
     print(f"  Your UID: {uid}")
     print(f"  Your Hotkey: {hotkey}")
     print(f"  Worker Suffix: {worker_suffix}")
-    print(f"  BTC Address: {btc_address}")
+    print(f"  Address: {address}")
 
     if hasattr(pool_info, "extra_data") and pool_info.extra_data:
         if "description" in pool_info.extra_data:

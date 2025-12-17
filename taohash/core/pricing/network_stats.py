@@ -27,6 +27,12 @@ DIFFICULTY_APIS: dict[str, dict[str, Any]] = {
         "response_type": "json",
         "fallback": 740_000_000_000,  # ~740B (as of Nov 2024)
     },
+    "kas": {
+        "url": "https://api.kaspa.org/info/difficulty",
+        "response_type": "json_field",
+        "field_name": "difficulty",
+        "fallback": 400_000_000,
+    },
 }
 
 
@@ -35,7 +41,7 @@ def _fetch_difficulty(coin: str = "btc") -> float:
     Fetch current difficulty for specified cryptocurrency.
 
     Args:
-        coin: Cryptocurrency identifier (e.g., "btc", "bch")
+        coin: Cryptocurrency identifier (e.g., "btc", "bch", "kas")
 
     Returns:
         float: Current network difficulty
@@ -54,6 +60,8 @@ def _fetch_difficulty(coin: str = "btc") -> float:
             difficulty = float(response.text.strip())
         elif config["response_type"] == "json":
             difficulty = float(response.json())
+        elif config["response_type"] == "json_field":
+            difficulty = float(response.json()[config["field_name"]])
         else:
             raise ValueError(f"Unknown response type: {config['response_type']}")
 

@@ -2,7 +2,7 @@
 
 This guide will walk you through setting up and running a TaoHash miner on the Bittensor network.
 
-As of now, TAOHash support Bitcoin and Bitcoin Cash mining protocols.
+As of now, TAOHash support Bitcoin, Bitcoin Cash, and Kaspa mining protocols.
 
 TaoHash enables miners to contribute hashpower to collective mining pools. All miners direct their hashpower to a single subnet pool for that specific coin, where validators evaluate and rank miners based on the share value they generate.
 
@@ -132,12 +132,21 @@ cd taohash
 # Install dependencies
 pip install -e .
 
-# Get your mining configuration
+# Get your mining configuration (BTC)
 python taohash/miner/miner.py \
     --wallet.name <YOUR_WALLET> \
     --wallet.hotkey <YOUR_HOTKEY> \
     --subtensor.network finney \
-    --btc_address <YOUR_BTC_ADDRESS>
+    --coin btc \
+    --address <YOUR_BTC_ADDRESS>
+
+# Get your mining configuration (Kaspa)
+python taohash/miner/miner.py \
+    --wallet.name <YOUR_WALLET> \
+    --wallet.hotkey <YOUR_HOTKEY> \
+    --subtensor.network finney \
+    --coin kas \
+    --address kaspa:<YOUR_KASPA_ADDRESS>
 ```
 
 This outputs your pool configuration:

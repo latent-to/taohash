@@ -89,16 +89,19 @@ class BraiinsMiner(BaseMiner):
             2. Verify it's a Proxy pool
             3. Enhance pool data with worker-specific username
         """
-        subnet_pool_info = self.get_subnet_pool()
-        if not subnet_pool_info:
+        subnet_pool_infos = self.get_subnet_pools()
+        if not subnet_pool_infos:
             logging.error("Subnet's pool has not published information")
             return {}
 
-        if subnet_pool_info.pool_index != PoolIndex.Proxy:
-            logging.error(
-                f"Subnet's pool is not a Proxy pool (index: {subnet_pool_info.pool_index}). "
-                f"Expected PoolIndex.Proxy ({PoolIndex.Proxy})"
-            )
+        # Default to BTC for BraiinsMiner
+        # TODO: Make this configurable if we want KAS support here too
+        target_pool_index = PoolIndex.BTC.value
+        
+        subnet_pool_info = next((p for p in subnet_pool_infos if p.pool_index == target_pool_index), None)
+
+        if not subnet_pool_info:
+            logging.error(f"No pool info found for BTC (index {target_pool_index})")
             return {}
 
         subnet_pool_info.extra_data["full_username"] = (

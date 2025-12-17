@@ -52,14 +52,14 @@ class ProxyPoolAPI(PoolAPI):
     )
     @limits(calls=1, period=2)
     def get_worker_data(
-        self, worker_id: str, coin: str = "bitcoin"
+        self, worker_id: str, coin: str = "btc"
     ) -> Optional[dict[str, Any]]:
         """
         Get worker data from the proxy API.
 
         Args:
             worker_id: The worker ID (hotkey)
-            coin: The coin type (default: "bitcoin")
+            coin: The coin type (default: "btc")
 
         Returns:
             Worker data dict with hash_rate_5m, hash_rate_60m, shares_5m, shares_60m
@@ -73,7 +73,7 @@ class ProxyPoolAPI(PoolAPI):
 
             data = response.json()
 
-            workers = data.get("btc", {}).get("workers", {})
+            workers = data.get(coin, {}).get("workers", {})
 
             if worker_id not in workers:
                 logging.debug(f"Worker {worker_id} not found in proxy response")
@@ -98,12 +98,13 @@ class ProxyPoolAPI(PoolAPI):
         max_tries=5,
     )
     @limits(calls=1, period=2)
-    def get_all_workers_data(self, coin: str = "bitcoin") -> dict[str, dict[str, Any]]:
+    @limits(calls=1, period=2)
+    def get_all_workers_data(self, coin: str = "btc") -> dict[str, dict[str, Any]]:
         """
         Get data for all workers from the proxy API.
 
         Args:
-            coin: The coin type (default: "bitcoin")
+            coin: The coin type (default: "btc")
 
         Returns:
             Dict mapping worker_id to worker data
@@ -116,7 +117,7 @@ class ProxyPoolAPI(PoolAPI):
 
             data = response.json()
 
-            workers = data.get("btc", {}).get("workers", {})
+            workers = data.get(coin, {}).get("workers", {})
 
             result = {}
             for worker_id, worker_data in workers.items():
