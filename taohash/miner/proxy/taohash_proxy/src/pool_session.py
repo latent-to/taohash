@@ -136,13 +136,18 @@ class PoolSession:
                 f"Sent subscription request with id {subscription_id}",
             )
 
-            subscription_response_raw = await pool_reader.readline()
-            subscription_response = json.loads(subscription_response_raw.decode())
-            log_stratum_message(
-                logger,
-                subscription_response,
-                f"Received subscription response: {subscription_response}",
-            )
+            # GSW Edited this as it was broken
+            subscription_response = None
+            while subscription_response is None:
+                subscription_response_raw = await pool_reader.readline()
+                msg = json.loads(subscription_response_raw.decode())
+                log_stratum_message(logger, msg, f"Received message during subscribe: {msg}")
+                if msg.get('id') == subscription_id:
+                    subscription_response = msg
+                else:
+                    logger.info(f"Skipping notification during subscribe: {msg.get('method')}")
+            # end edit
+
 
             # Parse and store subscription_ids, extranonce1, extranonce2_size
             subscription_result = subscription_response.get("result", [])
