@@ -26,7 +26,7 @@ See also:
 Bittensor Docs:
 
 - [Requirements for Validation](https://docs.learnbittensor.org/validators/#requirements-for-validation)
-- [Validator registration](./validators/index.md#validator-registration)
+- [Validator registration](https://docs.learnbittensor.org/validators#validator-registration)
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
 
 ## Setup Steps
