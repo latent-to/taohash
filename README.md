@@ -93,7 +93,7 @@ See: [TAOHash miner guide](/docs/running_miner.md)
 **Related Bittensor Documentation**:
 
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
-- [Miner registration](./miners/index.md#miner-registration)
+- [Miner registration](https://docs.learnbittensor.org/miners#miner-registration)
 
 ## Validator Requirements
 
@@ -108,7 +108,7 @@ See: [TAOHash validator guide](/docs/running_validator.md)
 
 **Related Bittensor Documentation**:
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
-- [Validator registration](./validators/index.md#validator-registration)
+- [Validator registration](https://docs.learnbittensor.org/validators#validator-registration)
 
 # Installation
 

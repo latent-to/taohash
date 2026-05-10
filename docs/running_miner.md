@@ -66,7 +66,7 @@ To run a TaoHash miner, you will need:
 Bittensor Docs:
 
 - [Wallets, Coldkeys and Hotkeys in Bittensor](https://docs.learnbittensor.org/getting-started/wallets)
-- [Miner registration](./miners/index.md#miner-registration)
+- [Miner registration](https://docs.learnbittensor.org/miners#miner-registration)
 
 ## Quick Start
 
